@@ -1,0 +1,13 @@
+# Strands Agents SDK with Gemini Live support
+strands-agents[bidi-gemini]
+
+# Audio I/O for voice conversations
+pyaudio>=0.2.14
+
+# HTTP server with CORS
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.0
+
+# Alternative: install all bidi providers
+# strands-agents[bidi-all]
