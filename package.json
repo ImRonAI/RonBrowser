@@ -1,0 +1,48 @@
+{
+  "name": "ronbrowser",
+  "main": "dist/electron/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:agent\" --names \"electron,agent\" --prefix-colors \"cyan,magenta\"",
+    "dev:vite": "electron-vite dev",
+    "dev:agent": "cd agents/voice_onboarding && source ../../venv/bin/activate && python agent_server.py",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron .",
+    "package": "electron-builder",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.0.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^9.2.1",
+    "electron": "^30.0.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.4.2",
+    "@supabase/supabase-js": "^2.49.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.26",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwind-merge": "^3.4.0",
+    "three": "^0.182.0",
+    "zustand": "^5.0.9"
+  },
+  "description": ""
+}

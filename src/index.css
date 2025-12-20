@@ -1,0 +1,448 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles for Ron Browser */
+@layer base {
+  :root {
+    /* Light mode colors */
+    --color-royal: 45 59 135; /* #2D3B87 */
+    --color-royal-light: 60 80 190; /* #3C50BE */
+    --color-royal-dark: 26 36 84; /* #1A2454 */
+    --color-glass-tint: 224 240 255; /* #E0F0FF */
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  /* Glass mode background - the stunning wallpaper peek-through */
+  html.glass {
+    --glass-blur: 80px;
+    --glass-saturation: 180%;
+    --glass-opacity: 0.08;
+    --glass-border-opacity: 0.15;
+  }
+
+  body {
+    @apply bg-ron-white text-ron-text dark:bg-ron-black dark:text-white;
+    @apply font-raleway font-raleway-light;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Electron app - no browser scrollbars */
+  }
+
+  /* Glass mode - let Electron vibrancy show through */
+  html.glass,
+  html.glass body {
+    background: transparent !important;
+  }
+
+  .glass body {
+    color: #1a1a1a;
+  }
+
+  /* Georgia headers */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-georgia;
+  }
+
+  /* Small text with Raleway Bold */
+  small, .small-text {
+    @apply font-raleway font-raleway-bold;
+  }
+
+  /* Smooth scrolling */
+  * {
+    scroll-behavior: smooth;
+  }
+
+  /* Selection color */
+  ::selection {
+    @apply bg-royal/20 dark:bg-royal-light/30;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-ron-smoke;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500 dark:bg-gray-500;
+  }
+}
+
+/* Noise texture overlay for dark mode */
+@layer utilities {
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .noise-texture::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.03;
+    background-image: url('/textures/noise.png');
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Ensure content is above noise texture */
+  .noise-texture > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Frosted glass effect for Chrome UI */
+  .chrome-glass {
+    @apply bg-white/70 dark:bg-slate-900/75;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .chrome-glass-dark {
+    background: rgba(20, 25, 40, 0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* 3D transform utilities */
+  .transform-3d {
+    transform-style: preserve-3d;
+    perspective: 1000px;
+  }
+
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+}
+
+/* Animation classes */
+@layer components {
+  /* Pulsing orb for voice interface */
+  .orb-pulse {
+    @apply relative;
+    animation: orb-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes orb-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.1);
+    }
+  }
+
+  /* Audio visualization bars */
+  .audio-bar {
+    @apply bg-royal dark:bg-royal-light;
+    animation: audio-wave 1.4s ease-in-out infinite;
+  }
+
+  .audio-bar:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .audio-bar:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  .audio-bar:nth-child(4) {
+    animation-delay: 0.6s;
+  }
+
+  .audio-bar:nth-child(5) {
+    animation-delay: 0.8s;
+  }
+
+  /* Thinking dots */
+  .thinking-dot {
+    @apply inline-block w-2 h-2 bg-royal dark:bg-royal-light rounded-full mx-1;
+    animation: thinking 1.4s ease-in-out infinite;
+  }
+
+  .thinking-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .thinking-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+/* Electron-specific styles */
+@layer components {
+  /* Draggable region for custom title bar */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Traffic lights placeholder (macOS) */
+  .traffic-lights-space {
+    width: 68px;
+    height: 100%;
+  }
+}
+
+/* Glass effects - outside @layer for proper specificity */
+.glass-ultra {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+html.dark .glass-ultra {
+  background: rgba(20, 20, 25, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html.glass .glass-ultra {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass-frosted {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+html.dark .glass-frosted {
+  background: rgba(25, 25, 30, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+html.glass .glass-frosted {
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Prevent text selection in UI elements */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* ============================================
+   GLASS MODE - The Stunning Frosted UI
+   Near transparent but with just enough frost
+   ============================================ */
+
+/* Glass mode chrome/toolbar - bright white tint */
+.glass .chrome-glass {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Glass surfaces - cards, panels - bright and clear */
+.glass .glass-surface,
+.glass [class*="bg-white"],
+.glass [class*="bg-slate-"],
+.glass [class*="bg-gray-"] {
+  background: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Glass input fields */
+.glass input,
+.glass textarea,
+.glass select {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  color: #000;
+}
+
+.glass input::placeholder,
+.glass textarea::placeholder {
+  color: #666;
+}
+
+.glass input:focus,
+.glass textarea:focus,
+.glass select:focus {
+  border-color: rgba(45, 59, 135, 0.4) !important;
+  box-shadow: 0 0 0 3px rgba(45, 59, 135, 0.1);
+}
+
+/* Glass buttons */
+.glass button:not([class*="bg-royal"]) {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass button:hover:not([class*="bg-royal"]) {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+/* Glass scrollbars */
+.glass ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.glass ::-webkit-scrollbar-thumb {
+  background: rgba(100, 100, 100, 0.3);
+  border-radius: 4px;
+}
+
+.glass ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.5);
+}
+
+/* Glass selection */
+.glass ::selection {
+  background: rgba(45, 59, 135, 0.25);
+}
+
+/* Glass text - dark, readable */
+.glass h1,
+.glass h2,
+.glass h3,
+.glass h4,
+.glass h5,
+.glass h6 {
+  color: #0a0a0a;
+}
+
+.glass p,
+.glass span,
+.glass div,
+.glass label {
+  color: #1a1a1a;
+}
+
+/* Glass subtle glow for focus states */
+.glass *:focus-visible {
+  outline: 2px solid rgba(45, 59, 135, 0.4);
+  outline-offset: 2px;
+}
+
+/* Glass hover lift effect */
+.glass .hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* Glass modal/dialog overlay */
+.glass [role="dialog"],
+.glass .modal,
+.glass .dialog {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 25px 80px rgba(0, 0, 0, 0.15);
+}
+
+/* Glass tab bar */
+.glass .tab-active {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Glass URL bar specific */
+.glass .url-bar {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.glass .url-bar:focus-within {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(45, 59, 135, 0.4);
+}
+
+/* Glass agent panel */
+.glass .agent-panel {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Glass context menu */
+.glass .context-menu {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+    0 20px 60px rgba(0, 0, 0, 0.06);
+}
+
+/* Glass badges and pills */
+.glass .badge,
+.glass .pill {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Subtle noise texture for depth in glass mode */
+.glass .with-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Glass transition for mode switching */
+.glass * {
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}

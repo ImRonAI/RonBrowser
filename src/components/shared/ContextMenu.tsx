@@ -1,0 +1,301 @@
+import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState, useRef } from 'react'
+import { useAgentStore } from '@/stores/agentStore'
+import {
+  ClipboardDocumentIcon,
+  ScissorsIcon,
+  ClipboardIcon,
+  ChatBubbleLeftIcon,
+  CheckIcon,
+} from '@heroicons/react/24/outline'
+
+interface ContextMenuProps {
+  x: number
+  y: number
+  isOpen: boolean
+  onClose: () => void
+  selectedText?: string
+}
+
+export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenuProps) {
+  const { startViewingScreen } = useAgentStore()
+  const [screenshot, setScreenshot] = useState<string | null>(null)
+  const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Adjust position to keep menu within viewport
+  const [adjustedPosition, setAdjustedPosition] = useState({ x, y })
+
+  useEffect(() => {
+    if (isOpen && menuRef.current) {
+      const menuRect = menuRef.current.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      let newX = x
+      let newY = y
+
+      // Adjust horizontal position
+      if (x + menuRect.width > viewportWidth - 10) {
+        newX = viewportWidth - menuRect.width - 10
+      }
+
+      // Adjust vertical position
+      if (y + menuRect.height > viewportHeight - 10) {
+        newY = viewportHeight - menuRect.height - 10
+      }
+
+      setAdjustedPosition({ x: newX, y: newY })
+    } else {
+      setAdjustedPosition({ x, y })
+    }
+  }, [isOpen, x, y])
+
+  // Capture screenshot when context menu opens
+  useEffect(() => {
+    if (isOpen) {
+      // In a real implementation, this would capture the actual screen
+      // For now, we'll just set a placeholder
+      // TODO: Integrate with Electron's desktopCapturer or similar
+      setScreenshot(null)
+      setCopiedFeedback(null)
+    }
+  }, [isOpen])
+
+  const showFeedback = (action: string) => {
+    setCopiedFeedback(action)
+    setTimeout(() => setCopiedFeedback(null), 1500)
+  }
+
+  const handleCopy = async () => {
+    if (selectedText) {
+      try {
+        await navigator.clipboard.writeText(selectedText)
+        showFeedback('Copied!')
+        setTimeout(onClose, 300)
+      } catch (err) {
+        console.error('Failed to copy:', err)
+        onClose()
+      }
+    } else {
+      onClose()
+    }
+  }
+
+  const handleCopyMarkdown = async () => {
+    if (selectedText) {
+      try {
+        // Wrap in backticks for markdown code
+        await navigator.clipboard.writeText(`\`${selectedText}\``)
+        showFeedback('Copied as Markdown!')
+        setTimeout(onClose, 300)
+      } catch (err) {
+        console.error('Failed to copy:', err)
+        onClose()
+      }
+    } else {
+      onClose()
+    }
+  }
+
+  const handleCut = async () => {
+    if (selectedText) {
+      try {
+        await navigator.clipboard.writeText(selectedText)
+        // Execute cut command to remove selected text
+        document.execCommand('cut')
+        showFeedback('Cut!')
+        setTimeout(onClose, 300)
+      } catch (err) {
+        console.error('Failed to cut:', err)
+        onClose()
+      }
+    } else {
+      onClose()
+    }
+  }
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      // Get the active element and paste
+      const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        const start = activeElement.selectionStart || 0
+        const end = activeElement.selectionEnd || 0
+        const currentValue = activeElement.value
+        activeElement.value = currentValue.substring(0, start) + text + currentValue.substring(end)
+        activeElement.selectionStart = activeElement.selectionEnd = start + text.length
+        // Trigger input event for React
+        activeElement.dispatchEvent(new Event('input', { bubbles: true }))
+        showFeedback('Pasted!')
+        setTimeout(onClose, 300)
+      } else {
+        // Try execCommand for contenteditable elements
+        document.execCommand('insertText', false, text)
+        showFeedback('Pasted!')
+        setTimeout(onClose, 300)
+      }
+    } catch (err) {
+      console.error('Failed to paste:', err)
+      onClose()
+    }
+  }
+
+  const handleAskRon = () => {
+    startViewingScreen(screenshot || undefined)
+    onClose()
+  }
+
+  // Close on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop to catch clicks */}
+          <div className="fixed inset-0 z-[100]" onClick={onClose} />
+
+          {/* Context Menu */}
+          <motion.div
+            ref={menuRef}
+            role="menu"
+            aria-label="Context Menu"
+            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+            transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed z-[9999] rounded-xl py-1.5 min-w-[220px] overflow-hidden shadow-2xl bg-white dark:bg-zinc-800 border border-black/10 dark:border-white/10"
+            style={{
+              left: `${adjustedPosition.x}px`,
+              top: `${adjustedPosition.y}px`,
+            }}
+          >
+            {/* Feedback toast */}
+            <AnimatePresence>
+              {copiedFeedback && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute top-0 left-0 right-0 px-3 py-1.5 flex items-center justify-center gap-2 text-xs font-raleway font-raleway-bold bg-green-500/20 text-green-700 dark:text-green-400"
+                >
+                  <CheckIcon className="w-3.5 h-3.5" />
+                  {copiedFeedback}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Standard clipboard actions */}
+            {selectedText && (
+              <>
+                <MenuItem
+                  icon={<ClipboardDocumentIcon className="w-4 h-4" />}
+                  label="Copy"
+                  onClick={handleCopy}
+                  shortcut="⌘C"
+                />
+                <MenuItem
+                  icon={<ClipboardIcon className="w-4 h-4" />}
+                  label="Copy as Markdown"
+                  onClick={handleCopyMarkdown}
+                />
+                <MenuItem
+                  icon={<ScissorsIcon className="w-4 h-4" />}
+                  label="Cut"
+                  onClick={handleCut}
+                  shortcut="⌘X"
+                />
+              </>
+            )}
+
+            <MenuItem
+              icon={<ClipboardIcon className="w-4 h-4" />}
+              label="Paste"
+              onClick={handlePaste}
+              shortcut="⌘V"
+            />
+
+            {/* Separator */}
+            <div className="my-1.5 h-px mx-2 bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
+
+            {/* Ask Ron - special highlight */}
+            <motion.button
+              role="menuitem"
+              onClick={handleAskRon}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              className="w-full px-3 py-2.5 mx-0 flex items-center gap-3 text-left transition-all duration-200 group hover:bg-royal/10 dark:hover:bg-royal-light/15"
+            >
+              <motion.div
+                className="flex-shrink-0"
+                animate={{
+                  scale: [1, 1.1, 1],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                <ChatBubbleLeftIcon className="w-4 h-4 text-royal dark:text-royal-light" />
+              </motion.div>
+              <span className="text-sm font-raleway font-raleway-bold text-royal dark:text-royal-light">
+                Ask Ron?
+              </span>
+              {selectedText && (
+                <span className="ml-auto text-xs font-raleway text-ron-text/40 dark:text-white/40 group-hover:text-royal/70 dark:group-hover:text-royal-light/70">
+                  with selection
+                </span>
+              )}
+            </motion.button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+interface MenuItemProps {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  shortcut?: string
+}
+
+function MenuItem({ icon, label, onClick, shortcut }: MenuItemProps) {
+  return (
+    <motion.button
+      role="menuitem"
+      onClick={onClick}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      className="w-full px-3 py-2 flex items-center gap-3 text-left transition-colors duration-200 hover:bg-black/5 dark:hover:bg-white/10"
+    >
+      <span className="flex-shrink-0 text-ron-text/60 dark:text-white/60">
+        {icon}
+      </span>
+      <span className="flex-1 text-sm font-raleway text-ron-text dark:text-white">
+        {label}
+      </span>
+      {shortcut && (
+        <span className="text-xs font-raleway text-ron-text/40 dark:text-white/40">
+          {shortcut}
+        </span>
+      )}
+    </motion.button>
+  )
+}
