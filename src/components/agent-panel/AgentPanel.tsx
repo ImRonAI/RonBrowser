@@ -5,10 +5,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
 import { ContextPicker, type ContextItem } from './ContextPicker'
-import { TabContextPicker } from './TabContextPicker'
 import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
-import type { TabSummary } from '@/types/electron'
-
 const EASE = [0.16, 1, 0.3, 1] as const
 
 // Sleek pill suggestions - minimal & elegant
@@ -20,6 +17,13 @@ const SUGGESTIONS = [
 ]
 
 
+interface TabContextAttachment {
+  id: string
+  url: string
+  title: string
+  favicon?: string
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -28,6 +32,7 @@ interface Message {
   reasoning?: string
   isReasoningComplete?: boolean
   toolCalls?: { action: string; params: Record<string, unknown>; result?: Record<string, unknown> }[]
+  tabContexts?: TabContextAttachment[]
 }
 
 export function AgentPanel() {
@@ -50,24 +55,7 @@ export function AgentPanel() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
-  const [selectedTabIds, setSelectedTabIds] = useState<string[]>([])
-  const [tabSummaries, setTabSummaries] = useState<TabSummary[]>([])
 
-  // Keep a live list of tabs for chip labels/favicons
-  useEffect(() => {
-    let off: (() => void) | undefined
-    const load = async () => {
-      try {
-        const list = await window.electron?.tabs.list?.()
-        if (Array.isArray(list)) setTabSummaries(list)
-      } catch {}
-    }
-    load()
-    if (window.electron?.tabs?.onUpdated) {
-      off = window.electron.tabs.onUpdated((list) => setTabSummaries(list))
-    }
-    return () => { if (off) off() }
-  }, [])
   const [isTyping, setIsTyping] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -88,39 +76,50 @@ export function AgentPanel() {
     const messageText = text || input.trim()
     if (!messageText) return
 
+    // Extract tab IDs from selectedContexts
+    const selectedTabContextItems = selectedContexts.filter(c => c.type === 'tab')
+    
     // Resolve selected tab contexts before sending
     let selectedTabsContext: any[] = []
+    let tabContextAttachments: TabContextAttachment[] = []
     try {
-      if (selectedTabIds.length && window.electron?.tabs?.getContext) {
+      if (selectedTabContextItems.length) {
         const results = await Promise.all(
-          selectedTabIds.map(async (id) => {
-            const res = await window.electron!.tabs.getContext(id)
+          selectedTabContextItems.map(async (item) => {
+            const res = await window.electron!.tabs.getContext(item.id)
             return res.success ? res.context : null
           })
         )
         selectedTabsContext = results.filter(Boolean) as any[]
+        // Create lightweight attachments for display in chat
+        tabContextAttachments = selectedTabsContext.map(ctx => ({
+          id: ctx.id,
+          url: ctx.url,
+          title: ctx.title,
+          favicon: ctx.favicon,
+        }))
       }
     } catch (e) {
       console.error('Failed to collect tab context', e)
     }
 
-    // Add user message
+    // Add user message with tab context attachments
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content: messageText,
+      tabContexts: tabContextAttachments.length > 0 ? tabContextAttachments : undefined,
     }
     setMessages(prev => [...prev, userMessage])
     setInput('')
+    setSelectedContexts([]) // Clear all context selections after sending
     setIsTyping(true)
 
-    // TODO: Replace simulated flow with real agent call if desired
     // Attach selected tab contexts to agent request context
     try {
       useAgentStore.getState().sendMessage(messageText, {
         currentUrl: typeof window !== 'undefined' && window.electron?.browser ? undefined : undefined,
-        // Attachments: selected tabs full context
-        // (Your API can read this to provide rich browsing context)
+        // Attachments: selected tabs full context (full DOM, cookies, etc.)
         // @ts-ignore - extra context field for backend
         selectedTabs: selectedTabsContext,
       })
@@ -197,7 +196,7 @@ export function AgentPanel() {
           leaveFrom="translate-x-0"
           leaveTo="translate-x-full"
         >
-          <div className="relative w-[420px] pointer-events-auto">
+          <div className="relative w-[420px] h-full pointer-events-auto">
             {/* Panel Container */}
             <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900 border-l border-surface-200 dark:border-surface-700 shadow-dramatic">
               
@@ -273,28 +272,9 @@ export function AgentPanel() {
               </AnimatePresence>
 
               {/* Main Content Area */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <AnimatePresence mode="wait">
-                  {askRonStep !== 'closed' && askRonStep !== undefined ? (
-                    <motion.div
-                      key="ask-ron"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="h-full"
-                    >
-                      <AskRonOptions 
-                        selectedText={askRonSelectedText || ''}
-                        sourceUrl={askRonSourceUrl || ''}
-                        isLoading={askRonStep === 'loading' || askRonStep === 'executing'}
-                        thinkingText={askRonThinkingText}
-                        options={askRonOptions}
-                        onSelectOption={selectAskRonOption}
-                        onSelectSomethingElse={() => setAskRonStep('custom-prompt')}
-                        onClose={closeAskRon}
-                      />
-                    </motion.div>
-                  ) : interactionMode === 'voice' ? (
+                  {interactionMode === 'voice' ? (
                     <VoiceMode key="voice" />
                   ) : (
                     <TextMode
@@ -317,26 +297,39 @@ export function AgentPanel() {
                   transition={{ delay: 0.2, ease: EASE }}
                   className="flex-shrink-0 p-4 border-t border-surface-100 dark:border-surface-800"
                 >
-                  {/* Multiselect Listbox for Tabs */}
-                  <TabContextPicker
-                    selectedTabIds={selectedTabIds}
-                    onSelectionChange={setSelectedTabIds}
-                    className="mb-2"
-                  />
+                  {/* Ask Ron Options - Inline listbox */}
+                  <AnimatePresence>
+                    {askRonStep !== 'closed' && askRonStep !== undefined && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        className="mb-3"
+                      >
+                        <AskRonOptions 
+                          selectedText={askRonSelectedText || ''}
+                          sourceUrl={askRonSourceUrl || ''}
+                          isLoading={askRonStep === 'loading' || askRonStep === 'executing'}
+                          thinkingText={askRonThinkingText}
+                          options={askRonOptions}
+                          onSelectOption={selectAskRonOption}
+                          onSelectSomethingElse={() => setAskRonStep('custom-prompt')}
+                          onClose={closeAskRon}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                  {/* Selected Tab Chips */}
-                  {selectedTabIds.length > 0 && (
+                  {/* Selected Context Chips */}
+                  {selectedContexts.length > 0 && (
                     <div className="mb-3 px-1 flex flex-wrap gap-2">
-                      {selectedTabIds
-                        .map(id => tabSummaries.find(t => t.id === id))
-                        .filter(Boolean)
-                        .map(tab => (
-                          <TabChip
-                            key={(tab as TabSummary).id}
-                            tab={tab as TabSummary}
-                            onRemove={() => setSelectedTabIds(prev => prev.filter(x => x !== (tab as TabSummary).id))}
-                          />
-                        ))}
+                      {selectedContexts.map(context => (
+                        <ContextChip
+                          key={context.id}
+                          context={context}
+                          onRemove={() => setSelectedContexts(prev => prev.filter(c => c.id !== context.id))}
+                        />
+                      ))}
                     </div>
                   )}
 
@@ -566,12 +559,12 @@ function TextMode({ messages, isEmpty, isTyping, onSuggestionClick, messagesEndR
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
       transition={{ ease: EASE }}
-      className="h-full flex flex-col overflow-hidden"
+      className="h-full flex flex-col overflow-hidden min-h-0"
     >
       {isEmpty ? (
         <EmptyState onSuggestionClick={onSuggestionClick} />
       ) : (
-        <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
           {messages.map((message) => (
             <MessageBubble key={message.id} message={message} />
           ))}
@@ -686,6 +679,36 @@ function MessageBubble({ message }: { message: Message }) {
       className={cn("flex", isUser ? "justify-end" : "justify-start")}
     >
       <div className={cn("max-w-[85%]", isUser ? "order-2" : "order-1")}>
+        {/* Tab context attachments (for user messages) */}
+        {isUser && message.tabContexts && message.tabContexts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-2 flex flex-wrap gap-1.5 justify-end"
+          >
+            {message.tabContexts.map((tab) => (
+              <div
+                key={tab.id}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg",
+                  "bg-white/20 backdrop-blur-sm",
+                  "border border-white/30",
+                  "text-xs text-white/90"
+                )}
+              >
+                {tab.favicon ? (
+                  <img src={tab.favicon} alt="" className="w-3 h-3 rounded-sm" />
+                ) : (
+                  <GlobeIcon className="w-3 h-3 opacity-70" />
+                )}
+                <span className="max-w-[120px] truncate font-medium">
+                  {tab.title || new URL(tab.url).hostname}
+                </span>
+              </div>
+            ))}
+          </motion.div>
+        )}
+
         {/* Reasoning (for assistant) */}
         {!isUser && message.reasoning && (
           <motion.div
@@ -755,10 +778,10 @@ function TypingIndicator() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB CHIP
+// CONTEXT CHIP
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TabChip({ tab, onRemove }: { tab: TabSummary; onRemove: () => void }) {
+function ContextChip({ context, onRemove }: { context: ContextItem; onRemove: () => void }) {
   return (
     <div
       className={cn(
@@ -766,13 +789,13 @@ function TabChip({ tab, onRemove }: { tab: TabSummary; onRemove: () => void }) {
         'bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700'
       )}
     >
-      {tab.favicon ? (
-        <img src={tab.favicon} alt="" className="w-4 h-4 rounded" />
+      {context.favicon ? (
+        <img src={context.favicon} alt="" className="w-4 h-4 rounded" />
       ) : (
         <GlobeIcon className="w-4 h-4 text-ink-muted dark:text-ink-inverse-muted" />
       )}
       <span className="text-body-xs text-ink dark:text-ink-inverse max-w-[160px] truncate">
-        {tab.title || tab.url}
+        {context.name}
       </span>
       <button
         onClick={onRemove}

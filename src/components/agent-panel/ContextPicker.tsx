@@ -36,6 +36,7 @@ export interface ContextItem {
   icon?: React.ComponentType<{ className?: string }>
   meta?: string // e.g., "2 hours ago", "3 files"
   color?: string
+  favicon?: string // URL to favicon image (for tabs)
 }
 
 interface ContextCategory {
@@ -124,6 +125,7 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
             name: t.title || t.url,
             description: t.url,
             meta: t.isActive ? 'Active' : undefined,
+            favicon: t.favicon,
           }))
           setOpenTabs(items)
         }
@@ -424,11 +426,15 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
                               isSelected(item.id) && "bg-accent/5 dark:bg-accent-light/5"
                             )}
                           >
-                            {/* Color dot or icon */}
-                            {item.color ? (
+                            {/* Favicon for tabs, color dot for others */}
+                            {item.favicon ? (
+                              <img src={item.favicon} alt="" className="w-4 h-4 rounded flex-shrink-0" />
+                            ) : item.color ? (
                               <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", item.color)} />
+                            ) : item.type === 'tab' ? (
+                              <GlobeAltIcon className="w-4 h-4 text-ink-muted dark:text-ink-inverse-muted flex-shrink-0" />
                             ) : (
-                              <div className="w-2.5" />
+                              <div className="w-4" />
                             )}
                             
                             <div className="flex-1 min-w-0">

@@ -72,7 +72,7 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
     )}>
       {/* Browser Chrome - Elevated Header */}
       <div className={cn(
-        "flex-shrink-0 relative z-50",
+        "flex-shrink-0 relative z-[100]",
         // Background
         "bg-surface-0/95 dark:bg-surface-900/95",
         "backdrop-blur-xl",
