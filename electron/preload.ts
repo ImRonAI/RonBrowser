@@ -133,20 +133,127 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('voice-agent:error', handler)
     },
 
-    onStopped: (callback: (data: { code: number | null }) => void) => {
-      const handler = (_: unknown, data: { code: number | null }) => callback(data)
+    onStopped: (callback: (data: { code: number | null; signal?: NodeJS.Signals | null }) => void) => {
+      const handler = (_: unknown, data: { code: number | null; signal?: NodeJS.Signals | null }) => callback(data)
       ipcRenderer.on('voice-agent:stopped', handler)
       return () => ipcRenderer.removeListener('voice-agent:stopped', handler)
     },
   },
 
   // ----------------------------------------
-  // Tab Management (Future)
+  // Browser Agent (CDP-based, Electron-only)
+  // ----------------------------------------
+  browserAgent: {
+    // Start browser agent process
+    start: () => ipcRenderer.invoke('browser-agent:start'),
+
+    // Stop browser agent process
+    stop: () => ipcRenderer.invoke('browser-agent:stop'),
+
+    // Send a message to agent (task or action)
+    send: (message: { action?: string; task?: string }) =>
+      ipcRenderer.invoke('browser-agent:send', message),
+
+    // Get CDP port info
+    getCdpPort: () => ipcRenderer.invoke('browser-agent:get-cdp-port'),
+
+    // Event listeners for streaming
+    onEvent: (callback: (event: {
+      type: string;
+      content: string;
+      data?: Record<string, unknown>;
+      timestamp?: string;
+    }) => void) => {
+      const handler = (_: unknown, event: {
+        type: string;
+        content: string;
+        data?: Record<string, unknown>;
+        timestamp?: string;
+      }) => callback(event)
+      ipcRenderer.on('browser-agent:event', handler)
+      return () => ipcRenderer.removeListener('browser-agent:event', handler)
+    },
+
+    onOutput: (callback: (output: string) => void) => {
+      const handler = (_: unknown, output: string) => callback(output)
+      ipcRenderer.on('browser-agent:output', handler)
+      return () => ipcRenderer.removeListener('browser-agent:output', handler)
+    },
+
+    onError: (callback: (error: string) => void) => {
+      const handler = (_: unknown, error: string) => callback(error)
+      ipcRenderer.on('browser-agent:error', handler)
+      return () => ipcRenderer.removeListener('browser-agent:error', handler)
+    },
+
+    onStopped: (callback: (data: { code: number | null }) => void) => {
+      const handler = (_: unknown, data: { code: number | null }) => callback(data)
+      ipcRenderer.on('browser-agent:stopped', handler)
+      return () => ipcRenderer.removeListener('browser-agent:stopped', handler)
+    },
+  },
+
+  // ----------------------------------------
+  // Browser Navigation
+  // ----------------------------------------
+  browser: {
+    navigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),
+    search: (query: string) => ipcRenderer.invoke('browser:search', query),
+    goBack: () => ipcRenderer.invoke('browser:go-back'),
+    goForward: () => ipcRenderer.invoke('browser:go-forward'),
+    reload: () => ipcRenderer.invoke('browser:reload'),
+    getUrl: () => ipcRenderer.invoke('browser:get-url'),
+    canGoBack: () => ipcRenderer.invoke('browser:can-go-back'),
+    canGoForward: () => ipcRenderer.invoke('browser:can-go-forward'),
+    setPanelOpen: (isOpen: boolean) => ipcRenderer.invoke('browser:set-panel-open', isOpen),
+    
+    // Event listeners for browser state
+    onUrlChanged: (callback: (url: string) => void) => {
+      const handler = (_: unknown, url: string) => callback(url)
+      ipcRenderer.on('browser:url-changed', handler)
+      return () => ipcRenderer.removeListener('browser:url-changed', handler)
+    },
+    
+    onNavigationComplete: (callback: (url: string) => void) => {
+      const handler = (_: unknown, url: string) => callback(url)
+      ipcRenderer.on('browser:navigation-complete', handler)
+      return () => ipcRenderer.removeListener('browser:navigation-complete', handler)
+    },
+    
+    onNavigationError: (callback: (error: { errorCode: number; errorDescription: string; url: string }) => void) => {
+      const handler = (_: unknown, error: { errorCode: number; errorDescription: string; url: string }) => callback(error)
+      ipcRenderer.on('browser:navigation-error', handler)
+      return () => ipcRenderer.removeListener('browser:navigation-error', handler)
+    },
+
+    onExternalMode: (callback: (isExternal: boolean) => void) => {
+      const handler = (_: unknown, isExternal: boolean) => callback(isExternal)
+      ipcRenderer.on('browser:external-mode', handler)
+      return () => ipcRenderer.removeListener('browser:external-mode', handler)
+    },
+
+    onAskRon: (callback: (data: { selectionText: string; sourceUrl: string }) => void) => {
+      const handler = (_: unknown, data: { selectionText: string; sourceUrl: string }) => callback(data)
+      ipcRenderer.on('agent:ask-ron', handler)
+      return () => ipcRenderer.removeListener('agent:ask-ron', handler)
+    },
+  },
+
+  // ----------------------------------------
+  // Tab Management
   // ----------------------------------------
   tabs: {
-    create: (url?: string) => ipcRenderer.invoke('create-tab', url),
+    // Optional second arg is clientTabId to keep UI/Main IDs in sync
+    create: (url?: string, clientTabId?: string) => ipcRenderer.invoke('create-tab', url, clientTabId),
     close: (tabId: string) => ipcRenderer.invoke('close-tab', tabId),
     switch: (tabId: string) => ipcRenderer.invoke('switch-tab', tabId),
+    list: () => ipcRenderer.invoke('tabs:list') as Promise<Array<{ id: string; url: string; title: string; favicon?: string; isActive: boolean }>>,
+    getContext: (tabId: string) => ipcRenderer.invoke('tabs:get-context', tabId) as Promise<{ success: boolean; context?: any; error?: string }>,
+    onUpdated: (callback: (tabs: Array<{ id: string; url: string; title: string; favicon?: string; isActive: boolean }>) => void) => {
+      const handler = (_: unknown, tabs: Array<{ id: string; url: string; title: string; favicon?: string; isActive: boolean }>) => callback(tabs)
+      ipcRenderer.on('tabs:updated', handler)
+      return () => ipcRenderer.removeListener('tabs:updated', handler)
+    },
   },
 
   // ----------------------------------------

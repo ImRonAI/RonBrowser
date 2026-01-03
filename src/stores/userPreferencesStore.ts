@@ -84,15 +84,12 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
         // Apply theme to document
         if (typeof window !== 'undefined') {
           const root = document.documentElement
-          // Remove all theme classes first
-          root.classList.remove('dark', 'glass')
+          // Remove dark class first
+          root.classList.remove('dark')
 
           if (theme === 'dark') {
             root.classList.add('dark')
             localStorage.setItem('theme', 'dark')
-          } else if (theme === 'glass') {
-            root.classList.add('glass')
-            localStorage.setItem('theme', 'glass')
           } else if (theme === 'light') {
             localStorage.setItem('theme', 'light')
           } else {
@@ -104,16 +101,16 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
             localStorage.setItem('theme', 'system')
           }
 
-          // Notify Electron main process to apply native effects (vibrancy/acrylic)
+          // Notify Electron main process
           window.electron?.setTheme(theme)
         }
       },
 
       toggleTheme: () => {
         const currentTheme = get().theme
-        // Cycle: light -> dark -> glass -> light
-        const themeOrder: Theme[] = ['light', 'dark', 'glass']
-        const currentIndex = themeOrder.indexOf(currentTheme === 'system' ? 'light' : currentTheme)
+        // Cycle: system -> dark -> light -> system
+        const themeOrder: Theme[] = ['system', 'dark', 'light']
+        const currentIndex = themeOrder.indexOf(currentTheme)
         const nextIndex = (currentIndex + 1) % themeOrder.length
         get().setTheme(themeOrder[nextIndex])
       },

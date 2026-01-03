@@ -1,16 +1,48 @@
-import { useState, KeyboardEvent } from 'react'
+import { useState, KeyboardEvent, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MagnifyingGlassIcon, LockClosedIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { Search, Lock, Sparkles } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
 export function UrlBar() {
   const [url, setUrl] = useState('ron://home')
   const [isFocused, setIsFocused] = useState(false)
 
-  const handleSubmit = (e: KeyboardEvent<HTMLInputElement>) => {
+  // Sync URL from browser when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      // Listen for URL changes from browser
+      const cleanup = window.electron.browser.onUrlChanged((newUrl: string) => {
+        setUrl(newUrl)
+      })
+      return cleanup
+    }
+  }, [])
+
+  const handleSubmit = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       console.log('Navigate to:', url)
-      // TODO: Implement navigation
+      
+      // Normalize and navigate to the URL
+      if (typeof window !== 'undefined' && window.electron?.browser) {
+        try {
+          await window.electron.browser.navigate(url)
+          console.log('Navigation initiated')
+        } catch (error) {
+          console.error('Navigation error:', error)
+        }
+      }
+    }
+  }
+
+  const handleSearchClick = async () => {
+    // Treat current URL as a search query
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      try {
+        await window.electron.browser.search(url)
+        console.log('Search initiated:', url)
+      } catch (error) {
+        console.error('Search error:', error)
+      }
     }
   }
 
@@ -22,17 +54,19 @@ export function UrlBar() {
       className={cn(
         "relative flex items-center h-11 rounded-xl overflow-hidden",
         "transition-all duration-300 ease-smooth",
-        // Base glass styling
-        "glass-frosted",
+        // Base styling
+        "bg-surface-50 dark:bg-surface-800",
+        "border border-surface-200 dark:border-surface-700",
         // Focus states
         isFocused && [
-          "ring-2 ring-royal/30 dark:ring-royal-light/30 glass:ring-royal/40",
-          "shadow-lg shadow-royal/5 dark:shadow-royal-light/5",
-          "bg-white/90 dark:bg-ron-smoke/90 glass:bg-white/60"
+          "ring-2 ring-accent/20 dark:ring-accent-light/20",
+          "border-accent/50 dark:border-accent-light/50",
+          "bg-surface-0 dark:bg-surface-850",
+          "shadow-soft dark:shadow-dark-soft"
         ]
       )}
       animate={{
-        scale: isFocused ? 1.01 : 1,
+        scale: isFocused ? 1.005 : 1,
       }}
       transition={{ duration: 0.2 }}
     >
@@ -45,8 +79,8 @@ export function UrlBar() {
             exit={{ opacity: 0 }}
             className="absolute inset-0 pointer-events-none"
             style={{
-              background: 'linear-gradient(90deg, rgba(45, 59, 135, 0.03) 0%, transparent 50%, rgba(74, 59, 135, 0.03) 100%)'
-            }}
+              background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.02) 0%, transparent 50%, rgba(99, 102, 241, 0.02) 100%)'
+            } as any}
           />
         )}
       </AnimatePresence>
@@ -56,28 +90,28 @@ export function UrlBar() {
         {isRonProtocol ? (
           <motion.div
             className="flex items-center gap-1.5"
-            initial={{ opacity: 0, x: -10 }}
+            initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <SparklesIcon className="w-4 h-4 text-royal dark:text-royal-light glass:text-royal" />
-            <span className="text-xs font-raleway font-raleway-bold text-royal dark:text-royal-light glass:text-royal tracking-wide">
+            <Sparkles className="w-4 h-4 text-accent dark:text-accent-light" />
+            <span className="text-label text-accent dark:text-accent-light tracking-wider">
               ron
             </span>
           </motion.div>
         ) : isSecure ? (
           <motion.div
             className="flex items-center gap-1.5"
-            initial={{ opacity: 0, x: -10 }}
+            initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <LockClosedIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 glass:text-emerald-600" />
+            <Lock className="w-4 h-4 text-success" />
           </motion.div>
         ) : null}
       </div>
 
-      {/* Subtle divider */}
+      {/* Divider */}
       {(isSecure || isRonProtocol) && (
-        <div className="w-px h-5 bg-ron-text/10 dark:bg-white/10 glass:bg-zinc-400/30 mr-2" />
+        <div className="w-px h-5 bg-surface-200 dark:bg-surface-700 mr-2" />
       )}
 
       {/* URL input */}
@@ -90,15 +124,15 @@ export function UrlBar() {
         onBlur={() => setIsFocused(false)}
         className={cn(
           "flex-1 bg-transparent outline-none",
-          "text-sm font-raleway tracking-wide",
-          "text-ron-text dark:text-white glass:text-zinc-800",
-          "placeholder:text-ron-text/30 dark:placeholder:text-white/30 glass:placeholder:text-zinc-400",
-          "selection:bg-royal/20 dark:selection:bg-royal-light/20"
+          "text-body-sm tracking-wide",
+          "text-ink dark:text-ink-inverse",
+          "placeholder:text-ink-muted dark:placeholder:text-ink-inverse-muted",
+          "selection:bg-accent/20 dark:selection:bg-accent-light/20"
         )}
         placeholder="Search or enter URL..."
       />
 
-      {/* Right section - Search/Action */}
+      {/* Right section - Search action */}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
@@ -106,16 +140,18 @@ export function UrlBar() {
           "flex items-center justify-center",
           "w-9 h-9 mr-1 rounded-lg",
           "transition-colors duration-200",
-          "hover:bg-royal/10 dark:hover:bg-royal-light/10 glass:hover:bg-royal/15",
-          "active:bg-royal/20 dark:active:bg-royal-light/20"
+          "hover:bg-accent/10 dark:hover:bg-accent-light/10",
+          "active:bg-accent/20 dark:active:bg-accent-light/20"
         )}
+        onClick={handleSearchClick}
+        title="Search or navigate"
       >
-        <MagnifyingGlassIcon className="w-4 h-4 text-ron-text/50 dark:text-white/50 glass:text-zinc-500" />
+        <Search className="w-4 h-4 text-ink-muted dark:text-ink-inverse-muted" />
       </motion.button>
 
       {/* Bottom accent line on focus */}
       <motion.div
-        className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-royal dark:via-royal-light to-transparent"
+        className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent dark:via-accent-light to-transparent"
         initial={{ scaleX: 0, opacity: 0 }}
         animate={{
           scaleX: isFocused ? 1 : 0,

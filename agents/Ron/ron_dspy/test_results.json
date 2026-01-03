@@ -1,0 +1,60 @@
+{
+  "summary": {
+    "total": 10,
+    "passed": 4,
+    "failed": 6,
+    "errors": 0
+  },
+  "tests": [
+    {
+      "name": "1. DSPy Installation",
+      "status": "passed",
+      "error": null
+    },
+    {
+      "name": "2. LM Configuration",
+      "status": "failed",
+      "error": null
+    },
+    {
+      "name": "3. Strands Wrapper",
+      "status": "passed",
+      "error": null
+    },
+    {
+      "name": "4. System Tools",
+      "status": "passed",
+      "error": null
+    },
+    {
+      "name": "5. Task Tools",
+      "status": "failed",
+      "error": null
+    },
+    {
+      "name": "6. Browser Tools",
+      "status": "passed",
+      "error": null
+    },
+    {
+      "name": "7. Agent Tools",
+      "status": "failed",
+      "error": null
+    },
+    {
+      "name": "8. ReAct with Memory",
+      "status": "failed",
+      "error": null
+    },
+    {
+      "name": "9. Optimization Pipeline",
+      "status": "failed",
+      "error": null
+    },
+    {
+      "name": "10. Main RonAgent",
+      "status": "failed",
+      "error": null
+    }
+  ]
+}

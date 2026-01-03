@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion'
-import { ArrowLeftIcon, ArrowRightIcon, HomeIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid'
+import { ArrowLeft, ArrowRight, Home, RotateCcw, MessageSquare, Plus } from 'lucide-react'
 import { UrlBar } from './UrlBar'
 import { UserMenu } from './UserMenu'
 import { ThemeToggle } from './ThemeToggle'
 import { useAgentStore } from '@/stores/agentStore'
+import { useTabStore } from '@/stores/tabStore'
 import { cn } from '@/utils/cn'
+import { useState, useEffect } from 'react'
 
-// Navigation button component for consistency
+// Navigation button component
 function NavButton({ 
   onClick, 
   label, 
@@ -26,15 +27,18 @@ function NavButton({
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       className={cn(
-        "p-2 rounded-lg transition-all duration-200",
-        "hover:bg-white/60 dark:hover:bg-white/5 glass:hover:bg-white/40",
-        "active:bg-white/80 dark:active:bg-white/10 glass:active:bg-white/50",
+        "p-2.5 rounded-lg transition-all duration-200",
+        "hover:bg-surface-100 dark:hover:bg-surface-800",
+        "active:bg-surface-200 dark:active:bg-surface-700",
         "disabled:opacity-30 disabled:cursor-not-allowed",
         "group"
       )}
       aria-label={label}
     >
-      <div className="text-ron-text/60 dark:text-white/60 glass:text-zinc-600 group-hover:text-ron-text dark:group-hover:text-white glass:group-hover:text-zinc-900 transition-colors">
+      <div className={cn(
+        "text-ink-muted dark:text-ink-inverse-muted group-hover:text-ink dark:group-hover:text-ink-inverse transition-colors",
+        disabled && "opacity-30"
+      )}>
         {children}
       </div>
     </motion.button>
@@ -43,6 +47,72 @@ function NavButton({
 
 export function ChromeToolbar() {
   const { togglePanel, isPanelOpen } = useAgentStore()
+  const [canGoBack, setCanGoBack] = useState(false)
+  const [canGoForward, setCanGoForward] = useState(false)
+
+  // Listen for navigation state changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      // Get initial state
+      const initializeNavigationState = async () => {
+        try {
+          const [back, forward] = await Promise.all([
+            window.electron.browser.canGoBack(),
+            window.electron.browser.canGoForward(),
+          ])
+          setCanGoBack(back)
+          setCanGoForward(forward)
+        } catch (error) {
+          console.error('Failed to get navigation state:', error)
+        }
+      }
+
+      initializeNavigationState()
+
+      // Listen for URL changes
+      const unsubscribe = window.electron.browser.onUrlChanged((url: string) => {
+        // Update navigation button states
+        window.electron.browser.canGoBack().then(setCanGoBack).catch(console.error)
+        window.electron.browser.canGoForward().then(setCanGoForward).catch(console.error)
+      })
+
+      return unsubscribe
+    }
+  }, [])
+
+  const handleHome = async () => {
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      await window.electron.browser.navigate('ron://home')
+    }
+  }
+
+  const handleBack = async () => {
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      await window.electron.browser.goBack()
+    }
+  }
+
+  const handleForward = async () => {
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      await window.electron.browser.goForward()
+    }
+  }
+
+  const handleReload = async () => {
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      await window.electron.browser.reload()
+    }
+  }
+
+  const handleNewTab = async () => {
+    const id = useTabStore.getState().createTab('ron://home', true)
+    try {
+      await window.electron?.tabs.create('ron://home', id)
+      await window.electron?.tabs.switch(id)
+    } catch (e) {
+      console.error('Failed to create tab', e)
+    }
+  }
 
   return (
     <div className="flex items-center h-16 px-5 drag-region">
@@ -50,22 +120,22 @@ export function ChromeToolbar() {
       <div className="w-20 flex-shrink-0" />
 
       {/* Navigation Buttons */}
-      <div className="flex items-center gap-1 no-drag">
-        <NavButton onClick={() => console.log('Home')} label="Home">
-          <HomeIcon className="w-[18px] h-[18px]" />
+      <div className="flex items-center gap-0.5 no-drag">
+        <NavButton onClick={handleHome} label="Home">
+          <Home className="w-[18px] h-[18px]" />
         </NavButton>
-        <NavButton onClick={() => console.log('Back')} label="Go back">
-          <ArrowLeftIcon className="w-[18px] h-[18px]" />
+        <NavButton onClick={handleBack} label="Go back" disabled={!canGoBack}>
+          <ArrowLeft className="w-[18px] h-[18px]" />
         </NavButton>
-        <NavButton onClick={() => console.log('Forward')} label="Go forward">
-          <ArrowRightIcon className="w-[18px] h-[18px]" />
+        <NavButton onClick={handleForward} label="Go forward" disabled={!canGoForward}>
+          <ArrowRight className="w-[18px] h-[18px]" />
         </NavButton>
-        <NavButton onClick={() => console.log('Reload')} label="Reload page">
-          <ArrowPathIcon className="w-[18px] h-[18px]" />
+        <NavButton onClick={handleReload} label="Reload page">
+          <RotateCcw className="w-[18px] h-[18px]" />
         </NavButton>
       </div>
 
-      {/* URL Bar - with generous spacing */}
+      {/* URL Bar */}
       <div className="flex-1 mx-6 no-drag">
         <UrlBar />
       </div>
@@ -75,8 +145,21 @@ export function ChromeToolbar() {
         {/* Theme Toggle */}
         <ThemeToggle />
 
-        {/* Subtle divider */}
-        <div className="w-px h-6 bg-ron-text/10 dark:bg-white/10 glass:bg-zinc-400/30" />
+        {/* New Tab (requirement: plus icon top-right) */}
+        <motion.button
+          onClick={handleNewTab}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className={cn(
+            'p-2.5 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors'
+          )}
+          aria-label="New Tab"
+        >
+          <Plus className="w-5 h-5 text-ink-muted dark:text-ink-inverse-muted" />
+        </motion.button>
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-surface-200 dark:bg-surface-700" />
 
         {/* Agent Panel Trigger */}
         <motion.button
@@ -86,27 +169,27 @@ export function ChromeToolbar() {
           className={cn(
             "relative p-2.5 rounded-xl transition-all duration-300",
             isPanelOpen
-              ? "bg-royal dark:bg-royal-light glass:bg-royal shadow-lg"
-              : "hover:bg-white/60 dark:hover:bg-white/5 glass:hover:bg-white/40"
+              ? "bg-accent dark:bg-accent-light shadow-glow-accent"
+              : "hover:bg-surface-100 dark:hover:bg-surface-800"
           )}
           aria-label="Open Agent Panel"
         >
-          <ChatBubbleLeftRightIcon 
+          <MessageSquare 
             className={cn(
               "w-5 h-5 transition-colors",
               isPanelOpen
                 ? "text-white"
-                : "text-royal dark:text-royal-light glass:text-royal"
+                : "text-accent dark:text-accent-light"
             )} 
           />
-          {/* Subtle glow when active */}
+          {/* Glow effect when active */}
           {isPanelOpen && (
             <motion.div
-              className="absolute inset-0 rounded-xl bg-royal/20 dark:bg-royal-light/20"
+              className="absolute inset-0 rounded-xl bg-accent/20 dark:bg-accent-light/20"
               initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1.2 }}
+              animate={{ opacity: 1, scale: 1.3 }}
               transition={{ duration: 0.3 }}
-              style={{ filter: 'blur(8px)', zIndex: -1 }}
+              style={{ filter: 'blur(12px)', zIndex: -1 } as any}
             />
           )}
         </motion.button>

@@ -1,6 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAgentStore } from '@/stores/agentStore'
+import { useTabStore } from '@/stores/tabStore'
+import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
+import { AskRonPrompt } from '@/components/ai-elements/ask-ron-prompt'
 import {
   ClipboardDocumentIcon,
   ScissorsIcon,
@@ -8,6 +11,7 @@ import {
   ChatBubbleLeftIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline'
+import { useState } from 'react'
 
 interface ContextMenuProps {
   x: number
@@ -18,8 +22,19 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenuProps) {
-  const { startViewingScreen } = useAgentStore()
-  const [screenshot, setScreenshot] = useState<string | null>(null)
+  const {
+    startAskRon,
+    askRonStep,
+    askRonSelectedText,
+    askRonSourceUrl,
+    askRonOptions,
+    askRonThinkingText,
+    setAskRonStep,
+    selectAskRonOption,
+    submitCustomAskRon,
+    closeAskRon,
+  } = useAgentStore()
+  const { getActiveTab } = useTabStore()
   const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -51,16 +66,15 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
     }
   }, [isOpen, x, y])
 
-  // Capture screenshot when context menu opens
+  // Reset state when context menu opens
   useEffect(() => {
     if (isOpen) {
-      // In a real implementation, this would capture the actual screen
-      // For now, we'll just set a placeholder
-      // TODO: Integrate with Electron's desktopCapturer or similar
-      setScreenshot(null)
       setCopiedFeedback(null)
+    } else {
+      // Close Ask Ron UI when context menu closes
+      closeAskRon()
     }
-  }, [isOpen])
+  }, [isOpen, closeAskRon])
 
   const showFeedback = (action: string) => {
     setCopiedFeedback(action)
@@ -143,7 +157,18 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
   }
 
   const handleAskRon = () => {
-    startViewingScreen(screenshot || undefined)
+    if (!selectedText) return
+
+    // Get the current tab URL
+    const activeTab = getActiveTab()
+    const sourceUrl = activeTab?.url || window.location.href
+
+    // Start the Ask Ron flow
+    startAskRon(selectedText, sourceUrl)
+  }
+
+  const handleCloseAskRon = () => {
+    closeAskRon()
     onClose()
   }
 
@@ -162,28 +187,81 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
   }, [isOpen, onClose])
 
 
+  // Determine if Ask Ron UI should be shown
+  const showAskRonUI = askRonStep !== 'closed'
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
           {/* Backdrop to catch clicks */}
-          <div className="fixed inset-0 z-[100]" onClick={onClose} />
+          <div className="fixed inset-0 z-[100]" onClick={showAskRonUI ? handleCloseAskRon : onClose} />
 
-          {/* Context Menu */}
-          <motion.div
-            ref={menuRef}
-            role="menu"
-            aria-label="Context Menu"
-            initial={{ opacity: 0, scale: 0.95, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -8 }}
-            transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed z-[9999] rounded-xl py-1.5 min-w-[220px] overflow-hidden shadow-2xl bg-white dark:bg-zinc-800 border border-black/10 dark:border-white/10"
-            style={{
-              left: `${adjustedPosition.x}px`,
-              top: `${adjustedPosition.y}px`,
-            }}
-          >
+          {/* Ask Ron UI - Options or Custom Prompt */}
+          {showAskRonUI ? (
+            <motion.div
+              className="fixed z-[9999]"
+              style={{
+                left: `${adjustedPosition.x}px`,
+                top: `${adjustedPosition.y}px`,
+              }}
+            >
+              <AnimatePresence mode="wait">
+                {(askRonStep === 'loading' || askRonStep === 'options') && askRonSelectedText && askRonSourceUrl && (
+                  <AskRonOptions
+                    key="options"
+                    selectedText={askRonSelectedText}
+                    sourceUrl={askRonSourceUrl}
+                    isLoading={askRonStep === 'loading'}
+                    thinkingText={askRonThinkingText}
+                    options={askRonOptions}
+                    onSelectOption={selectAskRonOption}
+                    onSelectSomethingElse={() => setAskRonStep('custom-prompt')}
+                    onClose={handleCloseAskRon}
+                  />
+                )}
+                {askRonStep === 'custom-prompt' && askRonSelectedText && askRonSourceUrl && (
+                  <AskRonPrompt
+                    key="prompt"
+                    selectedText={askRonSelectedText}
+                    sourceUrl={askRonSourceUrl}
+                    onSubmit={submitCustomAskRon}
+                    onBack={() => setAskRonStep('options')}
+                    onClose={handleCloseAskRon}
+                    isSubmitting={false}
+                  />
+                )}
+                {askRonStep === 'executing' && askRonSelectedText && askRonSourceUrl && (
+                  <AskRonOptions
+                    key="executing"
+                    selectedText={askRonSelectedText}
+                    sourceUrl={askRonSourceUrl}
+                    isLoading={true}
+                    thinkingText={askRonThinkingText}
+                    options={[]}
+                    onSelectOption={() => {}}
+                    onSelectSomethingElse={() => {}}
+                    onClose={handleCloseAskRon}
+                  />
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ) : (
+            /* Regular Context Menu */
+            <motion.div
+              ref={menuRef}
+              role="menu"
+              aria-label="Context Menu"
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed z-[9999] rounded-xl py-1.5 min-w-[220px] overflow-hidden shadow-2xl bg-white dark:bg-zinc-800 border border-black/10 dark:border-white/10"
+              style={{
+                left: `${adjustedPosition.x}px`,
+                top: `${adjustedPosition.y}px`,
+              }}
+            >
             {/* Feedback toast */}
             <AnimatePresence>
               {copiedFeedback && (
@@ -262,7 +340,8 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
                 </span>
               )}
             </motion.button>
-          </motion.div>
+            </motion.div>
+          )}
         </>
       )}
     </AnimatePresence>

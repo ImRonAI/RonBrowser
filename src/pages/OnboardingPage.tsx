@@ -1,12 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '@/components/catalyst/button'
-import { Heading } from '@/components/catalyst/heading'
-import { Text } from '@/components/catalyst/text'
 import { useOnboardingStore, INTERVIEW_QUESTIONS } from '@/stores/onboardingStore'
 import { useAuthStore } from '@/stores/authStore'
-import { ChevronRightIcon, ChatBubbleBottomCenterTextIcon, MicrophoneIcon } from '@heroicons/react/24/outline'
 import { VoiceOnboardingScene } from '@/components/voice-agent'
+
+const EASE = [0.16, 1, 0.3, 1] as const
 
 export function OnboardingPage() {
   const { user } = useAuthStore()
@@ -66,18 +64,43 @@ export function OnboardingPage() {
     }
   }, [currentStep, addReasoningStep, completeOnboarding])
 
-  // Variants for animations
+  // Animation variants
   const pageVariants = {
-    initial: { opacity: 0, y: 20 },
+    initial: { opacity: 0, y: 24 },
     animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 }
+    exit: { opacity: 0, y: -24 }
   }
 
-  // Render Logic
   return (
-    <div className="min-h-screen w-full flex flex-col justify-center items-center bg-zinc-50 dark:bg-zinc-950 p-8 overflow-hidden relative">
-        {/* Background Decorations */}
-        <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-900/10 pointer-events-none" />
+    <div className="min-h-screen w-full flex flex-col justify-center items-center bg-surface-0 dark:bg-surface-900 p-8 overflow-hidden relative">
+      {/* Background decorations */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Light mode */}
+        <div className="dark:hidden">
+          <div 
+            className="absolute top-0 left-1/4 w-[600px] h-[600px]"
+            style={{
+              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, transparent 60%)',
+            }}
+          />
+          <div 
+            className="absolute bottom-0 right-1/4 w-[500px] h-[500px]"
+            style={{
+              background: 'radial-gradient(circle, rgba(55, 48, 163, 0.04) 0%, transparent 60%)',
+            }}
+          />
+        </div>
+        {/* Dark mode */}
+        <div className="hidden dark:block">
+          <div 
+            className="absolute top-1/4 left-1/3 w-[500px] h-[500px]"
+            style={{
+              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 60%)',
+              filter: 'blur(60px)',
+            }}
+          />
+        </div>
+      </div>
 
       <div className="max-w-2xl w-full z-10">
         <AnimatePresence mode="wait">
@@ -90,39 +113,52 @@ export function OnboardingPage() {
               initial="initial"
               animate="animate"
               exit="exit"
+              transition={{ duration: 0.6, ease: EASE }}
               className="space-y-12 text-center"
             >
+              {/* Welcome text */}
               <div className="space-y-4">
-                <Heading level={1} className="!text-5xl font-light">Welcome, {user?.name || 'Explorer'}.</Heading>
-                <Text className="text-xl text-zinc-500">How would you like to set up your experience?</Text>
+                <motion.div 
+                  className="w-12 h-1 bg-accent dark:bg-accent-light mx-auto rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: 48 }}
+                  transition={{ duration: 0.6, delay: 0.2, ease: EASE }}
+                />
+                <h1 className="text-display-xl font-display text-ink dark:text-ink-inverse">
+                  Welcome, {user?.name || 'Explorer'}<span className="text-accent dark:text-accent-light">.</span>
+                </h1>
+                <p className="text-body-xl text-ink-secondary dark:text-ink-inverse-secondary">
+                  How would you like to set up your experience?
+                </p>
               </div>
 
+              {/* Mode selection cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <button
+                <ModeCard
                   onClick={() => setMode('type')}
-                  className="group relative p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-500 transition-all text-left space-y-4 hover:shadow-xl hover:-translate-y-1"
-                >
-                  <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
-                    <ChatBubbleBottomCenterTextIcon className="w-8 h-8 text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                  </div>
-                  <div>
-                    <Heading level={3}>Text Interview</Heading>
-                    <Text className="mt-2">Answer a few questions at your own pace to personalize your feed.</Text>
-                  </div>
-                </button>
-
-                <button
+                  icon={
+                    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  }
+                  title="Text Interview"
+                  description="Answer a few questions at your own pace to personalize your feed."
+                  delay={0.3}
+                />
+                <ModeCard
                   onClick={() => setMode('talk')}
-                  className="group relative p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-500 transition-all text-left space-y-4 hover:shadow-xl hover:-translate-y-1"
-                >
-                  <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
-                    <MicrophoneIcon className="w-8 h-8 text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                  </div>
-                  <div>
-                    <Heading level={3}>Voice Calibration</Heading>
-                    <Text className="mt-2">Have a natural conversation with our AI agent to set up your profile.</Text>
-                  </div>
-                </button>
+                  icon={
+                    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                  }
+                  title="Voice Calibration"
+                  description="Have a natural conversation with our AI agent to set up your profile."
+                  delay={0.4}
+                />
               </div>
             </motion.div>
           )}
@@ -135,39 +171,74 @@ export function OnboardingPage() {
               initial="initial"
               animate="animate"
               exit="exit"
+              transition={{ duration: 0.5, ease: EASE }}
               className="space-y-8"
             >
+              {/* Progress indicator */}
                <div className="space-y-2">
-                <Text className="text-blue-600 dark:text-blue-400 font-medium tracking-wider uppercase text-sm">
+                <span className="text-label uppercase tracking-wider text-accent dark:text-accent-light">
                     Question {currentQuestionIndex + 1} of {INTERVIEW_QUESTIONS.length}
-                </Text>
-                <Heading level={2} className="!text-3xl sm:!text-4xl leading-tight">
+                </span>
+                <h2 className="text-display-md font-display text-ink dark:text-ink-inverse leading-tight">
                     {INTERVIEW_QUESTIONS[currentQuestionIndex]}
-                </Heading>
+                </h2>
                </div>
 
+              {/* Input form */}
                <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="relative group">
-                    <div className="overflow-x-auto scrollbar-none pr-28">
+                  {/* Scrollable input container */}
+                  <div className="relative overflow-hidden">
+                    <div className="overflow-x-auto scrollbar-none">
                       <input
-                          ref={inputRef}
-                          type="text"
-                          value={inputValue}
-                          onChange={(e) => setInputValue(e.target.value)}
-                          placeholder="Type your answer here..."
-                          className="w-full min-w-full bg-transparent border-b-2 border-zinc-200 dark:border-zinc-800 text-2xl py-4 group-hover:border-blue-500 focus:border-blue-500 outline-none transition-colors dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
-                          autoFocus
+                        ref={inputRef}
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Type your answer here..."
+                        className="
+                          min-w-full bg-transparent
+                          border-b-2 border-surface-200 dark:border-surface-700
+                          focus:border-accent dark:focus:border-accent-light
+                          text-display-sm text-ink dark:text-ink-inverse
+                          py-4 pr-28 outline-none
+                          transition-colors duration-300
+                          placeholder:text-ink-muted dark:placeholder:text-ink-inverse-muted
+                          placeholder:font-sans placeholder:text-body-xl placeholder:font-thin
+                          font-thin
+                          whitespace-nowrap
+                        "
+                        autoFocus
+                        style={{ width: Math.max(100, inputValue.length * 18 + 120) + 'px' }}
                       />
                     </div>
-                     <div className="absolute right-0 bottom-4 flex items-center space-x-2 text-sm text-zinc-400 bg-zinc-50 dark:bg-zinc-950 pl-4">
-                        <span>Press Enter ↵</span>
-                    </div>
+                  </div>
+                  <div className="absolute right-0 bottom-4 flex items-center text-body-sm text-ink-muted dark:text-ink-inverse-muted bg-surface-0 dark:bg-surface-900 pl-4">
+                    Press Enter ↵
+                  </div>
                 </div>
                 
                 <div className="flex justify-end">
-                    <Button type="submit" color="blue" className="!text-lg !px-8 !py-3 rounded-full" disabled={!inputValue.trim()}>
-                        Next <ChevronRightIcon className="w-5 h-5 ml-2" />
-                    </Button>
+                  <motion.button
+                    type="submit"
+                    disabled={!inputValue.trim()}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="
+                      px-8 py-3 rounded-xl
+                      bg-accent dark:bg-accent-light
+                      text-white text-body-md font-semibold
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                      hover:shadow-glow-accent
+                      transition-all duration-300
+                      flex items-center gap-2
+                    "
+                  >
+                    Next
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </motion.button>
                 </div>
                </form>
             </motion.div>
@@ -190,11 +261,21 @@ export function OnboardingPage() {
               exit={{ opacity: 0 }}
               className="text-center space-y-8"
             >
+              {/* Loading spinner */}
                 <div className="relative w-24 h-24 mx-auto">
-                    <div className="absolute inset-0 border-4 border-zinc-200 dark:border-zinc-800 rounded-full" />
-                    <div className="absolute inset-0 border-4 border-t-blue-500 rounded-full animate-spin" />
+                <div className="absolute inset-0 border-2 border-surface-200 dark:border-surface-700 rounded-full" />
+                <motion.div 
+                  className="absolute inset-0 border-2 border-t-accent dark:border-t-accent-light rounded-full"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                />
                 </div>
-                <Heading level={2}>Calibrating your experience...</Heading>
+              
+              <h2 className="text-display-sm font-display text-ink dark:text-ink-inverse">
+                Calibrating your experience<span className="text-accent dark:text-accent-light">...</span>
+              </h2>
+              
+              {/* Status messages */}
                 <div className="h-8 overflow-hidden relative">
                     <AnimatePresence mode="popLayout">
                         {useOnboardingStore.getState().reasoning.steps.slice(-1).map((step) => (
@@ -203,7 +284,7 @@ export function OnboardingPage() {
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
                                 exit={{ y: -20, opacity: 0 }}
-                                className="text-zinc-500 font-mono text-sm"
+                      className="text-body-sm text-ink-muted dark:text-ink-inverse-muted font-mono"
                              >
                                 {step.content}
                              </motion.div>
@@ -213,7 +294,7 @@ export function OnboardingPage() {
             </motion.div>
           )}
 
-           {/* STEP 4: COMPLETE (Handled by redirect usually, but just in case) */}
+          {/* STEP 4: COMPLETE */}
            {currentStep === 'complete' && (
             <motion.div
               key="complete"
@@ -222,8 +303,22 @@ export function OnboardingPage() {
               animate="animate"
                className="text-center space-y-6"
             >
-                 <Heading level={1}>All Set!</Heading>
-                 <Text>Redirecting you to your personalized home...</Text>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                className="w-16 h-16 mx-auto rounded-full bg-success/10 flex items-center justify-center"
+              >
+                <svg className="w-8 h-8 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </motion.div>
+              <h1 className="text-display-lg font-display text-ink dark:text-ink-inverse">
+                All Set<span className="text-accent dark:text-accent-light">!</span>
+              </h1>
+              <p className="text-body-lg text-ink-secondary dark:text-ink-inverse-secondary">
+                Redirecting you to your personalized home...
+              </p>
             </motion.div>
           )}
 
@@ -232,10 +327,81 @@ export function OnboardingPage() {
       
       {/* Progress Bar */}
       {currentStep === 'interview' && (
-        <div className="absolute bottom-0 left-0 h-1 bg-blue-600 transition-all duration-500 ease-out" 
-             style={{ width: `${((currentQuestionIndex) / INTERVIEW_QUESTIONS.length) * 100}%` }} 
+        <motion.div 
+          className="absolute bottom-0 left-0 h-1 bg-accent dark:bg-accent-light"
+          initial={{ width: 0 }}
+          animate={{ width: `${((currentQuestionIndex) / INTERVIEW_QUESTIONS.length) * 100}%` }}
+          transition={{ duration: 0.5, ease: EASE }}
         />
       )}
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE CARD COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ModeCardProps {
+  onClick: () => void
+  icon: React.ReactNode
+  title: string
+  description: string
+  delay: number
+}
+
+function ModeCard({ onClick, icon, title, description, delay }: ModeCardProps) {
+  return (
+    <motion.button
+      onClick={onClick}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay, ease: EASE }}
+      whileHover={{ y: -4, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="
+        group relative p-8 rounded-2xl text-left space-y-4
+        bg-surface-0 dark:bg-surface-850
+        border border-surface-200 dark:border-surface-700
+        hover:border-accent/50 dark:hover:border-accent-light/50
+        shadow-soft dark:shadow-dark-soft
+        hover:shadow-bold dark:hover:shadow-dark-bold
+        transition-all duration-300
+      "
+    >
+      {/* Icon */}
+      <div className="
+        p-3 rounded-xl w-fit
+        bg-surface-100 dark:bg-surface-800
+        group-hover:bg-accent/10 dark:group-hover:bg-accent-light/10
+        transition-colors duration-300
+      ">
+        <div className="text-ink dark:text-ink-inverse group-hover:text-accent dark:group-hover:text-accent-light transition-colors">
+          {icon}
+        </div>
+      </div>
+      
+      {/* Content */}
+      <div>
+        <h3 className="text-body-xl font-semibold text-ink dark:text-ink-inverse">
+          {title}
+        </h3>
+        <p className="mt-2 text-body-sm text-ink-secondary dark:text-ink-inverse-secondary">
+          {description}
+        </p>
+      </div>
+
+      {/* Arrow indicator */}
+      <motion.div 
+        className="absolute top-8 right-8 text-ink-muted dark:text-ink-inverse-muted group-hover:text-accent dark:group-hover:text-accent-light"
+        initial={{ x: 0 }}
+        whileHover={{ x: 4 }}
+        transition={{ duration: 0.2 }}
+      >
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </motion.div>
+    </motion.button>
   )
 }

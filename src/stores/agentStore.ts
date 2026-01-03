@@ -14,34 +14,51 @@ import { getAccessToken } from '@/api/supabase'
 // State Interface
 // ============================================
 
+// Ask Ron option type
+export interface AskRonOption {
+  id: string
+  label: string
+  description?: string
+}
+
+// Ask Ron flow step
+export type AskRonStep = 'closed' | 'loading' | 'options' | 'custom-prompt' | 'executing'
+
 interface AgentState {
   // Panel state
   isPanelOpen: boolean
   interactionMode: 'voice' | 'text'
-  
+
   // Agent state
   isListening: boolean
   isSpeaking: boolean
   isThinking: boolean
   isStreaming: boolean
-  
+
   // Vision state
   isViewingScreen: boolean
   screenshotData: string | null
-  
+
   // Conversation state
   activeConversationId: string | null
   conversations: Record<string, Conversation>
   messages: Message[]
-  
+
   // Streaming state
   currentStreamingMessage: string | null
   currentToolUse: ToolUse | null
   streamId: string | null
-  
+
   // Connection state
   connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error'
   error: { code: string; message: string } | null
+
+  // Ask Ron state
+  askRonStep: AskRonStep
+  askRonSelectedText: string | null
+  askRonSourceUrl: string | null
+  askRonOptions: AskRonOption[]
+  askRonThinkingText: string
 
   // Actions - Panel
   togglePanel: () => void
@@ -76,6 +93,13 @@ interface AgentState {
   // Actions - Error
   setError: (error: { code: string; message: string } | null) => void
   clearError: () => void
+
+  // Actions - Ask Ron
+  startAskRon: (selectedText: string, sourceUrl: string) => Promise<void>
+  setAskRonStep: (step: AskRonStep) => void
+  selectAskRonOption: (option: AskRonOption) => Promise<void>
+  submitCustomAskRon: (prompt: string) => Promise<void>
+  closeAskRon: () => void
 }
 
 // ============================================
@@ -194,36 +218,56 @@ export const useAgentStore = create<AgentState>((set, get) => {
   
   return {
     // Initial state
-  isPanelOpen: false,
-  interactionMode: 'text',
-  isListening: false,
-  isSpeaking: false,
-  isThinking: false,
+    isPanelOpen: false,
+    interactionMode: 'text',
+    isListening: false,
+    isSpeaking: false,
+    isThinking: false,
     isStreaming: false,
-  isViewingScreen: false,
-  screenshotData: null,
+    isViewingScreen: false,
+    screenshotData: null,
     activeConversationId: null,
     conversations: {},
-  messages: [],
-  currentStreamingMessage: null,
+    messages: [],
+    currentStreamingMessage: null,
     currentToolUse: null,
     streamId: null,
     connectionStatus: 'disconnected',
     error: null,
 
+    // Ask Ron initial state
+    askRonStep: 'closed' as AskRonStep,
+    askRonSelectedText: null,
+    askRonSourceUrl: null,
+    askRonOptions: [] as AskRonOption[],
+    askRonThinkingText: 'Analyzing selection...',
+
     // ----------------------------------------
     // Panel Actions
     // ----------------------------------------
   togglePanel: () => {
-    set(state => ({ isPanelOpen: !state.isPanelOpen }))
+    const newState = !get().isPanelOpen
+    set({ isPanelOpen: newState })
+    // Notify main process to update WebContentsView bounds
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      window.electron.browser.setPanelOpen(newState)
+    }
   },
 
   openPanel: () => {
     set({ isPanelOpen: true })
+    // Notify main process to update WebContentsView bounds
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      window.electron.browser.setPanelOpen(true)
+    }
   },
 
   closePanel: () => {
     set({ isPanelOpen: false })
+    // Notify main process to update WebContentsView bounds
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      window.electron.browser.setPanelOpen(false)
+    }
   },
 
   setInteractionMode: (mode: 'voice' | 'text') => {
@@ -406,6 +450,139 @@ export const useAgentStore = create<AgentState>((set, get) => {
 
     clearError: () => {
       set({ error: null })
+    },
+
+    // ----------------------------------------
+    // Ask Ron Actions
+    // ----------------------------------------
+    startAskRon: async (selectedText: string, sourceUrl: string) => {
+      set({
+        askRonStep: 'loading',
+        askRonSelectedText: selectedText,
+        askRonSourceUrl: sourceUrl,
+        askRonOptions: [],
+        askRonThinkingText: 'Analyzing selection...',
+        error: null,
+        isPanelOpen: true, // Ensure panel is open to show options
+      })
+
+      try {
+        const token = await getAccessToken()
+
+        // Build the prompt to get suggestions
+        const prompt = `The user has sent you this text "${selectedText}" from ${sourceUrl}. Please select three likely options of what the user would want you to do with this text, and output it in json format like: {"options": [{"id": "1", "label": "Option label", "description": "Brief description"}, ...]}`
+
+        set({ askRonThinkingText: 'Getting suggestions...' })
+
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.agent.chat}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            prompt,
+            stream: false,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+
+        // Try to parse options from the response
+        let options: AskRonOption[] = []
+        try {
+          // Extract JSON from the response (it might be wrapped in markdown)
+          const jsonMatch = data.content?.match(/\{[\s\S]*"options"[\s\S]*\}/)
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0])
+            options = parsed.options || []
+          }
+        } catch {
+          // Fallback options if parsing fails
+          options = [
+            { id: '1', label: 'Summarize this text', description: 'Get a brief summary' },
+            { id: '2', label: 'Explain this text', description: 'Understand what it means' },
+            { id: '3', label: 'Find related information', description: 'Search for more context' },
+          ]
+        }
+
+        set({
+          askRonStep: 'options',
+          askRonOptions: options.slice(0, 3),
+        })
+      } catch (error) {
+        console.error('Failed to get Ask Ron suggestions:', error)
+        // Show fallback options on error
+        set({
+          askRonStep: 'options',
+          askRonOptions: [
+            { id: '1', label: 'Summarize this text', description: 'Get a brief summary' },
+            { id: '2', label: 'Explain this text', description: 'Understand what it means' },
+            { id: '3', label: 'Find related information', description: 'Search for more context' },
+          ],
+        })
+      }
+    },
+
+    setAskRonStep: (step: AskRonStep) => {
+      set({ askRonStep: step })
+    },
+
+    selectAskRonOption: async (option: AskRonOption) => {
+      const state = get()
+      if (!state.askRonSelectedText) return
+
+      set({
+        askRonStep: 'executing',
+        askRonThinkingText: `${option.label}...`,
+      })
+
+      // Build the execution prompt
+      const prompt = `The user selected this text: "${state.askRonSelectedText}" from ${state.askRonSourceUrl}. They want you to: ${option.label}. ${option.description || ''}`
+
+      set({ isPanelOpen: true })
+      await get().sendMessage(prompt, {
+        selectedText: state.askRonSelectedText,
+        currentUrl: state.askRonSourceUrl || undefined,
+      })
+
+      // Close Ask Ron UI after sending
+      set({ askRonStep: 'closed' })
+    },
+
+    submitCustomAskRon: async (prompt: string) => {
+      const state = get()
+      if (!state.askRonSelectedText) return
+
+      set({
+        askRonStep: 'executing',
+        askRonThinkingText: 'Processing your request...',
+      })
+
+      // Build the execution prompt with user's custom request
+      const fullPrompt = `The user selected this text: "${state.askRonSelectedText}" from ${state.askRonSourceUrl}. They want you to: ${prompt}`
+
+      set({ isPanelOpen: true })
+      await get().sendMessage(fullPrompt, {
+        selectedText: state.askRonSelectedText,
+        currentUrl: state.askRonSourceUrl || undefined,
+      })
+
+      // Close Ask Ron UI after sending
+      set({ askRonStep: 'closed' })
+    },
+
+    closeAskRon: () => {
+      set({
+        askRonStep: 'closed',
+        askRonSelectedText: null,
+        askRonSourceUrl: null,
+        askRonOptions: [],
+      })
     },
   }
 })

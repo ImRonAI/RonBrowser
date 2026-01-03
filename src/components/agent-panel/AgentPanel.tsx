@@ -1,12 +1,189 @@
-import { Fragment } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Transition } from '@headlessui/react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
+import { ContextPicker, type ContextItem } from './ContextPicker'
+import { TabContextPicker } from './TabContextPicker'
+import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
+import type { TabSummary } from '@/types/electron'
+
+const EASE = [0.16, 1, 0.3, 1] as const
+
+// Sleek pill suggestions - minimal & elegant
+const SUGGESTIONS = [
+  { icon: '◎', text: 'Navigate this page' },
+  { icon: '✦', text: 'Search the web' },
+  { icon: '∑', text: 'Summarize content' },
+  { icon: '?', text: 'What can you do?' },
+]
+
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  isStreaming?: boolean
+  reasoning?: string
+  isReasoningComplete?: boolean
+  toolCalls?: { action: string; params: Record<string, unknown>; result?: Record<string, unknown> }[]
+}
 
 export function AgentPanel() {
-  const { isPanelOpen, closePanel, interactionMode, setInteractionMode, isViewingScreen, screenshotData } = useAgentStore()
+  const { 
+    isPanelOpen, 
+    closePanel, 
+    interactionMode, 
+    setInteractionMode, 
+    isViewingScreen, 
+    screenshotData,
+    askRonStep,
+    askRonSelectedText,
+    askRonSourceUrl,
+    askRonOptions,
+    askRonThinkingText,
+    setAskRonStep,
+    selectAskRonOption,
+    closeAskRon
+  } = useAgentStore()
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
+  const [selectedTabIds, setSelectedTabIds] = useState<string[]>([])
+  const [tabSummaries, setTabSummaries] = useState<TabSummary[]>([])
+
+  // Keep a live list of tabs for chip labels/favicons
+  useEffect(() => {
+    let off: (() => void) | undefined
+    const load = async () => {
+      try {
+        const list = await window.electron?.tabs.list?.()
+        if (Array.isArray(list)) setTabSummaries(list)
+      } catch {}
+    }
+    load()
+    if (window.electron?.tabs?.onUpdated) {
+      off = window.electron.tabs.onUpdated((list) => setTabSummaries(list))
+    }
+    return () => { if (off) off() }
+  }, [])
+  const [isTyping, setIsTyping] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Focus input when panel opens
+  useEffect(() => {
+    if (isPanelOpen && interactionMode === 'text') {
+      setTimeout(() => inputRef.current?.focus(), 300)
+    }
+  }, [isPanelOpen, interactionMode])
+
+  const handleSubmit = async (text?: string) => {
+    const messageText = text || input.trim()
+    if (!messageText) return
+
+    // Resolve selected tab contexts before sending
+    let selectedTabsContext: any[] = []
+    try {
+      if (selectedTabIds.length && window.electron?.tabs?.getContext) {
+        const results = await Promise.all(
+          selectedTabIds.map(async (id) => {
+            const res = await window.electron!.tabs.getContext(id)
+            return res.success ? res.context : null
+          })
+        )
+        selectedTabsContext = results.filter(Boolean) as any[]
+      }
+    } catch (e) {
+      console.error('Failed to collect tab context', e)
+    }
+
+    // Add user message
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: messageText,
+    }
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+    setIsTyping(true)
+
+    // TODO: Replace simulated flow with real agent call if desired
+    // Attach selected tab contexts to agent request context
+    try {
+      useAgentStore.getState().sendMessage(messageText, {
+        currentUrl: typeof window !== 'undefined' && window.electron?.browser ? undefined : undefined,
+        // Attachments: selected tabs full context
+        // (Your API can read this to provide rich browsing context)
+        // @ts-ignore - extra context field for backend
+        selectedTabs: selectedTabsContext,
+      })
+    } catch (e) {
+      console.error('Failed to send message with context', e)
+    }
+
+    // Simulate AI response (kept for UX continuity)
+    setTimeout(() => {
+      const assistantMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+        reasoning: 'Analyzing your request...',
+        isReasoningComplete: false,
+      }
+      setMessages(prev => [...prev, assistantMessage])
+
+      // Simulate streaming
+      simulateStreaming(assistantMessage.id, messageText)
+    }, 500)
+  }
+
+  const simulateStreaming = async (messageId: string, _query: string) => {
+    // Complete reasoning
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    setMessages(prev => prev.map(m => 
+      m.id === messageId 
+        ? { ...m, reasoning: 'I analyzed your request and prepared a helpful response.', isReasoningComplete: true }
+        : m
+    ))
+
+    // Stream response
+    const response = "I'm Ron, your AI browsing companion. I'm here to help you navigate, search, analyze content, and accomplish tasks more efficiently. What would you like to explore?"
+    const words = response.split(' ')
+
+    for (let i = 0; i < words.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 30 + Math.random() * 30))
+      setMessages(prev => prev.map(m =>
+        m.id === messageId
+          ? { ...m, content: words.slice(0, i + 1).join(' ') }
+          : m
+      ))
+    }
+
+    // Mark as complete
+    setMessages(prev => prev.map(m =>
+      m.id === messageId
+        ? { ...m, isStreaming: false }
+        : m
+    ))
+    setIsTyping(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  const isEmpty = messages.length === 0
 
   return (
     <Transition.Root show={isPanelOpen} as={Fragment}>
@@ -20,249 +197,651 @@ export function AgentPanel() {
           leaveFrom="translate-x-0"
           leaveTo="translate-x-full"
         >
-          <div className="relative w-96 pointer-events-auto">
-            {/* Glass Panel */}
-            <div className="h-full glass-ultra shadow-glass-dark backdrop-blur-glass flex flex-col">
-
-              {/* Header - Clean and minimal */}
-              <div className="flex-shrink-0 px-6 py-5 flex items-center justify-between">
-                <h2 className="text-lg font-georgia text-ron-text dark:text-white">
-                  Ron Assistant
-                </h2>
-                <motion.button
-                  onClick={closePanel}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="p-1.5 rounded-sm hover:bg-white/10 dark:hover:bg-white/5 transition-colors"
-                >
-                  <XMarkIcon className="w-5 h-5 text-ron-text/60 dark:text-white/60" />
-                </motion.button>
-              </div>
-
-              {/* Subtle separator */}
-              <div className="h-px bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent" />
-
-              {/* Interaction Mode Toggle - Glass toggle, not buttons */}
-              <div className="flex-shrink-0 px-6 py-5">
-                <div className="relative glass-frosted rounded-sm p-1 flex">
-                  {/* Sliding indicator */}
-                  <motion.div
-                    className="absolute inset-y-1 rounded-sm bg-royal dark:bg-royal-light"
-                    initial={false}
-                    animate={{
-                      x: interactionMode === 'voice' ? 4 : '50%',
-                      width: 'calc(50% - 8px)',
-                    }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  />
-
-                  <button
-                    onClick={() => setInteractionMode('voice')}
-                    className={cn(
-                      "relative z-10 flex-1 py-2 px-4 rounded-sm font-raleway font-raleway-bold text-sm transition-colors",
-                      interactionMode === 'voice'
-                        ? "text-white"
-                        : "text-ron-text/60 dark:text-white/60"
-                    )}
-                  >
-                    Voice
-                  </button>
-                  <button
-                    onClick={() => setInteractionMode('text')}
-                    className={cn(
-                      "relative z-10 flex-1 py-2 px-4 rounded-sm font-raleway font-raleway-bold text-sm transition-colors",
-                      interactionMode === 'text'
-                        ? "text-white"
-                        : "text-ron-text/60 dark:text-white/60"
-                    )}
-                  >
-                    Type
-                  </button>
+          <div className="relative w-[420px] pointer-events-auto">
+            {/* Panel Container */}
+            <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900 border-l border-surface-200 dark:border-surface-700 shadow-dramatic">
+              
+              {/* Header - Ultra Minimal */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="flex-shrink-0 px-5 py-4 flex items-center justify-between border-b border-surface-100 dark:border-surface-800"
+              >
+                <div className="flex items-center gap-3">
+                  {/* Minimal Ron Logo */}
+                  <div className="w-8 h-8 rounded-xl bg-ink dark:bg-ink-inverse flex items-center justify-center">
+                    <span className="text-sm font-display font-light text-surface-0 dark:text-surface-900">R</span>
+                  </div>
+                  <h2 className="text-body-md font-medium text-ink dark:text-ink-inverse">
+                    Ron
+                  </h2>
                 </div>
-              </div>
 
-              {/* Vision Active Indicator */}
+                <div className="flex items-center gap-1">
+                  {/* Mode Toggle */}
+                  <ModeToggle 
+                    mode={interactionMode} 
+                    onChange={setInteractionMode} 
+                  />
+                  
+                  {/* Close Button */}
+                  <motion.button
+                    onClick={closePanel}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 rounded-lg text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </motion.button>
+                </div>
+              </motion.div>
+
+              {/* Vision Active Banner */}
               <AnimatePresence>
                 {isViewingScreen && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex-shrink-0 px-6 pb-5"
+                    className="flex-shrink-0 overflow-hidden"
                   >
-                    <div className="glass-frosted rounded-sm p-4 space-y-3">
-                      {/* Status header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <motion.div
-                            className="w-2 h-2 rounded-full bg-royal dark:bg-royal-light"
-                            animate={{
-                              opacity: [1, 0.4, 1],
-                              scale: [1, 0.8, 1],
-                            }}
-                            transition={{
-                              duration: 2,
-                              repeat: Infinity,
-                              ease: 'easeInOut',
-                            }}
-                          />
-                          <span className="text-xs font-raleway font-raleway-bold tracking-wider uppercase text-royal dark:text-royal-light">
-                            Analyzing Screen
-                          </span>
-                        </div>
+                    <div className="px-5 py-4 bg-gradient-to-r from-accent/5 to-accent-light/5 dark:from-accent/10 dark:to-accent-light/10 border-b border-accent/20 dark:border-accent-light/20">
+                      <div className="flex items-center gap-3 mb-3">
+                        <motion.div
+                          className="w-2 h-2 rounded-full bg-accent dark:bg-accent-light"
+                          animate={{ opacity: [1, 0.4, 1], scale: [1, 0.8, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        />
+                        <span className="text-label uppercase tracking-wider text-accent dark:text-accent-light">
+                          Analyzing Screen
+                        </span>
                       </div>
-
-                      {/* Live preview thumbnail */}
                       {screenshotData && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.3 }}
-                          className="relative aspect-video rounded-sm overflow-hidden border border-white/10 dark:border-white/5"
-                        >
-                          <img
-                            src={screenshotData}
-                            alt="Current view"
-                            className="w-full h-full object-cover"
-                          />
-                          {/* Scanning overlay effect */}
+                        <div className="relative aspect-video rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
+                          <img src={screenshotData} alt="Screen" className="w-full h-full object-cover" />
                           <motion.div
-                            className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-royal to-transparent"
-                            animate={{
-                              top: ['0%', '100%'],
-                            }}
-                            transition={{
-                              duration: 2,
-                              repeat: Infinity,
-                              ease: 'linear',
-                            }}
+                            className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent dark:via-accent-light to-transparent"
+                            animate={{ top: ['0%', '100%'] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                           />
-                        </motion.div>
+                        </div>
                       )}
-
-                      {/* Analysis indicators */}
-                      <div className="flex gap-2 text-xs">
-                        <motion.div
-                          className="px-2 py-1 rounded-sm bg-royal/10 dark:bg-royal-light/10 text-royal dark:text-royal-light font-raleway"
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                        >
-                          Detecting elements
-                        </motion.div>
-                        <motion.div
-                          className="px-2 py-1 rounded-sm bg-royal-purple/10 dark:bg-royal-light/10 text-royal-purple dark:text-royal-light font-raleway"
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}
-                        >
-                          Understanding context
-                        </motion.div>
-                      </div>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Main Content Area */}
-              <div className="flex-1 relative overflow-hidden">
+              <div className="flex-1 overflow-hidden">
                 <AnimatePresence mode="wait">
-                  {interactionMode === 'voice' ? (
+                  {askRonStep !== 'closed' && askRonStep !== undefined ? (
                     <motion.div
-                      key="voice"
+                      key="ask-ron"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute inset-0 flex flex-col items-center justify-center px-6"
+                      className="h-full"
                     >
-                      {/* Simple elegant voice indicator - no orb animations */}
-                      <motion.div
-                        className="relative"
-                        animate={{
-                          opacity: [0.5, 1, 0.5],
-                        }}
-                        transition={{
-                          duration: 3,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }}
-                      >
-                        <div className="w-20 h-20 rounded-full glass-ultra border-2 border-royal dark:border-royal-light" />
-                        <div className="absolute inset-0 rounded-full bg-royal/10 dark:bg-royal-light/10" />
-                      </motion.div>
-
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="mt-8 text-sm text-ron-text/60 dark:text-white/60 font-raleway font-raleway-light"
-                      >
-                        Press <kbd className="px-2 py-1 rounded-sm glass-frosted font-raleway-bold text-xs">Space</kbd> to talk
-                      </motion.p>
+                      <AskRonOptions 
+                        selectedText={askRonSelectedText || ''}
+                        sourceUrl={askRonSourceUrl || ''}
+                        isLoading={askRonStep === 'loading' || askRonStep === 'executing'}
+                        thinkingText={askRonThinkingText}
+                        options={askRonOptions}
+                        onSelectOption={selectAskRonOption}
+                        onSelectSomethingElse={() => setAskRonStep('custom-prompt')}
+                        onClose={closeAskRon}
+                      />
                     </motion.div>
+                  ) : interactionMode === 'voice' ? (
+                    <VoiceMode key="voice" />
                   ) : (
-                    <motion.div
+                    <TextMode
                       key="text"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute inset-0 flex flex-col"
-                    >
-                      {/* Messages Area */}
-                      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-                        {/* Empty state */}
-                        <div className="flex flex-col items-center justify-center h-full">
-                          <p className="font-raleway font-raleway-light text-ron-text/40 dark:text-white/40 text-center">
-                            Start a conversation with Ron
-                          </p>
-                        </div>
-
-                        {/* Example message structure (for when we add messages) */}
-                        {/* <div className="space-y-2">
-                          <div className="glass-frosted rounded-sm px-4 py-3">
-                            <p className="text-sm font-raleway text-ron-text dark:text-white">
-                              User message here
-                            </p>
-                          </div>
-                          <div className="glass-ultra rounded-sm px-4 py-3">
-                            <p className="text-sm font-raleway text-ron-text dark:text-white">
-                              Ron's response here
-                            </p>
-                          </div>
-                        </div> */}
-                      </div>
-
-                      {/* Input Area - Glass input at bottom */}
-                      <div className="flex-shrink-0 p-6">
-                        <div className="h-px bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent mb-6" />
-                        <div className="relative glass-frosted rounded-sm overflow-hidden">
-                          <input
-                            type="text"
-                            placeholder="Type your message..."
-                            className="
-                              w-full px-4 py-3
-                              bg-transparent
-                              outline-none
-                              text-sm
-                              text-ron-text dark:text-white
-                              font-raleway font-raleway-light
-                              placeholder:text-ron-text/30 dark:placeholder:text-white/30
-                            "
-                            autoComplete="off"
-                          />
-                          {/* Subtle focus indicator */}
-                          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-royal to-transparent opacity-0 focus-within:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                    </motion.div>
+                      messages={messages}
+                      isEmpty={isEmpty}
+                      isTyping={isTyping}
+                      onSuggestionClick={handleSubmit}
+                      messagesEndRef={messagesEndRef}
+                    />
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Input Area - Only for text mode */}
+              {interactionMode === 'text' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, ease: EASE }}
+                  className="flex-shrink-0 p-4 border-t border-surface-100 dark:border-surface-800"
+                >
+                  {/* Multiselect Listbox for Tabs */}
+                  <TabContextPicker
+                    selectedTabIds={selectedTabIds}
+                    onSelectionChange={setSelectedTabIds}
+                    className="mb-2"
+                  />
+
+                  {/* Selected Tab Chips */}
+                  {selectedTabIds.length > 0 && (
+                    <div className="mb-3 px-1 flex flex-wrap gap-2">
+                      {selectedTabIds
+                        .map(id => tabSummaries.find(t => t.id === id))
+                        .filter(Boolean)
+                        .map(tab => (
+                          <TabChip
+                            key={(tab as TabSummary).id}
+                            tab={tab as TabSummary}
+                            onRemove={() => setSelectedTabIds(prev => prev.filter(x => x !== (tab as TabSummary).id))}
+                          />
+                        ))}
+                    </div>
+                  )}
+
+                  {/* Input Container */}
+                  <div className={cn(
+                    "relative rounded-2xl overflow-visible transition-all duration-300",
+                    "bg-surface-50 dark:bg-surface-850",
+                    "border",
+                    input 
+                      ? "border-surface-300 dark:border-surface-600 shadow-sm" 
+                      : "border-surface-200 dark:border-surface-700",
+                  )}>
+                    {/* Input Row */}
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      {/* Context Picker */}
+                      <ContextPicker
+                        selectedContexts={selectedContexts}
+                        onContextsChange={setSelectedContexts}
+                      />
+
+                      {/* Text Input */}
+                      <textarea
+                        ref={inputRef}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Ask anything..."
+                        rows={1}
+                        className={cn(
+                          "flex-1 resize-none",
+                          "py-1.5",
+                          "bg-transparent",
+                          "text-body-md text-ink dark:text-ink-inverse",
+                          "placeholder:text-ink-muted/60 dark:placeholder:text-ink-inverse-muted/60",
+                          "outline-none",
+                          "min-h-[32px] max-h-32",
+                        )}
+                      />
+                      
+                      {/* Send Button */}
+                      <motion.button
+                        onClick={() => handleSubmit()}
+                        disabled={!input.trim() || isTyping}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={cn(
+                          "flex-shrink-0",
+                          "w-8 h-8 rounded-lg",
+                          "flex items-center justify-center",
+                          "transition-all duration-300",
+                          input.trim() && !isTyping
+                            ? "bg-ink dark:bg-ink-inverse text-surface-0 dark:text-surface-900"
+                            : "bg-surface-200 dark:bg-surface-700 text-ink-muted/50 dark:text-ink-inverse-muted/50"
+                        )}
+                      >
+                        <ArrowUpIcon className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Minimal footer hint */}
+                  <p className="text-center text-body-xs text-ink-muted/40 dark:text-ink-inverse-muted/40 mt-2">
+                    ↵ to send
+                  </p>
+                </motion.div>
+              )}
             </div>
           </div>
         </Transition.Child>
       </div>
     </Transition.Root>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE TOGGLE - Elegant pill switcher
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ModeToggleProps {
+  mode: 'voice' | 'text'
+  onChange: (mode: 'voice' | 'text') => void
+}
+
+function ModeToggle({ mode, onChange }: ModeToggleProps) {
+  return (
+    <div className="relative flex items-center p-1 rounded-xl bg-surface-100 dark:bg-surface-800">
+      {/* Sliding indicator */}
+      <motion.div
+        className="absolute top-1 bottom-1 rounded-lg bg-surface-0 dark:bg-surface-700 shadow-soft"
+        layoutId="mode-indicator"
+        initial={false}
+        animate={{
+          left: mode === 'voice' ? 4 : 'calc(50%)',
+          right: mode === 'voice' ? 'calc(50%)' : 4,
+        }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      />
+      
+      <button
+        onClick={() => onChange('voice')}
+        aria-label="Voice Mode"
+        className={cn(
+          "relative z-10 px-3 py-1.5 rounded-lg transition-colors",
+          mode === 'voice' ? "text-ink dark:text-ink-inverse" : "text-ink-muted dark:text-ink-inverse-muted"
+        )}
+      >
+        <MicIcon className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => onChange('text')}
+        aria-label="Text Mode"
+        className={cn(
+          "relative z-10 px-3 py-1.5 rounded-lg transition-colors",
+          mode === 'text' ? "text-ink dark:text-ink-inverse" : "text-ink-muted dark:text-ink-inverse-muted"
+        )}
+      >
+        <ChatIcon className="w-4 h-4" />
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOICE MODE - Minimal & Elegant
+// ─────────────────────────────────────────────────────────────────────────────
+
+function VoiceMode() {
+  const [isListening, setIsListening] = useState(false)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ ease: EASE }}
+      className="h-full flex flex-col items-center justify-center px-8"
+    >
+      {/* Voice Orb - Ultra minimal */}
+      <motion.button
+        onClick={() => setIsListening(!isListening)}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className="relative"
+      >
+        {/* Subtle pulse rings */}
+        {isListening && (
+          <>
+            <motion.div
+              className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
+              animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+            <motion.div
+              className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
+              animate={{ scale: [1, 1.4], opacity: [0.3, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+            />
+          </>
+        )}
+        
+        {/* Main orb */}
+        <div className={cn(
+          "relative w-24 h-24 rounded-full",
+          "flex items-center justify-center",
+          "transition-all duration-500",
+          isListening
+            ? "bg-ink dark:bg-ink-inverse"
+            : "bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700"
+        )}>
+          <MicIcon className={cn(
+            "w-8 h-8 transition-colors duration-300",
+            isListening ? "text-surface-0 dark:text-surface-900" : "text-ink-muted dark:text-ink-inverse-muted"
+          )} />
+        </div>
+      </motion.button>
+
+      {/* Status text */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="mt-8 text-body-sm text-ink-muted dark:text-ink-inverse-muted text-center"
+      >
+        {isListening ? (
+          <span className="flex items-center gap-2">
+            <motion.span
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="w-1.5 h-1.5 rounded-full bg-ink dark:bg-ink-inverse"
+            />
+            Listening
+          </span>
+        ) : (
+          "Tap to speak"
+        )}
+      </motion.p>
+
+      {/* Keyboard hint */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="mt-3 text-body-xs text-ink-muted/40 dark:text-ink-inverse-muted/40"
+      >
+        or press Space
+      </motion.p>
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEXT MODE - Chat interface
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface TextModeProps {
+  messages: Message[]
+  isEmpty: boolean
+  isTyping: boolean
+  onSuggestionClick: (text: string) => void
+  messagesEndRef: React.RefObject<HTMLDivElement | null>
+}
+
+function TextMode({ messages, isEmpty, isTyping, onSuggestionClick, messagesEndRef }: TextModeProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ ease: EASE }}
+      className="h-full flex flex-col overflow-hidden"
+    >
+      {isEmpty ? (
+        <EmptyState onSuggestionClick={onSuggestionClick} />
+      ) : (
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
+          {messages.map((message) => (
+            <MessageBubble key={message.id} message={message} />
+          ))}
+          
+          {/* Typing indicator */}
+          {isTyping && messages[messages.length - 1]?.role === 'user' && (
+            <TypingIndicator />
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMPTY STATE - Minimal & Refined
+// ─────────────────────────────────────────────────────────────────────────────
+
+function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) => void }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-6">
+      {/* Minimal logo mark */}
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        className="relative mb-10"
+      >
+        <div className="w-14 h-14 rounded-2xl bg-ink dark:bg-ink-inverse flex items-center justify-center">
+          <span className="text-xl font-display font-light text-surface-0 dark:text-surface-900">R</span>
+        </div>
+        {/* Subtle pulse ring */}
+        <motion.div
+          className="absolute inset-0 rounded-2xl border border-ink/20 dark:border-ink-inverse/20"
+          animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+        />
+      </motion.div>
+
+      {/* Title */}
+      <motion.h3
+        initial={{ y: 12, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="text-display-sm font-display font-light text-ink dark:text-ink-inverse text-center mb-2"
+      >
+        How can I help?
+      </motion.h3>
+
+      <motion.p
+        initial={{ y: 12, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.15 }}
+        className="text-body-sm text-ink-muted/70 dark:text-ink-inverse-muted/70 text-center mb-10 max-w-xs"
+      >
+        Browse, search, analyze, and accomplish.
+      </motion.p>
+
+      {/* Sleek Pill Suggestions */}
+      <motion.div
+        initial={{ y: 12, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="flex flex-wrap justify-center gap-2 px-2"
+      >
+        {SUGGESTIONS.map((suggestion, i) => (
+          <motion.button
+            key={i}
+            onClick={() => onSuggestionClick(suggestion.text)}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.25 + i * 0.04 }}
+            whileHover={{ scale: 1.04, y: -1 }}
+            whileTap={{ scale: 0.97 }}
+            className={cn(
+              "group",
+              "inline-flex items-center gap-2",
+              "px-4 py-2 rounded-full",
+              "bg-surface-50 dark:bg-surface-850",
+              "border border-surface-200 dark:border-surface-700",
+              "hover:border-surface-300 dark:hover:border-surface-600",
+              "hover:bg-surface-100 dark:hover:bg-surface-800",
+              "transition-all duration-300 ease-out",
+            )}
+          >
+            <span className="text-ink-muted/50 dark:text-ink-inverse-muted/50 text-sm font-light group-hover:text-ink-muted dark:group-hover:text-ink-inverse-muted transition-colors">
+              {suggestion.icon}
+            </span>
+            <span className="text-body-sm text-ink-secondary dark:text-ink-inverse-secondary group-hover:text-ink dark:group-hover:text-ink-inverse transition-colors">
+              {suggestion.text}
+            </span>
+          </motion.button>
+        ))}
+      </motion.div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MESSAGE BUBBLE
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MessageBubble({ message }: { message: Message }) {
+  const isUser = message.role === 'user'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn("flex", isUser ? "justify-end" : "justify-start")}
+    >
+      <div className={cn("max-w-[85%]", isUser ? "order-2" : "order-1")}>
+        {/* Reasoning (for assistant) */}
+        {!isUser && message.reasoning && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-2"
+          >
+            <div className="flex items-center gap-2 text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+              <motion.div
+                animate={!message.isReasoningComplete ? { rotate: 360 } : {}}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              >
+                <ThinkingIcon className="w-3.5 h-3.5" />
+              </motion.div>
+              <span className="italic">{message.reasoning}</span>
+            </div>
+          </motion.div>
+        )}
+        
+        {/* Message content */}
+        <div className={cn(
+          "rounded-2xl px-4 py-3",
+          isUser
+            ? "bg-gradient-to-br from-accent to-accent-light text-white rounded-br-md"
+            : "bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse rounded-bl-md"
+        )}>
+          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
+            {message.content}
+            {message.isStreaming && (
+              <motion.span
+                animate={{ opacity: [1, 0] }}
+                transition={{ duration: 0.5, repeat: Infinity }}
+                className="inline-block w-1.5 h-4 bg-current ml-0.5 align-middle"
+              />
+            )}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPING INDICATOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TypingIndicator() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex items-center gap-2"
+    >
+      <div className="flex items-center gap-1 px-4 py-3 rounded-2xl rounded-bl-md bg-surface-100 dark:bg-surface-800">
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            className="w-2 h-2 rounded-full bg-ink-muted dark:bg-ink-inverse-muted"
+            animate={{ y: [0, -4, 0] }}
+            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.1 }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB CHIP
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TabChip({ tab, onRemove }: { tab: TabSummary; onRemove: () => void }) {
+  return (
+    <div
+      className={cn(
+        'group inline-flex items-center gap-2 pl-2 pr-1 py-1 rounded-full',
+        'bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700'
+      )}
+    >
+      {tab.favicon ? (
+        <img src={tab.favicon} alt="" className="w-4 h-4 rounded" />
+      ) : (
+        <GlobeIcon className="w-4 h-4 text-ink-muted dark:text-ink-inverse-muted" />
+      )}
+      <span className="text-body-xs text-ink dark:text-ink-inverse max-w-[160px] truncate">
+        {tab.title || tab.url}
+      </span>
+      <button
+        onClick={onRemove}
+        className="w-5 h-5 rounded-full hover:bg-surface-200 dark:hover:bg-surface-700 flex items-center justify-center"
+        aria-label="Remove attachment"
+      >
+        <XSmallIcon className="w-3 h-3 text-ink-muted dark:text-ink-inverse-muted" />
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ICONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  )
+}
+
+function ChatIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function ArrowUpIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  )
+}
+
+function ThinkingIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
+}
+
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  )
+}
+
+function XSmallIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
   )
 }

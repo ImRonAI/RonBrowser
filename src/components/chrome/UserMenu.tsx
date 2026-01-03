@@ -1,12 +1,12 @@
 import { Fragment } from 'react'
 import { Menu, Transition } from '@headlessui/react'
 import { 
-  ChevronDownIcon, 
-  Cog6ToothIcon, 
-  ArrowRightOnRectangleIcon,
-  UserCircleIcon,
-  SwatchIcon
-} from '@heroicons/react/24/outline'
+  ChevronDown, 
+  Settings, 
+  LogOut,
+  UserCircle,
+  Palette
+} from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useUserPreferencesStore } from '@/stores/userPreferencesStore'
 import { cn } from '@/utils/cn'
@@ -49,7 +49,7 @@ export function UserMenu() {
               {/* Online indicator */}
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-ron-black glass:border-white/80" />
             </div>
-            <ChevronDownIcon className={cn(
+            <ChevronDown className={cn(
               "w-3 h-3 transition-transform duration-200",
               "text-ron-text/50 dark:text-white/50 glass:text-zinc-500",
               open && "rotate-180"
@@ -111,7 +111,7 @@ export function UserMenu() {
                           : 'bg-transparent'
                       )}
                     >
-                      <UserCircleIcon className="w-4 h-4 text-ron-text/60 dark:text-white/60 glass:text-zinc-600" />
+                      <UserCircle className="w-4 h-4 text-ron-text/60 dark:text-white/60 glass:text-zinc-600" />
                       <span className="text-sm font-raleway text-ron-text dark:text-white glass:text-zinc-800">
                         Profile
                       </span>
@@ -130,7 +130,7 @@ export function UserMenu() {
                           : 'bg-transparent'
                       )}
                     >
-                      <SwatchIcon className="w-4 h-4 text-ron-text/60 dark:text-white/60 glass:text-zinc-600" />
+                      <Palette className="w-4 h-4 text-ron-text/60 dark:text-white/60 glass:text-zinc-600" />
                       <span className="text-sm font-raleway text-ron-text dark:text-white glass:text-zinc-800">
                         {getThemeLabel()}
                       </span>
@@ -149,7 +149,7 @@ export function UserMenu() {
                           : 'bg-transparent'
                       )}
                     >
-                      <Cog6ToothIcon className="w-4 h-4 text-ron-text/60 dark:text-white/60 glass:text-zinc-600" />
+                      <Settings className="w-4 h-4 text-ron-text/60 dark:text-white/60 glass:text-zinc-600" />
                       <span className="text-sm font-raleway text-ron-text dark:text-white glass:text-zinc-800">
                         Settings
                       </span>
@@ -172,7 +172,7 @@ export function UserMenu() {
                           : 'bg-transparent'
                       )}
                     >
-                      <ArrowRightOnRectangleIcon className="w-4 h-4 text-red-500 dark:text-red-400" />
+                      <LogOut className="w-4 h-4 text-red-500 dark:text-red-400" />
                       <span className="text-sm font-raleway font-raleway-bold text-red-500 dark:text-red-400">
                         Sign Out
                       </span>

@@ -4,7 +4,15 @@
  * Manages the Python voice agent subprocess lifecycle and events.
  * Connects Electron IPC to React state for voice onboarding.
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useOnboardingStore } from '@/stores/onboardingStore'
+
+// React StrictMode (dev) does an intentional mount -> unmount -> mount cycle.
+// If we stop the subprocess immediately on the first unmount, it will get SIGKILL
+// during startup and never come up cleanly. Debounce stop so the next mount can
+// cancel it.
+let pendingStopTimeout: ReturnType<typeof setTimeout> | null = null
+const STOP_DEBOUNCE_MS = 150
 
 export type VoiceAgentState = 'idle' | 'starting' | 'listening' | 'thinking' | 'speaking' | 'stopped' | 'error'
 
@@ -41,6 +49,7 @@ export function useVoiceAgent({
   const [currentQuestion, setCurrentQuestion] = useState<string | null>(null)
   const [agentMessage, setAgentMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const startedRef = useRef(false)
 
   // Start the voice agent
   const start = useCallback(async () => {
@@ -54,7 +63,7 @@ export function useVoiceAgent({
 
     try {
       setState('starting')
-      const result = await window.electron.voiceAgent.start(apiKey)
+      const result = await window.electron.voiceAgent.start(apiKey) as any
 
       if (!result.success) {
         const errorMsg = result.error || 'Failed to start voice agent'
@@ -64,6 +73,7 @@ export function useVoiceAgent({
         return
       }
 
+      startedRef.current = true
       setState('listening')
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error starting voice agent'
@@ -77,24 +87,51 @@ export function useVoiceAgent({
   const stop = useCallback(async () => {
     if (!window.electron?.voiceAgent) return
 
+    // If a stop is already scheduled (e.g. StrictMode remount), cancel it.
+    if (pendingStopTimeout) {
+      clearTimeout(pendingStopTimeout)
+      pendingStopTimeout = null
+    }
+
     try {
       await window.electron.voiceAgent.stop()
       setState('stopped')
+      startedRef.current = false
     } catch (err) {
       console.error('Failed to stop voice agent:', err)
     }
   }, [])
 
-  // Start agent when enabled changes to true
+  // Start agent when enabled changes
   useEffect(() => {
-    if (!enabled || !window.electron?.voiceAgent) return
+    if (!window.electron?.voiceAgent) return
 
-    // Start agent when enabled
-    start()
+    // If we're (re)mounting/enabling, cancel any pending stop from a previous unmount.
+    if (enabled && pendingStopTimeout) {
+      clearTimeout(pendingStopTimeout)
+      pendingStopTimeout = null
+    }
 
-    // Cleanup: stop when disabled
+    // If disabling, stop immediately (no debounce needed).
+    if (!enabled) {
+      if (startedRef.current) stop()
+      return
+    }
+
+    // Start agent when enabled (guard against React StrictMode double-mount in dev)
+    if (!startedRef.current) {
+      start()
+    }
+
+    // Cleanup: debounce stop so StrictMode remount can cancel it
     return () => {
-      stop()
+      if (pendingStopTimeout) clearTimeout(pendingStopTimeout)
+
+      pendingStopTimeout = setTimeout(() => {
+        pendingStopTimeout = null
+        // Don't touch React state here; this can fire after unmount.
+        window.electron?.voiceAgent?.stop?.().catch(() => {})
+      }, STOP_DEBOUNCE_MS)
     }
     // Only run when enabled changes, not when start/stop change
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,6 +165,12 @@ export function useVoiceAgent({
 
         case 'answer_recorded':
           // User's answer was recorded, clear transcript
+          if (agentEvent.data.question && agentEvent.data.answer) {
+            useOnboardingStore.getState().setAnswer(
+              agentEvent.data.question as string,
+              agentEvent.data.answer as string
+            )
+          }
           setTranscript('')
           break
 

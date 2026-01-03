@@ -82,6 +82,18 @@ export interface ConversationContext {
   pageContent?: string
   selectedText?: string
   
+  // Provided tab contexts (attachments)
+  selectedTabs?: Array<{
+    id: string
+    url: string
+    title: string
+    favicon?: string
+    isExternal?: boolean
+    dom?: { html: string; text: string; metas: Array<{ name: string; content: string }>; localStorage: Record<string, string | null>; sessionStorage: Record<string, string | null> }
+    cookies?: Array<{ name: string; value: string; domain?: string; path?: string }>
+    screenshot?: string
+  }>
+  
   // Agent context
   agentId?: string
   agentName?: string

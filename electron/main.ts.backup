@@ -1,0 +1,516 @@
+import { app, BrowserWindow, shell, ipcMain, safeStorage } from 'electron'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { spawn, ChildProcess } from 'node:child_process'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
+
+// ESM __dirname equivalent
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = join(__filename, '..')
+
+// CDP Port for browser automation
+const CDP_PORT = 9222
+
+// Enable CDP (Chrome DevTools Protocol) for Playwright/browser-use connection
+// This allows the Python agent to connect to this Electron instance
+app.commandLine.appendSwitch('remote-debugging-port', String(CDP_PORT))
+
+// Disable GPU Acceleration for Windows 7
+if (process.platform === 'win32') app.disableHardwareAcceleration()
+
+// Set application name for Windows 10+ notifications
+if (process.platform === 'win32') app.setAppUserModelId(app.getName())
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+  process.exit(0)
+}
+
+let mainWindow: BrowserWindow | null = null
+let currentTheme: 'light' | 'dark' | 'glass' | 'system' = 'light'
+let browserView: Electron.BrowserView | null = null
+let currentUrl: string = 'ron://home'
+
+// ============================================
+// Secure Token Storage
+// ============================================
+
+interface StoredTokens {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+}
+
+let cachedTokens: StoredTokens | null = null
+
+// Note: encryptAndStore and decryptAndRetrieve are available for future secure token persistence
+// Currently using in-memory storage; for production, integrate with electron-store
+
+// ============================================
+// Window Creation
+// ============================================
+
+async function createWindow() {
+  mainWindow = new BrowserWindow({
+    title: 'Ron Browser',
+    width: 1400,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
+    show: false,
+    frame: false, // We'll create custom window controls
+    titleBarStyle: 'hidden', // Hide native title bar completely
+    transparent: true,
+    backgroundColor: '#00000000',
+    vibrancy: 'sidebar', // Frosted glass effect on macOS
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show()
+  })
+
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  // HMR for renderer base on electron-vite cli.
+  // Load the remote URL for development or the local html file for production.
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+// This method will be called when Electron has finished initialization
+app.whenReady().then(createWindow)
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+app.on('activate', () => {
+  // On OS X it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
+})
+
+// ============================================
+// IPC Handlers - Window Controls
+// ============================================
+
+ipcMain.on('window-minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.on('window-maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow?.unmaximize()
+  } else {
+    mainWindow?.maximize()
+  }
+})
+
+ipcMain.on('window-close', () => {
+  mainWindow?.close()
+})
+
+// ============================================
+// IPC Handlers - Theme
+// ============================================
+
+ipcMain.handle('get-theme', () => {
+  return currentTheme
+})
+
+ipcMain.handle('set-theme', (_, theme: 'light' | 'dark' | 'glass' | 'system') => {
+  currentTheme = theme
+
+  if (!mainWindow) return theme
+
+  if (theme === 'glass') {
+    // Glass mode - enable native blur effects
+    if (process.platform === 'darwin') {
+      // macOS: Use native vibrancy with NSVisualEffectView
+      // 'light' gives a bright, luminous glass effect
+      mainWindow.setVibrancy('sidebar')
+      mainWindow.setBackgroundColor('#00000000')
+    } else if (process.platform === 'win32') {
+      // Windows 11: Use native acrylic/mica material
+      // @ts-ignore - setBackgroundMaterial exists on Windows
+      mainWindow.setBackgroundMaterial?.('acrylic')
+      mainWindow.setBackgroundColor('#00000000')
+    } else {
+      // Linux: Transparency only (no native blur support)
+      mainWindow.setBackgroundColor('#00000000')
+    }
+  } else {
+    // Non-glass modes - disable vibrancy/material
+    if (process.platform === 'darwin') {
+      mainWindow.setVibrancy(null)
+    } else if (process.platform === 'win32') {
+      // @ts-ignore
+      mainWindow.setBackgroundMaterial?.('none')
+    }
+    mainWindow.setBackgroundColor(theme === 'dark' ? '#0A0A0A' : '#FFFFFF')
+  }
+
+  return theme
+})
+
+// ============================================
+// IPC Handlers - Authentication
+// ============================================
+
+ipcMain.handle('auth:store-tokens', async (_, tokens: StoredTokens) => {
+  try {
+    cachedTokens = tokens
+    // In production, encrypt and persist tokens
+    if (safeStorage.isEncryptionAvailable()) {
+      // Could use electron-store here for persistent storage
+      return { success: true }
+    }
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to store tokens:', error)
+    return { success: false, error: 'Failed to store tokens' }
+  }
+})
+
+ipcMain.handle('auth:get-tokens', async () => {
+  return cachedTokens
+})
+
+ipcMain.handle('auth:clear-tokens', async () => {
+  cachedTokens = null
+  return { success: true }
+})
+
+ipcMain.handle('auth:is-encryption-available', async () => {
+  return safeStorage.isEncryptionAvailable()
+})
+
+// ============================================
+// IPC Handlers - Agent Communication
+// ============================================
+
+// Store active stream connections
+const activeStreams = new Map<string, AbortController>()
+
+ipcMain.handle('agent:start-stream', async (_event, streamId: string, request: {
+  url: string
+  method: string
+  headers: Record<string, string>
+  body: string
+}) => {
+  const controller = new AbortController()
+  activeStreams.set(streamId, controller)
+
+  try {
+    const response = await fetch(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      mainWindow?.webContents.send('agent:stream-error', streamId, {
+        code: `HTTP_${response.status}`,
+        message: errorData.message || response.statusText,
+        status: response.status,
+      })
+      return { success: false }
+    }
+
+    if (!response.body) {
+      mainWindow?.webContents.send('agent:stream-error', streamId, {
+        code: 'NO_BODY',
+        message: 'Response body is null',
+        status: 0,
+      })
+      return { success: false }
+    }
+
+    // Notify connected
+    mainWindow?.webContents.send('agent:stream-connected', streamId)
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        // Process remaining buffer
+        if (buffer.trim()) {
+          processSSEBuffer(streamId, buffer)
+        }
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      
+      // Process complete lines
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        processSSELine(streamId, line)
+      }
+    }
+
+    mainWindow?.webContents.send('agent:stream-complete', streamId)
+    return { success: true }
+
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      mainWindow?.webContents.send('agent:stream-aborted', streamId)
+    } else {
+      mainWindow?.webContents.send('agent:stream-error', streamId, {
+        code: 'STREAM_ERROR',
+        message: error.message || 'Stream failed',
+        status: 0,
+      })
+    }
+    return { success: false }
+  } finally {
+    activeStreams.delete(streamId)
+  }
+})
+
+ipcMain.handle('agent:abort-stream', async (_, streamId: string) => {
+  const controller = activeStreams.get(streamId)
+  if (controller) {
+    controller.abort()
+    activeStreams.delete(streamId)
+    return { success: true }
+  }
+  return { success: false, error: 'Stream not found' }
+})
+
+ipcMain.handle('agent:abort-all-streams', async () => {
+  for (const [, controller] of activeStreams) {
+    controller.abort()
+  }
+  activeStreams.clear()
+  return { success: true }
+})
+
+function processSSEBuffer(streamId: string, buffer: string): void {
+  const lines = buffer.split('\n')
+  for (const line of lines) {
+    processSSELine(streamId, line)
+  }
+}
+
+function processSSELine(streamId: string, line: string): void {
+  const trimmedLine = line.trim()
+  
+  // Skip empty lines and comments
+  if (!trimmedLine || trimmedLine.startsWith(':')) {
+    return
+  }
+
+  // Parse SSE data field
+  if (trimmedLine.startsWith('data:')) {
+    const data = trimmedLine.slice(5).trim()
+    
+    // Handle [DONE] marker
+    if (data === '[DONE]') {
+      return
+    }
+
+    try {
+      const event = JSON.parse(data)
+      mainWindow?.webContents.send('agent:stream-event', streamId, event)
+    } catch {
+      // If not JSON, send as plain text
+      mainWindow?.webContents.send('agent:stream-event', streamId, { data })
+    }
+  }
+}
+
+// ============================================
+// IPC Handlers - Voice Agent
+// ============================================
+
+let voiceAgentProcess: ChildProcess | null = null
+let voiceAgentStdoutBuffer = ''
+
+// Helper to forcefully kill the voice agent process
+function killVoiceAgent() {
+  if (voiceAgentProcess) {
+    try {
+      // Use SIGKILL to ensure the process dies
+      voiceAgentProcess.kill('SIGKILL')
+    } catch (e) {
+      // Process might already be dead
+    }
+    voiceAgentProcess = null
+    voiceAgentStdoutBuffer = ''
+  }
+}
+
+ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
+  try {
+    // If already running, don't kill/restart. React StrictMode in dev can call start twice.
+    if (voiceAgentProcess && voiceAgentProcess.pid) {
+      return { success: true, pid: voiceAgentProcess.pid }
+    }
+
+    // Get the agents directory path
+    const agentsPath = app.isPackaged
+      ? join(process.resourcesPath, 'agents')
+      : join(__dirname, '..', '..', 'agents')
+
+    const agentScriptPath = join(agentsPath, 'voice_onboarding', 'agent.py')
+
+    // Find Python executable - use venv if available
+    const venvPython = app.isPackaged
+      ? join(process.resourcesPath, 'venv', 'bin', 'python')
+      : join(__dirname, '..', '..', 'venv', 'bin', 'python')
+    
+    // Fall back to system Python if venv doesn't exist
+    const pythonPath = require('fs').existsSync(venvPython) 
+      ? venvPython 
+      : (process.platform === 'win32' ? 'python' : 'python3')
+
+    console.log('[Voice Agent] Using Python:', pythonPath)
+    console.log('[Voice Agent] Script:', agentScriptPath)
+
+    // Set up environment with API key
+    const env = { ...process.env }
+    if (apiKey) {
+      env.GOOGLE_API_KEY = apiKey
+      env.GEMINI_API_KEY = apiKey
+      env.GOOGLE_AI_API_KEY = apiKey
+    }
+
+    // Spawn the Python process
+    voiceAgentProcess = spawn(pythonPath, [agentScriptPath], {
+      env,
+      cwd: join(agentsPath, 'voice_onboarding')
+    })
+
+    // Handle stdout - agent output
+    voiceAgentProcess.stdout?.on('data', (data) => {
+      // Python stdout can arrive in arbitrary chunks. We treat it as newline-delimited JSON.
+      voiceAgentStdoutBuffer += data.toString('utf8')
+
+      const lines = voiceAgentStdoutBuffer.split('\n')
+      voiceAgentStdoutBuffer = lines.pop() ?? ''
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim()
+        if (!line) continue
+
+        try {
+          const event = JSON.parse(line)
+          mainWindow?.webContents.send('voice-agent:event', event)
+        } catch {
+          // Non-JSON logs or partial output
+          mainWindow?.webContents.send('voice-agent:output', rawLine)
+        }
+      }
+    })
+
+    // Handle stderr - errors
+    voiceAgentProcess.stderr?.on('data', (data) => {
+      const error = data.toString()
+      console.error('[Voice Agent Error]:', error)
+      mainWindow?.webContents.send('voice-agent:error', error)
+    })
+
+    // Handle process exit
+    voiceAgentProcess.on('exit', (code, signal) => {
+      console.log(`[Voice Agent] Process exited with code ${code}, signal ${signal}`)
+      mainWindow?.webContents.send('voice-agent:stopped', { code, signal })
+      voiceAgentProcess = null
+    })
+
+    return { success: true, pid: voiceAgentProcess.pid }
+  } catch (error) {
+    console.error('[Voice Agent] Failed to start:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+})
+
+ipcMain.handle('voice-agent:stop', async () => {
+  if (voiceAgentProcess) {
+    killVoiceAgent()
+    return { success: true }
+  }
+  return { success: false, error: 'No active voice agent process' }
+})
+
+// Clean up on app quit
+app.on('before-quit', () => {
+  killVoiceAgent()
+})
+
+// Also clean up when window is closed
+app.on('window-all-closed', () => {
+  killVoiceAgent()
+})
+
+// ============================================
+// IPC Handlers - Tab Management (Future)
+// ============================================
+
+ipcMain.handle('create-tab', async (_, url?: string) => {
+  // TODO: Implement BrowserView tab management
+  const tabUrl = url || 'ron://home'
+  return { tabId: `tab-${Date.now()}`, url: tabUrl }
+})
+
+ipcMain.handle('close-tab', async (_, _tabId: string) => {
+  // TODO: Implement tab closing
+  return { success: true }
+})
+
+ipcMain.handle('switch-tab', async (_, _tabId: string) => {
+  // TODO: Implement tab switching
+  return { success: true }
+})
+
+// ============================================
+// IPC Handlers - Navigation (Future)
+// ============================================
+
+ipcMain.handle('navigate', async (_, _url: string) => {
+  // TODO: Implement navigation in active BrowserView
+  return { success: true }
+})
+
+ipcMain.handle('go-back', async () => {
+  // TODO: Implement back navigation
+  return { success: true }
+})
+
+ipcMain.handle('go-forward', async () => {
+  // TODO: Implement forward navigation
+  return { success: true }
+})
+
+ipcMain.handle('reload', async () => {
+  // TODO: Implement page reload
+  return { success: true }
+})

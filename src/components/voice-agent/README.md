@@ -128,31 +128,6 @@ export function OnboardingPage() {
 }
 ```
 
-### With Voice Agent Bridge
-
-```tsx
-import { VoiceOnboardingScene } from '@/components/voice-agent'
-import { VoiceOnboardingAgent } from '@/agents/voice_onboarding/electron_bridge'
-
-function VoiceOnboardingWithAgent() {
-  const [agent] = useState(() => new VoiceOnboardingAgent())
-  const [agentState, setAgentState] = useState('idle')
-  const [transcript, setTranscript] = useState('')
-
-  useEffect(() => {
-    agent.on('started', () => setAgentState('listening'))
-    agent.on('transcript', (role, text) => {
-      if (role === 'user') setTranscript(text)
-    })
-    agent.on('completed', () => setAgentState('complete'))
-
-    agent.start()
-    return () => agent.stop()
-  }, [])
-
-  return <VoiceOnboardingScene /* ... */ />
-}
-```
 
 ## Architecture
 

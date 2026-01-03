@@ -115,9 +115,8 @@ pip install 'strands-agents[bidi-gemini]'
 ## Next Steps
 
 - **See full README**: `cat README.md`
-- **Integration examples**: `example_usage.ts`
 - **Customize questions**: Edit `INTERVIEW_QUESTIONS` in `agent.py`
-- **Change voice**: Edit `voice` parameter in `agent.py`
+- **Change voice**: Set `VOICE_AGENT_VOICE` (or update `agent.py`)
 
 ## Output Format
 

@@ -2,14 +2,13 @@ import { useEffect } from 'react'
 import { useUserPreferencesStore } from '@/stores/userPreferencesStore'
 
 /**
- * Hook for managing theme (light/dark/glass mode)
+ * Hook for managing theme (light/dark mode only)
  * Integrates with userPreferencesStore and handles DOM class management
  */
 export function useTheme() {
-  const { theme, setTheme, toggleTheme } = useUserPreferencesStore()
+  const { theme, setTheme } = useUserPreferencesStore()
 
   useEffect(() => {
-    // Apply theme on mount and when it changes
     const root = document.documentElement
 
     const applyTheme = (themeValue: typeof theme) => {
@@ -19,9 +18,6 @@ export function useTheme() {
       if (themeValue === 'dark') {
         root.classList.add('dark')
         localStorage.setItem('theme', 'dark')
-      } else if (themeValue === 'glass') {
-        root.classList.add('glass')
-        localStorage.setItem('theme', 'glass')
       } else if (themeValue === 'light') {
         localStorage.setItem('theme', 'light')
       } else {
@@ -54,12 +50,22 @@ export function useTheme() {
     }
   }, [theme])
 
+  // Toggle between light and dark only
+  const toggleTheme = () => {
+    const currentTheme = theme
+    if (currentTheme === 'dark') {
+      setTheme('light')
+    } else {
+      setTheme('dark')
+    }
+  }
+
   return {
     theme,
     setTheme,
     toggleTheme,
     isDark: theme === 'dark' ||
-           (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches),
-    isGlass: theme === 'glass'
+           (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches),
+    isGlass: false // Disabled per requirements
   }
 }

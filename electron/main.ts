@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, safeStorage, WebContentsView, Menu, MenuItem } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
@@ -6,6 +6,17 @@ import { spawn, ChildProcess } from 'node:child_process'
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = join(__filename, '..')
+
+// CDP Port for browser automation
+const CDP_PORT = 9222
+
+// Layout constants
+const CHROME_HEIGHT = 108 // Height of toolbar (64px) + tabs (44px)
+const AGENT_PANEL_WIDTH = 420 // Width of the agent panel
+
+// Enable CDP (Chrome DevTools Protocol) for Playwright/browser-use connection
+// This allows the Python agent to connect to this Electron instance
+app.commandLine.appendSwitch('remote-debugging-port', String(CDP_PORT))
 
 // Disable GPU Acceleration for Windows 7
 if (process.platform === 'win32') app.disableHardwareAcceleration()
@@ -20,6 +31,8 @@ if (!app.requestSingleInstanceLock()) {
 
 let mainWindow: BrowserWindow | null = null
 let currentTheme: 'light' | 'dark' | 'glass' | 'system' = 'light'
+// Deprecated single-view variables replaced by TabsManager
+let isAgentPanelOpen: boolean = false
 
 // ============================================
 // Secure Token Storage
@@ -77,10 +90,329 @@ async function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Handle window resize - update WebContentsView bounds
+  mainWindow.on('resize', () => {
+    updateWebContentsViewBounds()
+  })
+}
+
+// ============================================
+// Tabs Manager (WebContentsView per tab)
+// ============================================
+
+interface TabRecord {
+  id: string
+  url: string
+  title: string
+  favicon?: string
+  isExternal: boolean
+  view?: WebContentsView
+}
+
+class TabsManager {
+  private tabs = new Map<string, TabRecord>()
+  private order: string[] = []
+  private _activeTabId: string | null = null
+
+  get activeTabId() { return this._activeTabId }
+  get activeTab(): TabRecord | undefined { return this._activeTabId ? this.tabs.get(this._activeTabId) : undefined }
+
+  list(): Array<{ id: string; url: string; title: string; favicon?: string; isActive: boolean }> {
+    return this.order.map(id => {
+      const t = this.tabs.get(id)!
+      return { id: t.id, url: t.url, title: t.title, favicon: t.favicon, isActive: id === this._activeTabId }
+    })
+  }
+
+  create(clientTabId?: string, url: string = 'ron://home'): TabRecord {
+    const id = clientTabId || `tab-${Date.now()}`
+    const record: TabRecord = { id, url, title: url.startsWith('ron://') ? 'Home' : 'New Tab', isExternal: !isInternalUrl(url) }
+    this.tabs.set(id, record)
+    this.order.push(id)
+
+    // Only create a WebContentsView when navigating external content
+    if (!isInternalUrl(url)) {
+      this.ensureView(record)
+      record.view!.webContents.loadURL(normalizeUrl(url))
+    }
+
+    // If this is the first tab, make it active by default
+    if (!this._activeTabId) this.switch(id)
+
+    this.emitTabsUpdated()
+    return record
+  }
+
+  switch(id: string): boolean {
+    const tab = this.tabs.get(id)
+    if (!mainWindow || !tab) return false
+
+    const contentView = mainWindow.contentView
+
+    // Detach currently attached view (if any)
+    const current = this.activeTab
+    if (current?.view && contentView.children.includes(current.view)) {
+      contentView.removeChildView(current.view)
+    }
+
+    this._activeTabId = id
+
+    if (tab.isExternal) {
+      this.ensureView(tab)
+      this.updateViewBounds(tab.view!)
+      if (!contentView.children.includes(tab.view!)) contentView.addChildView(tab.view!)
+      // Let renderer know we're in external mode
+      mainWindow.webContents.send('browser:external-mode', true)
+    } else {
+      // Internal content => ensure no WebContentsView is attached
+      mainWindow.webContents.send('browser:external-mode', false)
+    }
+
+    // Sync URL to renderer
+    mainWindow.webContents.send('browser:url-changed', tab.url)
+    return true
+  }
+
+  close(id: string): boolean {
+    const idx = this.order.indexOf(id)
+    const tab = this.tabs.get(id)
+    if (idx === -1 || !tab) return false
+
+    // Destroy view if exists
+    if (tab.view && !tab.view.webContents.isDestroyed()) {
+      try { tab.view.webContents.close() } catch {}
+    }
+
+    // Remove from window if attached
+    if (mainWindow && tab.view && mainWindow.contentView.children.includes(tab.view)) {
+      mainWindow.contentView.removeChildView(tab.view)
+    }
+
+    this.tabs.delete(id)
+    this.order.splice(idx, 1)
+
+    // Choose new active tab if needed
+    if (this._activeTabId === id) {
+      const nextId = this.order[idx] || this.order[idx - 1] || null
+      this._activeTabId = null
+      if (nextId) this.switch(nextId)
+      else {
+        // No tabs left => renderer in internal mode
+        mainWindow?.webContents.send('browser:external-mode', false)
+      }
+    }
+
+    this.emitTabsUpdated()
+    return true
+  }
+
+  navigateActive(url: string): { success: boolean; isExternal: boolean; url?: string; error?: string } {
+    if (!this._activeTabId) {
+      // No tabs yet; create one and navigate
+      const created = this.create(undefined, url)
+      return { success: true, isExternal: created.isExternal, url: created.url }
+    }
+    const tab = this.tabs.get(this._activeTabId)!
+    const normalizedUrl = normalizeUrl(url)
+    tab.url = normalizedUrl
+    tab.isExternal = !isInternalUrl(normalizedUrl)
+
+    if (tab.isExternal) {
+      this.ensureView(tab)
+      this.attachIfActive(tab)
+      tab.view!.webContents.loadURL(normalizedUrl)
+      return { success: true, isExternal: true, url: normalizedUrl }
+    } else {
+      // Internal page => detach any view if this tab is active
+      if (mainWindow) {
+        mainWindow.webContents.send('browser:external-mode', false)
+        mainWindow.webContents.send('browser:url-changed', tab.url)
+      }
+      return { success: true, isExternal: false, url: normalizedUrl }
+    }
+  }
+
+  goBackActive(): boolean {
+    const tab = this.activeTab
+    if (tab?.view?.webContents.canGoBack()) { tab.view.webContents.goBack(); return true }
+    return false
+  }
+
+  goForwardActive(): boolean {
+    const tab = this.activeTab
+    if (tab?.view?.webContents.canGoForward()) { tab.view.webContents.goForward(); return true }
+    return false
+  }
+
+  reloadActive(): boolean {
+    const tab = this.activeTab
+    if (tab?.view) { tab.view.webContents.reload(); return true }
+    return false
+  }
+
+  canGoBackActive(): boolean { return this.activeTab?.view?.webContents.canGoBack() ?? false }
+  canGoForwardActive(): boolean { return this.activeTab?.view?.webContents.canGoForward() ?? false }
+
+  async getContext(id: string): Promise<any> {
+    const tab = this.tabs.get(id)
+    if (!tab) throw new Error('Tab not found')
+    if (!tab.isExternal || !tab.view) {
+      return { id: tab.id, url: tab.url, title: tab.title, isExternal: false }
+    }
+    const wc = tab.view.webContents
+    const url = wc.getURL()
+    const title = wc.getTitle()
+
+    // Execute JS in page to collect DOM data
+    const dom = await wc.executeJavaScript(`(() => {
+      const html = document.documentElement ? document.documentElement.outerHTML : '';
+      const text = document.body ? document.body.innerText : '';
+      const metas = Array.from(document.querySelectorAll('meta')).map(m => ({
+        name: m.getAttribute('name') || m.getAttribute('property') || '',
+        content: m.getAttribute('content') || ''
+      }));
+      const ls = (() => { try { return Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])) } catch { return {} } })();
+      const ss = (() => { try { return Object.fromEntries(Object.keys(sessionStorage).map(k => [k, sessionStorage.getItem(k)])) } catch { return {} } })();
+      return { html, text, metas, localStorage: ls, sessionStorage: ss };
+    })()`, true)
+
+    // Cookies (scoped to URL)
+    const cookies = await wc.session.cookies.get({ url }).catch(() => [])
+
+    // Optional screenshot
+    const image = await wc.capturePage().catch(() => null)
+    const screenshot = image ? image.toPNG().toString('base64') : undefined
+
+    return { id: tab.id, url, title, favicon: tab.favicon, isExternal: true, dom, cookies, screenshot }
+  }
+
+  // Internal helpers
+  private ensureView(tab: TabRecord) {
+    if (tab.view) return
+    tab.view = new WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } })
+
+    // Bounds and events
+    this.updateViewBounds(tab.view)
+
+    // Navigation and state sync
+    tab.view.webContents.on('did-navigate', (_e, url) => this.onUrlChanged(tab, url))
+    tab.view.webContents.on('did-navigate-in-page', (_e, url) => this.onUrlChanged(tab, url))
+    tab.view.webContents.on('did-finish-load', () => mainWindow?.webContents.send('browser:navigation-complete', tab.url))
+    tab.view.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+      mainWindow?.webContents.send('browser:navigation-error', { errorCode, errorDescription, url: validatedURL })
+    })
+    tab.view.webContents.on('page-title-updated', (_e, title) => { tab.title = title; this.emitTabsUpdated() })
+    tab.view.webContents.on('page-favicon-updated', (_e, favs) => { tab.favicon = Array.isArray(favs) ? favs[0] : undefined; this.emitTabsUpdated() })
+
+    // Context menu + target=_blank policy consistent with previous behavior
+    tab.view.webContents.on('context-menu', (_, params) => {
+      if (!mainWindow) return
+      const menu = new Menu()
+      if (params.selectionText) {
+        menu.append(new MenuItem({ label: 'Ask Ron?', click: () => mainWindow?.webContents.send('agent:ask-ron', { selectionText: params.selectionText, sourceUrl: tab.url }) }))
+        menu.append(new MenuItem({ type: 'separator' }))
+      }
+      menu.append(new MenuItem({ role: 'copy', enabled: params.editFlags.canCopy }))
+      menu.append(new MenuItem({ role: 'paste', enabled: params.editFlags.canPaste }))
+      menu.append(new MenuItem({ role: 'cut', enabled: params.editFlags.canCut }))
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(new MenuItem({ label: 'Back', click: () => { if (tab.view?.webContents.canGoBack()) tab.view.webContents.goBack() }, enabled: tab.view?.webContents.canGoBack() }))
+      menu.append(new MenuItem({ label: 'Forward', click: () => { if (tab.view?.webContents.canGoForward()) tab.view.webContents.goForward() }, enabled: tab.view?.webContents.canGoForward() }))
+      menu.append(new MenuItem({ label: 'Reload', click: () => tab.view?.webContents.reload() }))
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(new MenuItem({ label: 'Inspect Element', click: () => tab.view?.webContents.inspectElement(params.x, params.y) }))
+      menu.popup()
+    })
+
+    tab.view.webContents.setWindowOpenHandler(details => { shell.openExternal(details.url); return { action: 'deny' } })
+  }
+
+  private onUrlChanged(tab: TabRecord, url: string) {
+    tab.url = url
+    if (this._activeTabId === tab.id) mainWindow?.webContents.send('browser:url-changed', url)
+  }
+
+  attachIfActive(tab: TabRecord) {
+    if (!mainWindow || this._activeTabId !== tab.id || !tab.view) return
+    const contentView = mainWindow.contentView
+    if (!contentView.children.includes(tab.view)) contentView.addChildView(tab.view)
+    this.updateViewBounds(tab.view)
+    mainWindow.webContents.send('browser:external-mode', true)
+  }
+
+  updateViewBounds(view: WebContentsView) {
+    if (!mainWindow) return
+    const bounds = calculateWebContentsViewBounds()
+    view.setBounds(bounds)
+  }
+
+  updateActiveViewBounds() {
+    const v = this.activeTab?.view
+    if (v) this.updateViewBounds(v)
+  }
+
+  emitTabsUpdated() { mainWindow?.webContents.send('tabs:updated', this.list()) }
+}
+
+const tabsManager = new TabsManager()
+
+// ============================================
+// WebContentsView Helpers (bounds only)
+// ============================================
+
+/**
+ * Calculate the bounds for the WebContentsView based on window size and panel state
+ */
+function calculateWebContentsViewBounds(): { x: number; y: number; width: number; height: number } {
+  if (!mainWindow) return { x: 0, y: CHROME_HEIGHT, width: 800, height: 600 }
+
+  const [windowWidth, windowHeight] = mainWindow.getSize()
+  const panelWidth = isAgentPanelOpen ? AGENT_PANEL_WIDTH : 0
+
+  return {
+    x: 0,
+    y: CHROME_HEIGHT,
+    width: windowWidth - panelWidth,
+    height: windowHeight - CHROME_HEIGHT,
+  }
+}
+
+/**
+ * Update WebContentsView bounds (call on resize or panel toggle)
+ */
+function updateWebContentsViewBounds(): void {
+  if (!mainWindow) return
+  tabsManager.updateActiveViewBounds()
+}
+
+
+/**
+ * Check if a URL is an internal ron:// protocol URL
+ */
+function isInternalUrl(url: string): boolean {
+  return url.startsWith('ron://') || url === '' || url === 'about:blank'
+}
+
+/**
+ * Normalize URL for navigation (add https:// if missing)
+ */
+function normalizeUrl(url: string): string {
+  // Internal URLs
+  if (isInternalUrl(url)) return url
+
+  // Already has protocol
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+
+  // Add https:// by default
+  return `https://${url}`
 }
 
 // This method will be called when Electron has finished initialization
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  // Tabs are created on demand via IPC; no default view created here.
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -339,24 +671,57 @@ function processSSELine(streamId: string, line: string): void {
 // ============================================
 
 let voiceAgentProcess: ChildProcess | null = null
+let voiceAgentStdoutBuffer = ''
 
-// Helper to forcefully kill the voice agent process
-function killVoiceAgent() {
-  if (voiceAgentProcess) {
-    try {
-      // Use SIGKILL to ensure the process dies
-      voiceAgentProcess.kill('SIGKILL')
-    } catch (e) {
-      // Process might already be dead
+// Helper to gracefully kill the voice agent process (SIGTERM then SIGKILL fallback)
+function killVoiceAgent(timeoutMs = 1200): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!voiceAgentProcess) return resolve(false)
+
+    const proc = voiceAgentProcess
+    const pid = proc.pid
+    let finished = false
+    let forceTimer: NodeJS.Timeout | null = null
+
+    const cleanup = () => {
+      if (finished) return
+      finished = true
+      if (forceTimer) clearTimeout(forceTimer)
+      voiceAgentProcess = null
+      voiceAgentStdoutBuffer = ''
+      resolve(true)
     }
-    voiceAgentProcess = null
-  }
+
+    // If the process exits on its own, clean up
+    proc.once('exit', () => {
+      cleanup()
+    })
+
+    // Try graceful shutdown first
+    try {
+      proc.kill('SIGTERM')
+    } catch (_) {
+      return cleanup()
+    }
+
+    // Fallback to SIGKILL after timeout
+    forceTimer = setTimeout(() => {
+      if (finished) return
+      try {
+        if (pid) process.kill(pid, 'SIGKILL')
+      } catch (_) {
+        // ignore
+      }
+    }, timeoutMs)
+  })
 }
 
 ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
   try {
-    // Clean up any existing process forcefully
-    killVoiceAgent()
+    // If already running, don't kill/restart. React StrictMode in dev can call start twice.
+    if (voiceAgentProcess && voiceAgentProcess.pid) {
+      return { success: true, pid: voiceAgentProcess.pid }
+    }
 
     // Get the agents directory path
     const agentsPath = app.isPackaged
@@ -394,14 +759,23 @@ ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
 
     // Handle stdout - agent output
     voiceAgentProcess.stdout?.on('data', (data) => {
-      const output = data.toString()
-      try {
-        // Try to parse as JSON for structured events
-        const event = JSON.parse(output)
-        mainWindow?.webContents.send('voice-agent:event', event)
-      } catch {
-        // If not JSON, send as text
-        mainWindow?.webContents.send('voice-agent:output', output)
+      // Python stdout can arrive in arbitrary chunks. We treat it as newline-delimited JSON.
+      voiceAgentStdoutBuffer += data.toString('utf8')
+
+      const lines = voiceAgentStdoutBuffer.split('\n')
+      voiceAgentStdoutBuffer = lines.pop() ?? ''
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim()
+        if (!line) continue
+
+        try {
+          const event = JSON.parse(line)
+          mainWindow?.webContents.send('voice-agent:event', event)
+        } catch {
+          // Non-JSON logs or partial output
+          mainWindow?.webContents.send('voice-agent:output', rawLine)
+        }
       }
     })
 
@@ -413,9 +787,9 @@ ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
     })
 
     // Handle process exit
-    voiceAgentProcess.on('exit', (code) => {
-      console.log(`[Voice Agent] Process exited with code ${code}`)
-      mainWindow?.webContents.send('voice-agent:stopped', { code })
+    voiceAgentProcess.on('exit', (code, signal) => {
+      console.log(`[Voice Agent] Process exited with code ${code}, signal ${signal}`)
+      mainWindow?.webContents.send('voice-agent:stopped', { code, signal })
       voiceAgentProcess = null
     })
 
@@ -431,7 +805,7 @@ ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
 
 ipcMain.handle('voice-agent:stop', async () => {
   if (voiceAgentProcess) {
-    killVoiceAgent()
+    await killVoiceAgent()
     return { success: true }
   }
   return { success: false, error: 'No active voice agent process' }
@@ -439,54 +813,138 @@ ipcMain.handle('voice-agent:stop', async () => {
 
 // Clean up on app quit
 app.on('before-quit', () => {
-  killVoiceAgent()
+  void killVoiceAgent()
 })
 
 // Also clean up when window is closed
 app.on('window-all-closed', () => {
-  killVoiceAgent()
+  void killVoiceAgent()
 })
 
 // ============================================
-// IPC Handlers - Tab Management (Future)
+// IPC Handlers - Tab Management
 // ============================================
 
-ipcMain.handle('create-tab', async (_, url?: string) => {
-  // TODO: Implement BrowserView tab management
-  const tabUrl = url || 'ron://home'
-  return { tabId: `tab-${Date.now()}`, url: tabUrl }
+ipcMain.handle('create-tab', async (_event, url?: string, clientTabId?: string) => {
+  const rec = tabsManager.create(clientTabId, url || 'ron://home')
+  return { tabId: rec.id, url: rec.url }
 })
 
-ipcMain.handle('close-tab', async (_, _tabId: string) => {
-  // TODO: Implement tab closing
+ipcMain.handle('close-tab', async (_event, tabId: string) => {
+  const ok = tabsManager.close(tabId)
+  return { success: ok }
+})
+
+ipcMain.handle('switch-tab', async (_event, tabId: string) => {
+  const ok = tabsManager.switch(tabId)
+  return { success: ok }
+})
+
+ipcMain.handle('tabs:list', async () => {
+  return tabsManager.list()
+})
+
+ipcMain.handle('tabs:get-context', async (_event, tabId: string) => {
+  try {
+    const ctx = await tabsManager.getContext(tabId)
+    return { success: true, context: ctx }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Failed to get context' }
+  }
+})
+
+// ============================================
+// IPC Handlers - Browser Navigation
+// ============================================
+
+ipcMain.handle('browser:navigate', async (_event, url: string) => {
+  try {
+    const result = tabsManager.navigateActive(url)
+    return result
+  } catch (error) {
+    console.error('[Browser] Navigation error:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Navigation failed' }
+  }
+})
+
+ipcMain.handle('browser:search', async (_, query: string) => {
+  try {
+    // Use internal search page (ron://search?q=<query>)
+    const searchUrl = `ron://search?q=${encodeURIComponent(query)}`
+    const result = tabsManager.navigateActive(searchUrl)
+    return { success: result.success, url: searchUrl, isExternal: false }
+  } catch (error) {
+    console.error('[Browser] Search error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Search failed',
+    }
+  }
+})
+
+ipcMain.handle('browser:go-back', async () => {
+  try {
+    return tabsManager.goBackActive() ? { success: true } : { success: false, error: 'Cannot go back' }
+  } catch (error) {
+    return { success: false, error: 'Navigation failed' }
+  }
+})
+
+ipcMain.handle('browser:go-forward', async () => {
+  try {
+    return tabsManager.goForwardActive() ? { success: true } : { success: false, error: 'Cannot go forward' }
+  } catch (error) {
+    return { success: false, error: 'Navigation failed' }
+  }
+})
+
+ipcMain.handle('browser:reload', async () => {
+  try {
+    return tabsManager.reloadActive() ? { success: true } : { success: false, error: 'Reload failed' }
+  } catch (error) {
+    return { success: false, error: 'Reload failed' }
+  }
+})
+
+ipcMain.handle('browser:get-url', async () => {
+  return tabsManager.activeTab?.url || 'ron://home'
+})
+
+ipcMain.handle('browser:can-go-back', async () => {
+  return tabsManager.canGoBackActive()
+})
+
+ipcMain.handle('browser:can-go-forward', async () => {
+  return tabsManager.canGoForwardActive()
+})
+
+// ============================================
+// IPC Handlers - Agent Panel State
+// ============================================
+
+ipcMain.handle('browser:set-panel-open', async (_event, isOpen: boolean) => {
+  isAgentPanelOpen = isOpen
+  updateWebContentsViewBounds()
   return { success: true }
 })
 
-ipcMain.handle('switch-tab', async (_, _tabId: string) => {
-  // TODO: Implement tab switching
-  return { success: true }
-})
-
 // ============================================
-// IPC Handlers - Navigation (Future)
+// IPC Handlers - Legacy Navigation (kept for compatibility)
 // ============================================
 
-ipcMain.handle('navigate', async (_, _url: string) => {
-  // TODO: Implement navigation in active BrowserView
-  return { success: true }
+ipcMain.handle('navigate', async (_, url: string) => {
+  // Redirect to new handler
+  return ipcMain.emit('browser:navigate', null, url)
 })
 
 ipcMain.handle('go-back', async () => {
-  // TODO: Implement back navigation
-  return { success: true }
+  return ipcMain.emit('browser:go-back', null)
 })
 
 ipcMain.handle('go-forward', async () => {
-  // TODO: Implement forward navigation
-  return { success: true }
+  return ipcMain.emit('browser:go-forward', null)
 })
 
 ipcMain.handle('reload', async () => {
-  // TODO: Implement page reload
-  return { success: true }
+  return ipcMain.emit('browser:reload', null)
 })

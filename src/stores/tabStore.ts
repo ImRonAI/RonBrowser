@@ -29,6 +29,12 @@ interface TabState {
 
 const DEFAULT_TAB_URL = 'ron://home'
 
+// Map ron:// URLs to tab titles
+const RON_URL_TITLES: Record<string, string> = {
+  'ron://home': 'Home',
+  'ron://board': 'Task Board',
+}
+
 export const useTabStore = create<TabState>()(
   persist(
     (set, get) => ({
@@ -39,7 +45,7 @@ export const useTabStore = create<TabState>()(
         const newTab: Tab = {
           id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           url,
-          title: 'New Tab',
+          title: RON_URL_TITLES[url] || 'New Tab',
           isLoading: false,
           canGoBack: false,
           canGoForward: false,

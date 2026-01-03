@@ -5,6 +5,10 @@ const node_url = require("node:url");
 const node_child_process = require("node:child_process");
 const __filename$1 = node_url.fileURLToPath(require("url").pathToFileURL(__filename).href);
 const __dirname$1 = node_path.join(__filename$1, "..");
+const CDP_PORT = 9222;
+const CHROME_HEIGHT = 108;
+const AGENT_PANEL_WIDTH = 420;
+electron.app.commandLine.appendSwitch("remote-debugging-port", String(CDP_PORT));
 if (process.platform === "win32") electron.app.disableHardwareAcceleration();
 if (process.platform === "win32") electron.app.setAppUserModelId(electron.app.getName());
 if (!electron.app.requestSingleInstanceLock()) {
@@ -13,6 +17,7 @@ if (!electron.app.requestSingleInstanceLock()) {
 }
 let mainWindow = null;
 let currentTheme = "light";
+let isAgentPanelOpen = false;
 let cachedTokens = null;
 async function createWindow() {
   mainWindow = new electron.BrowserWindow({
@@ -49,8 +54,259 @@ async function createWindow() {
   } else {
     mainWindow.loadFile(node_path.join(__dirname$1, "../renderer/index.html"));
   }
+  mainWindow.on("resize", () => {
+    updateWebContentsViewBounds();
+  });
 }
-electron.app.whenReady().then(createWindow);
+class TabsManager {
+  tabs = /* @__PURE__ */ new Map();
+  order = [];
+  _activeTabId = null;
+  get activeTabId() {
+    return this._activeTabId;
+  }
+  get activeTab() {
+    return this._activeTabId ? this.tabs.get(this._activeTabId) : void 0;
+  }
+  list() {
+    return this.order.map((id) => {
+      const t = this.tabs.get(id);
+      return { id: t.id, url: t.url, title: t.title, favicon: t.favicon, isActive: id === this._activeTabId };
+    });
+  }
+  create(clientTabId, url = "ron://home") {
+    const id = clientTabId || `tab-${Date.now()}`;
+    const record = { id, url, title: url.startsWith("ron://") ? "Home" : "New Tab", isExternal: !isInternalUrl(url) };
+    this.tabs.set(id, record);
+    this.order.push(id);
+    if (!isInternalUrl(url)) {
+      this.ensureView(record);
+      record.view.webContents.loadURL(normalizeUrl(url));
+    }
+    if (!this._activeTabId) this.switch(id);
+    this.emitTabsUpdated();
+    return record;
+  }
+  switch(id) {
+    const tab = this.tabs.get(id);
+    if (!mainWindow || !tab) return false;
+    const contentView = mainWindow.contentView;
+    const current = this.activeTab;
+    if (current?.view && contentView.children.includes(current.view)) {
+      contentView.removeChildView(current.view);
+    }
+    this._activeTabId = id;
+    if (tab.isExternal) {
+      this.ensureView(tab);
+      this.updateViewBounds(tab.view);
+      if (!contentView.children.includes(tab.view)) contentView.addChildView(tab.view);
+      mainWindow.webContents.send("browser:external-mode", true);
+    } else {
+      mainWindow.webContents.send("browser:external-mode", false);
+    }
+    mainWindow.webContents.send("browser:url-changed", tab.url);
+    return true;
+  }
+  close(id) {
+    const idx = this.order.indexOf(id);
+    const tab = this.tabs.get(id);
+    if (idx === -1 || !tab) return false;
+    if (tab.view && !tab.view.webContents.isDestroyed()) {
+      try {
+        tab.view.webContents.close();
+      } catch {
+      }
+    }
+    if (mainWindow && tab.view && mainWindow.contentView.children.includes(tab.view)) {
+      mainWindow.contentView.removeChildView(tab.view);
+    }
+    this.tabs.delete(id);
+    this.order.splice(idx, 1);
+    if (this._activeTabId === id) {
+      const nextId = this.order[idx] || this.order[idx - 1] || null;
+      this._activeTabId = null;
+      if (nextId) this.switch(nextId);
+      else {
+        mainWindow?.webContents.send("browser:external-mode", false);
+      }
+    }
+    this.emitTabsUpdated();
+    return true;
+  }
+  navigateActive(url) {
+    if (!this._activeTabId) {
+      const created = this.create(void 0, url);
+      return { success: true, isExternal: created.isExternal, url: created.url };
+    }
+    const tab = this.tabs.get(this._activeTabId);
+    const normalizedUrl = normalizeUrl(url);
+    tab.url = normalizedUrl;
+    tab.isExternal = !isInternalUrl(normalizedUrl);
+    if (tab.isExternal) {
+      this.ensureView(tab);
+      this.attachIfActive(tab);
+      tab.view.webContents.loadURL(normalizedUrl);
+      return { success: true, isExternal: true, url: normalizedUrl };
+    } else {
+      if (mainWindow) {
+        mainWindow.webContents.send("browser:external-mode", false);
+        mainWindow.webContents.send("browser:url-changed", tab.url);
+      }
+      return { success: true, isExternal: false, url: normalizedUrl };
+    }
+  }
+  goBackActive() {
+    const tab = this.activeTab;
+    if (tab?.view?.webContents.canGoBack()) {
+      tab.view.webContents.goBack();
+      return true;
+    }
+    return false;
+  }
+  goForwardActive() {
+    const tab = this.activeTab;
+    if (tab?.view?.webContents.canGoForward()) {
+      tab.view.webContents.goForward();
+      return true;
+    }
+    return false;
+  }
+  reloadActive() {
+    const tab = this.activeTab;
+    if (tab?.view) {
+      tab.view.webContents.reload();
+      return true;
+    }
+    return false;
+  }
+  canGoBackActive() {
+    return this.activeTab?.view?.webContents.canGoBack() ?? false;
+  }
+  canGoForwardActive() {
+    return this.activeTab?.view?.webContents.canGoForward() ?? false;
+  }
+  async getContext(id) {
+    const tab = this.tabs.get(id);
+    if (!tab) throw new Error("Tab not found");
+    if (!tab.isExternal || !tab.view) {
+      return { id: tab.id, url: tab.url, title: tab.title, isExternal: false };
+    }
+    const wc = tab.view.webContents;
+    const url = wc.getURL();
+    const title = wc.getTitle();
+    const dom = await wc.executeJavaScript(`(() => {
+      const html = document.documentElement ? document.documentElement.outerHTML : '';
+      const text = document.body ? document.body.innerText : '';
+      const metas = Array.from(document.querySelectorAll('meta')).map(m => ({
+        name: m.getAttribute('name') || m.getAttribute('property') || '',
+        content: m.getAttribute('content') || ''
+      }));
+      const ls = (() => { try { return Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])) } catch { return {} } })();
+      const ss = (() => { try { return Object.fromEntries(Object.keys(sessionStorage).map(k => [k, sessionStorage.getItem(k)])) } catch { return {} } })();
+      return { html, text, metas, localStorage: ls, sessionStorage: ss };
+    })()`, true);
+    const cookies = await wc.session.cookies.get({ url }).catch(() => []);
+    const image = await wc.capturePage().catch(() => null);
+    const screenshot = image ? image.toPNG().toString("base64") : void 0;
+    return { id: tab.id, url, title, favicon: tab.favicon, isExternal: true, dom, cookies, screenshot };
+  }
+  // Internal helpers
+  ensureView(tab) {
+    if (tab.view) return;
+    tab.view = new electron.WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    this.updateViewBounds(tab.view);
+    tab.view.webContents.on("did-navigate", (_e, url) => this.onUrlChanged(tab, url));
+    tab.view.webContents.on("did-navigate-in-page", (_e, url) => this.onUrlChanged(tab, url));
+    tab.view.webContents.on("did-finish-load", () => mainWindow?.webContents.send("browser:navigation-complete", tab.url));
+    tab.view.webContents.on("did-fail-load", (_e, errorCode, errorDescription, validatedURL) => {
+      mainWindow?.webContents.send("browser:navigation-error", { errorCode, errorDescription, url: validatedURL });
+    });
+    tab.view.webContents.on("page-title-updated", (_e, title) => {
+      tab.title = title;
+      this.emitTabsUpdated();
+    });
+    tab.view.webContents.on("page-favicon-updated", (_e, favs) => {
+      tab.favicon = Array.isArray(favs) ? favs[0] : void 0;
+      this.emitTabsUpdated();
+    });
+    tab.view.webContents.on("context-menu", (_, params) => {
+      if (!mainWindow) return;
+      const menu = new electron.Menu();
+      if (params.selectionText) {
+        menu.append(new electron.MenuItem({ label: "Ask Ron?", click: () => mainWindow?.webContents.send("agent:ask-ron", { selectionText: params.selectionText, sourceUrl: tab.url }) }));
+        menu.append(new electron.MenuItem({ type: "separator" }));
+      }
+      menu.append(new electron.MenuItem({ role: "copy", enabled: params.editFlags.canCopy }));
+      menu.append(new electron.MenuItem({ role: "paste", enabled: params.editFlags.canPaste }));
+      menu.append(new electron.MenuItem({ role: "cut", enabled: params.editFlags.canCut }));
+      menu.append(new electron.MenuItem({ type: "separator" }));
+      menu.append(new electron.MenuItem({ label: "Back", click: () => {
+        if (tab.view?.webContents.canGoBack()) tab.view.webContents.goBack();
+      }, enabled: tab.view?.webContents.canGoBack() }));
+      menu.append(new electron.MenuItem({ label: "Forward", click: () => {
+        if (tab.view?.webContents.canGoForward()) tab.view.webContents.goForward();
+      }, enabled: tab.view?.webContents.canGoForward() }));
+      menu.append(new electron.MenuItem({ label: "Reload", click: () => tab.view?.webContents.reload() }));
+      menu.append(new electron.MenuItem({ type: "separator" }));
+      menu.append(new electron.MenuItem({ label: "Inspect Element", click: () => tab.view?.webContents.inspectElement(params.x, params.y) }));
+      menu.popup();
+    });
+    tab.view.webContents.setWindowOpenHandler((details) => {
+      electron.shell.openExternal(details.url);
+      return { action: "deny" };
+    });
+  }
+  onUrlChanged(tab, url) {
+    tab.url = url;
+    if (this._activeTabId === tab.id) mainWindow?.webContents.send("browser:url-changed", url);
+  }
+  attachIfActive(tab) {
+    if (!mainWindow || this._activeTabId !== tab.id || !tab.view) return;
+    const contentView = mainWindow.contentView;
+    if (!contentView.children.includes(tab.view)) contentView.addChildView(tab.view);
+    this.updateViewBounds(tab.view);
+    mainWindow.webContents.send("browser:external-mode", true);
+  }
+  updateViewBounds(view) {
+    if (!mainWindow) return;
+    const bounds = calculateWebContentsViewBounds();
+    view.setBounds(bounds);
+  }
+  updateActiveViewBounds() {
+    const v = this.activeTab?.view;
+    if (v) this.updateViewBounds(v);
+  }
+  emitTabsUpdated() {
+    mainWindow?.webContents.send("tabs:updated", this.list());
+  }
+}
+const tabsManager = new TabsManager();
+function calculateWebContentsViewBounds() {
+  if (!mainWindow) return { x: 0, y: CHROME_HEIGHT, width: 800, height: 600 };
+  const [windowWidth, windowHeight] = mainWindow.getSize();
+  const panelWidth = isAgentPanelOpen ? AGENT_PANEL_WIDTH : 0;
+  return {
+    x: 0,
+    y: CHROME_HEIGHT,
+    width: windowWidth - panelWidth,
+    height: windowHeight - CHROME_HEIGHT
+  };
+}
+function updateWebContentsViewBounds() {
+  if (!mainWindow) return;
+  tabsManager.updateActiveViewBounds();
+}
+function isInternalUrl(url) {
+  return url.startsWith("ron://") || url === "" || url === "about:blank";
+}
+function normalizeUrl(url) {
+  if (isInternalUrl(url)) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `https://${url}`;
+}
+electron.app.whenReady().then(() => {
+  createWindow();
+});
 electron.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     electron.app.quit();
@@ -227,18 +483,44 @@ function processSSELine(streamId, line) {
   }
 }
 let voiceAgentProcess = null;
-function killVoiceAgent() {
-  if (voiceAgentProcess) {
+let voiceAgentStdoutBuffer = "";
+function killVoiceAgent(timeoutMs = 1200) {
+  return new Promise((resolve) => {
+    if (!voiceAgentProcess) return resolve(false);
+    const proc = voiceAgentProcess;
+    const pid = proc.pid;
+    let finished = false;
+    let forceTimer = null;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      if (forceTimer) clearTimeout(forceTimer);
+      voiceAgentProcess = null;
+      voiceAgentStdoutBuffer = "";
+      resolve(true);
+    };
+    proc.once("exit", () => {
+      cleanup();
+    });
     try {
-      voiceAgentProcess.kill("SIGKILL");
-    } catch (e) {
+      proc.kill("SIGTERM");
+    } catch (_) {
+      return cleanup();
     }
-    voiceAgentProcess = null;
-  }
+    forceTimer = setTimeout(() => {
+      if (finished) return;
+      try {
+        if (pid) process.kill(pid, "SIGKILL");
+      } catch (_) {
+      }
+    }, timeoutMs);
+  });
 }
 electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
   try {
-    killVoiceAgent();
+    if (voiceAgentProcess && voiceAgentProcess.pid) {
+      return { success: true, pid: voiceAgentProcess.pid };
+    }
     const agentsPath = electron.app.isPackaged ? node_path.join(process.resourcesPath, "agents") : node_path.join(__dirname$1, "..", "..", "agents");
     const agentScriptPath = node_path.join(agentsPath, "voice_onboarding", "agent.py");
     const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "venv", "bin", "python") : node_path.join(__dirname$1, "..", "..", "venv", "bin", "python");
@@ -256,12 +538,18 @@ electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
       cwd: node_path.join(agentsPath, "voice_onboarding")
     });
     voiceAgentProcess.stdout?.on("data", (data) => {
-      const output = data.toString();
-      try {
-        const event = JSON.parse(output);
-        mainWindow?.webContents.send("voice-agent:event", event);
-      } catch {
-        mainWindow?.webContents.send("voice-agent:output", output);
+      voiceAgentStdoutBuffer += data.toString("utf8");
+      const lines = voiceAgentStdoutBuffer.split("\n");
+      voiceAgentStdoutBuffer = lines.pop() ?? "";
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        try {
+          const event = JSON.parse(line);
+          mainWindow?.webContents.send("voice-agent:event", event);
+        } catch {
+          mainWindow?.webContents.send("voice-agent:output", rawLine);
+        }
       }
     });
     voiceAgentProcess.stderr?.on("data", (data) => {
@@ -269,9 +557,9 @@ electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
       console.error("[Voice Agent Error]:", error);
       mainWindow?.webContents.send("voice-agent:error", error);
     });
-    voiceAgentProcess.on("exit", (code) => {
-      console.log(`[Voice Agent] Process exited with code ${code}`);
-      mainWindow?.webContents.send("voice-agent:stopped", { code });
+    voiceAgentProcess.on("exit", (code, signal) => {
+      console.log(`[Voice Agent] Process exited with code ${code}, signal ${signal}`);
+      mainWindow?.webContents.send("voice-agent:stopped", { code, signal });
       voiceAgentProcess = null;
     });
     return { success: true, pid: voiceAgentProcess.pid };
@@ -285,36 +573,106 @@ electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
 });
 electron.ipcMain.handle("voice-agent:stop", async () => {
   if (voiceAgentProcess) {
-    killVoiceAgent();
+    await killVoiceAgent();
     return { success: true };
   }
   return { success: false, error: "No active voice agent process" };
 });
 electron.app.on("before-quit", () => {
-  killVoiceAgent();
+  void killVoiceAgent();
 });
 electron.app.on("window-all-closed", () => {
-  killVoiceAgent();
+  void killVoiceAgent();
 });
-electron.ipcMain.handle("create-tab", async (_, url) => {
-  const tabUrl = url || "ron://home";
-  return { tabId: `tab-${Date.now()}`, url: tabUrl };
+electron.ipcMain.handle("create-tab", async (_event, url, clientTabId) => {
+  const rec = tabsManager.create(clientTabId, url || "ron://home");
+  return { tabId: rec.id, url: rec.url };
 });
-electron.ipcMain.handle("close-tab", async (_, _tabId) => {
+electron.ipcMain.handle("close-tab", async (_event, tabId) => {
+  const ok = tabsManager.close(tabId);
+  return { success: ok };
+});
+electron.ipcMain.handle("switch-tab", async (_event, tabId) => {
+  const ok = tabsManager.switch(tabId);
+  return { success: ok };
+});
+electron.ipcMain.handle("tabs:list", async () => {
+  return tabsManager.list();
+});
+electron.ipcMain.handle("tabs:get-context", async (_event, tabId) => {
+  try {
+    const ctx = await tabsManager.getContext(tabId);
+    return { success: true, context: ctx };
+  } catch (e) {
+    return { success: false, error: e?.message || "Failed to get context" };
+  }
+});
+electron.ipcMain.handle("browser:navigate", async (_event, url) => {
+  try {
+    const result = tabsManager.navigateActive(url);
+    return result;
+  } catch (error) {
+    console.error("[Browser] Navigation error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Navigation failed" };
+  }
+});
+electron.ipcMain.handle("browser:search", async (_, query) => {
+  try {
+    const searchUrl = `ron://search?q=${encodeURIComponent(query)}`;
+    const result = tabsManager.navigateActive(searchUrl);
+    return { success: result.success, url: searchUrl, isExternal: false };
+  } catch (error) {
+    console.error("[Browser] Search error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Search failed"
+    };
+  }
+});
+electron.ipcMain.handle("browser:go-back", async () => {
+  try {
+    return tabsManager.goBackActive() ? { success: true } : { success: false, error: "Cannot go back" };
+  } catch (error) {
+    return { success: false, error: "Navigation failed" };
+  }
+});
+electron.ipcMain.handle("browser:go-forward", async () => {
+  try {
+    return tabsManager.goForwardActive() ? { success: true } : { success: false, error: "Cannot go forward" };
+  } catch (error) {
+    return { success: false, error: "Navigation failed" };
+  }
+});
+electron.ipcMain.handle("browser:reload", async () => {
+  try {
+    return tabsManager.reloadActive() ? { success: true } : { success: false, error: "Reload failed" };
+  } catch (error) {
+    return { success: false, error: "Reload failed" };
+  }
+});
+electron.ipcMain.handle("browser:get-url", async () => {
+  return tabsManager.activeTab?.url || "ron://home";
+});
+electron.ipcMain.handle("browser:can-go-back", async () => {
+  return tabsManager.canGoBackActive();
+});
+electron.ipcMain.handle("browser:can-go-forward", async () => {
+  return tabsManager.canGoForwardActive();
+});
+electron.ipcMain.handle("browser:set-panel-open", async (_event, isOpen) => {
+  isAgentPanelOpen = isOpen;
+  updateWebContentsViewBounds();
   return { success: true };
 });
-electron.ipcMain.handle("switch-tab", async (_, _tabId) => {
-  return { success: true };
-});
-electron.ipcMain.handle("navigate", async (_, _url) => {
-  return { success: true };
+electron.ipcMain.handle("navigate", async (_, url) => {
+  return electron.ipcMain.emit("browser:navigate", null, url);
 });
 electron.ipcMain.handle("go-back", async () => {
-  return { success: true };
+  return electron.ipcMain.emit("browser:go-back", null);
 });
 electron.ipcMain.handle("go-forward", async () => {
-  return { success: true };
+  return electron.ipcMain.emit("browser:go-forward", null);
 });
 electron.ipcMain.handle("reload", async () => {
-  return { success: true };
+  return electron.ipcMain.emit("browser:reload", null);
 });

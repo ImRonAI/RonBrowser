@@ -1,12 +1,14 @@
 # Strands Agents SDK with Gemini Live support
 strands-agents[bidi-gemini]
 
+# NOTE: Strands experimental bidi currently imports the OpenAI realtime module
+# during package import, which requires websockets>=15.
+websockets>=15,<16
+
 # Audio I/O for voice conversations
 pyaudio>=0.2.14
 
-# HTTP server with CORS
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+# Env loading
 python-dotenv>=1.0.0
 
 # Alternative: install all bidi providers
