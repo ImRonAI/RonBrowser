@@ -53,6 +53,11 @@ interface AgentState {
   connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error'
   error: { code: string; message: string } | null
 
+  // Session management state
+  currentSessionId: string | null
+  sessionsList: Array<{ session_id: string; created_at: string; updated_at: string; summary: string }>
+  isLoadingSessions: boolean
+
   // Ask Ron state
   askRonStep: AskRonStep
   askRonSelectedText: string | null
@@ -100,6 +105,11 @@ interface AgentState {
   selectAskRonOption: (option: AskRonOption) => Promise<void>
   submitCustomAskRon: (prompt: string) => Promise<void>
   closeAskRon: () => void
+
+  // Actions - Session Management
+  fetchSessions: () => Promise<void>
+  startNewChat: () => void
+  loadSession: (sessionId: string) => Promise<void>
 }
 
 // ============================================
@@ -241,6 +251,11 @@ export const useAgentStore = create<AgentState>((set, get) => {
     askRonSourceUrl: null,
     askRonOptions: [] as AskRonOption[],
     askRonThinkingText: 'Analyzing selection...',
+
+    // Session management initial state
+    currentSessionId: null,
+    sessionsList: [],
+    isLoadingSessions: false,
 
     // ----------------------------------------
     // Panel Actions
@@ -583,6 +598,59 @@ export const useAgentStore = create<AgentState>((set, get) => {
         askRonSourceUrl: null,
         askRonOptions: [],
       })
+    },
+
+    // ----------------------------------------
+    // Session Management Actions
+    // ----------------------------------------
+    fetchSessions: async () => {
+      set({ isLoadingSessions: true })
+      try {
+        const response = await fetch(`${API_BASE_URL}/sessions`)
+        if (response.ok) {
+          const sessions = await response.json()
+          set({ sessionsList: sessions, isLoadingSessions: false })
+        } else {
+          set({ isLoadingSessions: false })
+        }
+      } catch (error) {
+        console.error('Failed to fetch sessions:', error)
+        set({ isLoadingSessions: false })
+      }
+    },
+
+    startNewChat: () => {
+      set({
+        currentSessionId: null,
+        messages: [],
+        currentStreamingMessage: null,
+        currentToolUse: null,
+      })
+    },
+
+    loadSession: async (sessionId: string) => {
+      set({ isLoadingSessions: true })
+      try {
+        const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`)
+        if (response.ok) {
+          const data = await response.json()
+          // Convert to Message format
+          const loadedMessages = data.messages.map((msg: { role: string; content: string; created_at?: string }) => createMessage(
+            msg.role as 'user' | 'assistant',
+            msg.content
+          ))
+          set({
+            currentSessionId: sessionId,
+            messages: loadedMessages,
+            isLoadingSessions: false,
+          })
+        } else {
+          set({ isLoadingSessions: false })
+        }
+      } catch (error) {
+        console.error('Failed to load session:', error)
+        set({ isLoadingSessions: false })
+      }
     },
   }
 })

@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Dict, Callable, Any, List, Optional, Set
 from functools import wraps
 from importlib import import_module
+import asyncio
+import importlib.util
+from strands.types.tools import ToolContext
 
 
 class StrandsToolsWrapper:
@@ -133,19 +136,22 @@ class StrandsToolsWrapper:
             # Add browser tools if available
             if BROWSER_AVAILABLE:
                 if "LocalChromiumBrowser" not in self._exclude_tools:
+                    # LocalChromiumBrowser might need config
                     self._tools["local_browser"] = self._wrap_class_tool(
-                        LocalChromiumBrowser, "local_browser"
+                        LocalChromiumBrowser, "local_browser", init_kwargs={}
                     )
                 if "AgentCoreBrowser" not in self._exclude_tools:
+                    # AgentCoreBrowser might need connection string or config
                     self._tools["agent_browser"] = self._wrap_class_tool(
-                        AgentCoreBrowser, "agent_browser"
+                        AgentCoreBrowser, "agent_browser", init_kwargs={}
                     )
 
             # Add code interpreter if available
             if CODE_INTERPRETER_AVAILABLE:
                 if "AgentCoreCodeInterpreter" not in self._exclude_tools:
+                    # Code interpreter might need config
                     self._tools["code_interpreter"] = self._wrap_class_tool(
-                        AgentCoreCodeInterpreter, "code_interpreter"
+                        AgentCoreCodeInterpreter, "code_interpreter", init_kwargs={}
                     )
 
             self._loaded = True
@@ -193,10 +199,110 @@ class StrandsToolsWrapper:
         else:
             print("Warning: Fallback tool loading failed: no tools could be imported")
 
+    def _load_module_tool(self, module_path: str) -> Optional[Callable]:
+        """Load a module-based tool from a Python file.
+
+        Module tools must have:
+        1. TOOL_SPEC variable defining the tool
+        2. Function with name matching TOOL_SPEC['name']
+
+        Args:
+            module_path: Path to the Python module
+
+        Returns:
+            Wrapped tool function or None
+        """
+        try:
+            # Import the module
+            spec = importlib.util.spec_from_file_location("tool_module", module_path)
+            if not spec or not spec.loader:
+                return None
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            # Check for TOOL_SPEC
+            if not hasattr(module, 'TOOL_SPEC'):
+                return None
+
+            tool_spec = module.TOOL_SPEC
+            if 'name' not in tool_spec:
+                return None
+
+            tool_name = tool_spec['name']
+
+            # Get the tool function
+            if not hasattr(module, tool_name):
+                return None
+
+            tool_func = getattr(module, tool_name)
+
+            # Create a wrapper that handles the Strands module tool signature
+            def module_tool_wrapper(**kwargs):
+                """Module tool wrapper that handles TOOL_SPEC format."""
+                # Module tools receive a 'tool' dict as first arg
+                tool_use = {
+                    "toolUseId": f"tool-{tool_name}-{id(kwargs)}",
+                    "input": kwargs
+                }
+
+                # Call the module tool
+                result = tool_func(tool_use)
+
+                # Handle the ToolResult format
+                if isinstance(result, dict):
+                    if result.get("status") == "error":
+                        content = result.get("content", [])
+                        if content and isinstance(content, list):
+                            return content[0].get("text", "Error occurred")
+                        return "Error occurred"
+                    elif result.get("status") == "success":
+                        content = result.get("content", [])
+                        if content and isinstance(content, list):
+                            for item in content:
+                                if "text" in item:
+                                    return item["text"]
+                                elif "json" in item:
+                                    return str(item["json"])
+                        return f"{tool_name} completed"
+
+                return str(result) if result else f"{tool_name} completed"
+
+            # Set metadata
+            module_tool_wrapper.__name__ = tool_name
+            module_tool_wrapper.__doc__ = tool_spec.get('description', f"Execute {tool_name}")
+
+            # Store the spec
+            self._tool_specs[tool_name] = tool_spec
+
+            return module_tool_wrapper
+
+        except Exception as e:
+            print(f"Error loading module tool from {module_path}: {e}")
+            return None
+
+    def load_tool_from_file(self, file_path: str) -> bool:
+        """Load a tool from a Python file.
+
+        Args:
+            file_path: Path to the tool module
+
+        Returns:
+            True if tool was loaded successfully
+        """
+        tool = self._load_module_tool(file_path)
+        if tool and hasattr(tool, '__name__'):
+            name = tool.__name__
+            if name not in self._exclude_tools:
+                self._tools[name] = tool
+                return True
+        return False
+
     def _wrap_tool(self, tool: Callable, name: str) -> Callable:
         """Wrap a Strands tool for DSPy compatibility.
 
         Preserves docstring, signature, and handles errors gracefully.
+        Properly includes toolUseId in responses.
 
         Args:
             tool: Original tool function
@@ -209,25 +315,87 @@ class StrandsToolsWrapper:
         def wrapped_tool(**kwargs) -> str:
             """DSPy-compatible tool wrapper."""
             try:
+                # Generate a unique tool use ID
+                tool_use_id = f"tool-{name}-{id(kwargs)}"
+
+                # Check if tool expects ToolContext
+                sig = inspect.signature(tool)
+                expects_context = any(
+                    param.annotation.__name__ == 'ToolContext'
+                    if hasattr(param.annotation, '__name__') else False
+                    for param in sig.parameters.values()
+                )
+
+                if expects_context:
+                    # Create minimal ToolContext for tools that need it
+                    tool_context = ToolContext(
+                        tool_use={"toolUseId": tool_use_id, "name": name, "input": kwargs},
+                        messages=[],
+                        system_prompt="",
+                        model=None,
+                        callback_handler=None,
+                        agent=None,
+                        invocation_state={}
+                    )
+                    # Find the context parameter name
+                    context_param = None
+                    for param_name, param in sig.parameters.items():
+                        if hasattr(param.annotation, '__name__') and param.annotation.__name__ == 'ToolContext':
+                            context_param = param_name
+                            break
+
+                    if context_param:
+                        kwargs[context_param] = tool_context
+
                 # Validate callable
                 if not callable(tool):
                     return f"Error: {name} is not callable"
 
-                # Call tool with error handling
-                result = tool(**kwargs)
+                # Check if tool is async
+                if asyncio.iscoroutinefunction(tool):
+                    # Run async tool in event loop
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(tool(**kwargs))
+                else:
+                    # Call sync tool normally
+                    result = tool(**kwargs)
 
-                # Ensure string output for DSPy
-                if result is None:
-                    return f"{name} completed successfully"
-                elif isinstance(result, dict):
-                    # Format dict results
-                    if "error" in result:
+                # Handle ToolResult format with proper toolUseId
+                if isinstance(result, dict):
+                    # Check if it's already a ToolResult
+                    if "toolUseId" in result and "status" in result:
+                        # Properly formatted ToolResult
+                        if result["status"] == "error":
+                            content = result.get("content", [])
+                            if content and isinstance(content, list):
+                                for item in content:
+                                    if "text" in item:
+                                        return f"Error in {name}: {item['text']}"
+                            return f"Error in {name}: Unknown error"
+                        else:
+                            # Success case
+                            content = result.get("content", [])
+                            if content and isinstance(content, list):
+                                for item in content:
+                                    if "text" in item:
+                                        return item["text"]
+                                    elif "json" in item:
+                                        return str(item["json"])
+                            return f"{name} completed successfully"
+                    # Legacy format handling
+                    elif "error" in result:
                         return f"Error in {name}: {result['error']}"
                     elif "status" in result and result["status"] == "error":
                         return f"Error in {name}: {result.get('message', 'Unknown error')}"
                     elif "result" in result:
                         return str(result["result"])
                     return str(result)
+                elif result is None:
+                    return f"{name} completed successfully"
                 else:
                     return str(result)
             except TypeError as e:
@@ -251,24 +419,86 @@ class StrandsToolsWrapper:
 
         return wrapped_tool
 
-    def _wrap_class_tool(self, tool_class: type, name: str) -> Callable:
+    async def _wrap_async_tool(self, tool: Callable, name: str) -> Callable:
+        """Wrap an async Strands tool for DSPy compatibility with streaming support.
+
+        Handles async generators that yield intermediate results.
+        """
+        @wraps(tool)
+        async def wrapped_async_tool(**kwargs):
+            """DSPy-compatible async tool wrapper."""
+            try:
+                result = tool(**kwargs)
+
+                # Check if it's an async generator (streaming tool)
+                if hasattr(result, '__aiter__'):
+                    # Collect all yielded values
+                    streamed_values = []
+                    async for value in result:
+                        streamed_values.append(str(value))
+
+                    # Return the final collected result
+                    if streamed_values:
+                        return " | ".join(streamed_values)
+                    return f"{name} completed"
+
+                # Regular async function
+                elif asyncio.iscoroutine(result):
+                    final_result = await result
+                    if final_result is None:
+                        return f"{name} completed successfully"
+                    elif isinstance(final_result, dict):
+                        if "error" in final_result:
+                            return f"Error in {name}: {final_result['error']}"
+                        elif "status" in final_result and final_result["status"] == "error":
+                            return f"Error in {name}: {final_result.get('message', 'Unknown error')}"
+                        elif "result" in final_result:
+                            return str(final_result["result"])
+                        return str(final_result)
+                    else:
+                        return str(final_result)
+
+                # Fallback for non-async
+                return str(result) if result else f"{name} completed"
+
+            except Exception as e:
+                return f"Error in {name}: {type(e).__name__}: {str(e)}"
+
+        # Preserve metadata
+        if hasattr(tool, '__doc__') and tool.__doc__:
+            wrapped_async_tool.__doc__ = tool.__doc__
+        else:
+            wrapped_async_tool.__doc__ = f"Execute async {name} tool"
+
+        try:
+            wrapped_async_tool.__signature__ = inspect.signature(tool)
+        except (ValueError, TypeError):
+            pass
+
+        return wrapped_async_tool
+
+    def _wrap_class_tool(self, tool_class: type, name: str, init_args: tuple = (), init_kwargs: dict = None) -> Callable:
         """Wrap a class-based tool provider.
 
         Args:
             tool_class: Tool provider class
             name: Tool name
+            init_args: Positional arguments for class constructor
+            init_kwargs: Keyword arguments for class constructor
 
         Returns:
             Factory function that creates and uses the tool
         """
         _instance = None
+        if init_kwargs is None:
+            init_kwargs = {}
 
         def class_tool_wrapper(action: str = "default", **kwargs) -> str:
             """Class-based tool wrapper."""
             nonlocal _instance
             try:
                 if _instance is None:
-                    _instance = tool_class()
+                    _instance = tool_class(*init_args, **init_kwargs)
 
                 # Try to call the action method
                 if hasattr(_instance, action):
@@ -287,6 +517,62 @@ class StrandsToolsWrapper:
             tool_class.__doc__ or f"Execute {name} tool operations"
         )
         return class_tool_wrapper
+
+    def _wrap_mcp_client(self, mcp_client, name: str = "mcp") -> Callable:
+        """Wrap an MCP client for proper context management.
+
+        MCP clients MUST be used within context managers per Strands docs.
+
+        Args:
+            mcp_client: MCPClient instance
+            name: Tool name prefix
+
+        Returns:
+            Wrapper that enforces context management
+        """
+        def mcp_tool_wrapper(tool_name: str, **kwargs) -> str:
+            """MCP tool wrapper with enforced context management."""
+            try:
+                # Ensure we're within the MCP client context
+                with mcp_client:
+                    # List available tools
+                    tools = mcp_client.list_tools_sync()
+
+                    # Find the requested tool
+                    target_tool = None
+                    for tool in tools:
+                        if tool.name == tool_name or tool.name == f"{name}_{tool_name}":
+                            target_tool = tool
+                            break
+
+                    if not target_tool:
+                        return f"Error: Tool '{tool_name}' not found in MCP server"
+
+                    # Execute the tool
+                    tool_use_id = f"mcp-{name}-{tool_name}-{id(kwargs)}"
+                    result = mcp_client.call_tool_sync(
+                        tool_use_id=tool_use_id,
+                        name=target_tool.name,
+                        arguments=kwargs
+                    )
+
+                    # Parse result
+                    if isinstance(result, dict):
+                        content = result.get('content', [])
+                        if content and isinstance(content, list):
+                            for item in content:
+                                if 'text' in item:
+                                    return item['text']
+                                elif 'json' in item:
+                                    return str(item['json'])
+
+                    return str(result) if result else f"{tool_name} completed"
+
+            except Exception as e:
+                return f"Error in MCP tool {tool_name}: {e}"
+
+        mcp_tool_wrapper.__doc__ = f"Execute tools from {name} MCP server"
+        return mcp_tool_wrapper
 
     def get_tool(self, name: str) -> Optional[Callable]:
         """Get a specific tool by name.

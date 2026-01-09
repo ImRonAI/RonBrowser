@@ -38,7 +38,7 @@ from aisdk_stream import AISDKCallbackHandler
 
 
 # Global state for MCP clients and agent reference
-_mcp_clients: Dict[str, MCPClient] = {}
+_mcp_clients: Dict[str, Dict[str, Any]] = {}
 _current_agent: Optional[Agent] = None
 MCP_SERVERS_DIR = Path(__file__).parent / "tools" / "mcp"
 VENV_PYTHON = Path(__file__).parent.parent / "venv" / "bin" / "python"
@@ -72,18 +72,64 @@ async def load_mcp_server(server_id: str) -> str:
 
     cmd, args = AVAILABLE_MCP_SERVERS[server_id]
     env = os.environ.copy()
+    
+    # Initialize client
     client = MCPClient(lambda cmd=cmd, args=args, env=env: stdio_client(StdioServerParameters(command=cmd, args=args, env=env)))
-    client.start()
-    tools = await client.load_tools()
-
+    
     if _current_agent:
-        for t in tools:
-            _current_agent.tool_registry.register_tool(t)
+        # Capture current tools to find diff later
+        tools_before = set(_current_agent.tool_registry.registry.keys())
+        
+        # Use ToolRegistry to handle standard lifecycle (add_consumer -> load_tools -> start)
+        _current_agent.tool_registry.process_tools([client])
+        
+        # Identify new tools
+        tools_after = set(_current_agent.tool_registry.registry.keys())
+        added_tool_names = list(tools_after - tools_before)
+        
+        # Store state for unloading
+        _mcp_clients[server_id] = {
+            "client": client,
+            "tool_names": added_tool_names
+        }
+        
+        return f"Loaded {server_id}: {added_tool_names}. Call these tools directly now."
+    
+    return "Error: Agent not initialized"
 
-    _mcp_clients[server_id] = client
-    tool_names = [t.tool_name for t in tools]
 
-    return f"Loaded {server_id}: {tool_names}. Call these tools directly now."
+@tool
+def unload_mcp_server(server_id: str) -> str:
+    """Unload an MCP server and remove its tools from the registry.
+
+    Args:
+        server_id: The ID of the server to unload (e.g. 'telnyx', 'playwright')
+    """
+    global _current_agent
+    
+    if server_id not in _mcp_clients:
+        return f"Server {server_id} is not loaded."
+
+    client_data = _mcp_clients[server_id]
+    client = client_data["client"]
+    tool_names = client_data["tool_names"]
+
+    # 1. Remove tools from registry manually
+    removed_count = 0
+    if _current_agent:
+        for name in tool_names:
+            if name in _current_agent.tool_registry.registry:
+                del _current_agent.tool_registry.registry[name]
+                removed_count += 1
+
+    # 2. Stop the client to clean up resources/processes
+    # This closes the connection and kills the subprocess
+    client.stop(None, None, None)
+
+    # 3. Clean up global state
+    del _mcp_clients[server_id]
+
+    return f"Unloaded {server_id}. Removed tools: {tool_names}. Processes stopped."
 
 
 @tool
@@ -111,17 +157,26 @@ async def load_openapi_server(spec_path: str, api_base_url: str = None, server_i
     env = os.environ.copy()
 
     client = MCPClient(lambda cmd=cmd, args=args, env=env: stdio_client(StdioServerParameters(command=cmd, args=args, env=env)))
-    client.start()
-    tools = await client.load_tools()
-
+    
     if _current_agent:
-        for t in tools:
-            _current_agent.tool_registry.register_tool(t)
+        # Capture current tools to find diff later
+        tools_before = set(_current_agent.tool_registry.registry.keys())
+        
+        # Use ToolRegistry to handle standard lifecycle
+        _current_agent.tool_registry.process_tools([client])
+        
+        # Identify new tools
+        tools_after = set(_current_agent.tool_registry.registry.keys())
+        added_tool_names = list(tools_after - tools_before)
 
-    _mcp_clients[sid] = client
-    tool_names = [t.tool_name for t in tools]
-
-    return f"Loaded OpenAPI server '{sid}': {tool_names}. Call these tools directly now."
+        _mcp_clients[sid] = {
+            "client": client,
+            "tool_names": added_tool_names
+        }
+        
+        return f"Loaded OpenAPI server '{sid}': {added_tool_names}. Call these tools directly now."
+    
+    return "Error: Agent not initialized"
 
 
 SUPERAGENT_SYSTEM_PROMPT = """You are Ron Superagent, a powerful orchestration agent built on Strands.
@@ -150,7 +205,7 @@ Available MCP servers: cms-coverage, datacommons, playwright, pophive, telnyx
 
 ## Available Tools:
 - Meta: load_tool, editor, shell
-- MCP: load_mcp_server (preset servers), load_openapi_server (any OpenAPI spec)
+- MCP: load_mcp_server (preset servers), load_openapi_server (any OpenAPI spec), unload_mcp_server (unload by ID)
 - Memory: retrieve, mem0_memory
 - System: environment, cron
 - Network: http_request
@@ -207,7 +262,8 @@ def create_bedrock_model() -> BedrockModel:
 def create_superagent(
     callback_handler: Optional[CallbackHandler] = None,
     a2a_urls: Optional[list[str]] = None,
-    additional_tools: Optional[list] = None
+    additional_tools: Optional[list] = None,
+    history: Optional[List[Dict[str, Any]]] = None
 ) -> Agent:
     """Create and configure the Ron Superagent."""
     model = create_bedrock_model()
@@ -215,7 +271,7 @@ def create_superagent(
 
     tools = [
         load_tool, editor, shell,
-        load_mcp_server, load_openapi_server,
+        load_mcp_server, load_openapi_server, unload_mcp_server,
         retrieve, mem0_memory,
         environment, cron,
         http_request,
@@ -239,6 +295,10 @@ def create_superagent(
         system_prompt=SUPERAGENT_SYSTEM_PROMPT,
     )
     _current_agent = agent
+    
+    if history:
+        agent.messages = history
+        
     return agent
 
 

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Transition } from '@headlessui/react'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/outline'
 import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
 import { ContextPicker, type ContextItem } from './ContextPicker'
@@ -49,6 +49,24 @@ export function AgentPanel() {
     closeAskRon
   } = useAgentStore()
 
+  // Session management
+  const {
+    sessionsList,
+    isLoadingSessions,
+    fetchSessions,
+    startNewChat,
+    loadSession,
+  } = useAgentStore()
+
+  const [showHistory, setShowHistory] = useState(false)
+
+  // Fetch sessions when panel opens
+  useEffect(() => {
+    if (isPanelOpen) {
+      fetchSessions()
+    }
+  }, [isPanelOpen, fetchSessions])
+
   // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -83,8 +101,19 @@ export function AgentPanel() {
     setInput('')
     setSelectedContexts([])
 
+    // Serialize context if present
+    let finalMessage = messageText
+    if (selectedContexts.length > 0) {
+      const contextString = selectedContexts.map(c => {
+        if (c.type === 'tab') return `[Context: Tab] ${c.title || c.name} (${c.url || c.description})`
+        return `[Context: ${c.type}] ${c.name} - ${c.description || ''}`
+      }).join('\n')
+      
+      finalMessage = `Context:\n${contextString}\n\n${messageText}`
+    }
+
     // Send message via AI SDK useChat
-    sendMessage({ text: messageText })
+    sendMessage({ text: finalMessage })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -163,6 +192,73 @@ export function AgentPanel() {
                 </div>
 
                 <div className="flex items-center gap-1">
+                  {/* New Chat Button */}
+                  <motion.button
+                    onClick={startNewChat}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 rounded-lg text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                    title="New Chat"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                  </motion.button>
+
+                  {/* History Button */}
+                  <div className="relative">
+                    <motion.button
+                      onClick={() => setShowHistory(!showHistory)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={cn(
+                        "p-2 rounded-lg transition-colors",
+                        showHistory
+                          ? "text-ink dark:text-ink-inverse bg-surface-100 dark:bg-surface-800"
+                          : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse hover:bg-surface-100 dark:hover:bg-surface-800"
+                      )}
+                      title="Chat History"
+                    >
+                      <ClockIcon className="w-5 h-5" />
+                    </motion.button>
+
+                    {/* History Dropdown */}
+                    <AnimatePresence>
+                      {showHistory && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 top-full mt-2 w-64 max-h-80 overflow-y-auto rounded-xl bg-surface-50 dark:bg-surface-850 border border-surface-200 dark:border-surface-700 shadow-lg z-50"
+                        >
+                          <div className="p-2">
+                            <p className="px-2 py-1 text-label text-ink-muted dark:text-ink-inverse-muted uppercase tracking-wider">Recent Chats</p>
+                            {isLoadingSessions ? (
+                              <div className="px-2 py-4 text-center text-body-sm text-ink-muted dark:text-ink-inverse-muted">Loading...</div>
+                            ) : sessionsList.length === 0 ? (
+                              <div className="px-2 py-4 text-center text-body-sm text-ink-muted dark:text-ink-inverse-muted">No previous chats</div>
+                            ) : (
+                              sessionsList.slice(0, 10).map((session) => (
+                                <button
+                                  key={session.session_id}
+                                  onClick={() => {
+                                    loadSession(session.session_id)
+                                    setShowHistory(false)
+                                  }}
+                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                                >
+                                  <p className="text-body-sm text-ink dark:text-ink-inverse truncate">{session.summary}</p>
+                                  <p className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+                                    {new Date(session.created_at).toLocaleDateString()}
+                                  </p>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                   {/* Mode Toggle */}
                   <ModeToggle 
                     mode={interactionMode} 

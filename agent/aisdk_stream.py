@@ -249,11 +249,14 @@ class AISDKCallbackHandler:
                 except json.JSONDecodeError:
                     tool_input = {"raw": tool_input}
 
-            # Only emit if we haven't seen this tool yet or input changed significantly
+            # Emit start only if we haven't seen this tool yet
             if tool_id not in self.pending_tool_ids:
                 self.emit(self.emitter.emit_tool_input_start(tool_id, tool_name))
-                self.emit(self.emitter.emit_tool_input_available(tool_id, tool_name, tool_input))
                 self.pending_tool_ids.add(tool_id)
+
+            # Always emit the latest input availability to support streaming arguments
+            # This ensures we don't get stuck with the initial empty/partial input
+            self.emit(self.emitter.emit_tool_input_available(tool_id, tool_name, tool_input))
             return
 
         # Handle tool streaming output

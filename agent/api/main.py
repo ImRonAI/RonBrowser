@@ -487,6 +487,35 @@ async def chat_stream(request: ChatRequest):
         }
     )
 
+@app.get("/sessions")
+async def list_sessions():
+    """List all available chat sessions"""
+    try:
+        # We need a method in ConversationMemory to list sessions.
+        # Since we haven't implemented that yet, let's assume we will adding it to the class right after this.
+        # For now, let's just define the endpoint interface.
+        
+        # Actually, let's implement the memory method first or inline the logic if simple.
+        # The memory class usage: self.sessions_table.search()...
+        
+        results = memory.sessions_table.search().limit(100).to_list()
+        
+        # Sort by updated_at desc
+        results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+        
+        return [
+            {
+                "session_id": s["session_id"],
+                "created_at": s["created_at"],
+                "updated_at": s.get("updated_at", s["created_at"]),
+                "summary": s.get("search_query", "New Chat")[:50] or "New Chat"
+            }
+            for s in results
+        ]
+    except Exception as e:
+        logger.error(f"Error listing sessions: {e}")
+        return []
+
 @app.get("/chat/history/{session_id}")
 async def get_chat_history(session_id: str):
     """Get chat history for a session"""
@@ -625,6 +654,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from superagent import create_superagent, UICallbackHandler
+import superagent as sa
+
+# Global state for active superagent sessions
+_active_agents: Dict[str, Any] = {}
 
 @app.post("/superagent/stream")
 async def superagent_stream(request: Request):
@@ -667,7 +700,38 @@ async def superagent_stream(request: Request):
         """Receive complete SSE strings from AISDKCallbackHandler."""
         queue.put_nowait(sse_event)
 
-    agent = create_superagent(callback_handler=UICallbackHandler(emit))
+    # Convert session_id to string if present, or generate a temporary one for tracking (though session_id is preferred)
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        logger.info(f"No session_id provided, created temp: {session_id}")
+
+    # Retrieve or create agent
+    if session_id in _active_agents:
+        logger.info(f"Resuming existing agent session: {session_id}")
+        agent = _active_agents[session_id]
+        # Update callback handler to point to current request's queue
+        agent.callback_handler = UICallbackHandler(emit)
+        initial_msg_count = len(agent.messages)
+    else:
+        logger.info(f"Restoring agent session from LanceDB: {session_id}")
+        
+        # Load history from LanceDB
+        db_messages = memory.get_messages(session_id, limit=1000)
+        history = []
+        for msg in db_messages:
+            history.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+            
+        logger.info(f"Loaded {len(history)} messages from history")
+        
+        agent = create_superagent(callback_handler=UICallbackHandler(emit), history=history)
+        _active_agents[session_id] = agent
+        initial_msg_count = len(history)
+
+    # Ensure this agent is set as the 'current' one for global tool access
+    sa._current_agent = agent
 
     async def generate():
         loop = asyncio.get_event_loop()
@@ -679,6 +743,26 @@ async def superagent_stream(request: Request):
                 yield sse_event
             except asyncio.TimeoutError:
                 continue
+
+        # After execution, sync new messages to LanceDB persistence
+        new_messages = agent.messages[initial_msg_count:]
+        logger.info(f"Syncing {len(new_messages)} new messages to persistent memory")
+        
+        for msg in new_messages:
+            role = msg.get("role")
+            content = msg.get("content")
+            
+            # Strands might have complex types or tool calls.
+            if isinstance(content, list):
+                # Convert list of content blocks to string if possible
+                text_parts = [p.get("text", "") for p in content if p.get("type") == "text"]
+                content_str = "\n".join(text_parts)
+            else:
+                content_str = str(content) if content else ""
+            
+            # Only persist user and assistant roles for now
+            if role in ["user", "assistant"] and content_str:
+                memory.add_message(session_id, role, content_str)
 
         # Drain remaining events
         while not queue.empty():
