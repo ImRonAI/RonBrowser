@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { ChromeToolbar } from '@/components/chrome/ChromeToolbar'
 import { TabBar } from '@/components/chrome/TabBar'
 import { AgentPanel } from '@/components/agent-panel/AgentPanel'
@@ -92,15 +92,21 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden flex">
         {/* React content - hidden when WebContentsView is showing external websites */}
         {!isExternalMode && (
-          <div className="h-full overflow-auto scrollbar-thin">
+          <motion.div 
+            className="flex-1 h-full overflow-auto scrollbar-thin"
+            animate={{
+              marginRight: isPanelOpen ? 420 : 0,
+            }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          >
             {children}
-          </div>
+          </motion.div>
         )}
 
-        {/* Agent Panel Overlay */}
+        {/* Agent Panel - positioned within the content area */}
         <AgentPanel />
 
         {/* Screen Vision Overlay */}
@@ -108,20 +114,6 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
 
         {/* Interests Widget */}
         <InterestsWidget />
-
-        {/* Panel backdrop */}
-        <AnimatePresence>
-          {isPanelOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="absolute inset-0 bg-ink/5 dark:bg-ink-inverse/5 backdrop-blur-[2px] z-40"
-              onClick={() => useAgentStore.getState().closePanel()}
-            />
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Context Menu */}

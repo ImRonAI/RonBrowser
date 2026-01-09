@@ -406,13 +406,7 @@ export function parseSSEEvent(event: string): SSESearchEvent | null {
       }
     }
 
-    // Check for tool result
-    if (data.tool_results) {
-      for (const toolResult of data.tool_results) {
-        // This would need to be matched with a previous tool call
-        // In practice, you'd maintain state to track this
-      }
-    }
+    // Tool results handling can be added here if needed
 
     return null
   } catch {

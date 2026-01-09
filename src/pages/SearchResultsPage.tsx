@@ -2,11 +2,12 @@
  * Search Results Page
  *
  * Page component that displays search results using the SearchLayout component.
- * Demonstrates all result types with mock data.
+ * Fetches live results from sonar-reasoning-pro API.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SearchLayout } from '@/components/search-results'
+import { useSearchStore } from '@/stores/searchStore'
 import type {
   SearchResponse,
   UniversalResult,
@@ -489,18 +490,131 @@ const MOCK_SEARCH_RESPONSE: SearchResponse = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SearchResultsPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [searchResponse] = useState<SearchResponse | null>(MOCK_SEARCH_RESPONSE)
-  const [error] = useState<string | null>(null)
-  
-  const searchQuery = searchResponse?.query || 'artificial intelligence and machine learning'
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const { query: storeQuery, clearSearch } = useSearchStore()
+
+  // Use the query from the store if available, otherwise use the mock data query
+  const searchQuery = storeQuery || 'artificial intelligence and machine learning'
+
+  // Fetch search results on mount and when query changes
+  useEffect(() => {
+    if (!searchQuery) return
+
+    const fetchResults = async () => {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const response = await fetch('/api/sonar-reasoning-pro/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: searchQuery }],
+            reasoning_effort: 'high',
+            temperature: 0.2
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+
+        let content = ''
+        let citations: any[] = []
+        let images: any[] = []
+        let searchResults: any[] = []
+
+        while (reader) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') break
+
+              try {
+                const parsed = JSON.parse(data)
+
+                switch (parsed.type) {
+                  case 'content':
+                    content += parsed.content
+                    break
+                  case 'reasoning':
+                    // Reasoning content handled separately
+                    break
+                  case 'metadata':
+                    citations = parsed.citations || []
+                    images = parsed.images || []
+                    searchResults = parsed.search_results || []
+                    break
+                }
+              } catch (e) {
+                console.error('Parse error:', e)
+              }
+            }
+          }
+        }
+
+        // Build SearchResponse from streamed data
+        setSearchResponse({
+          id: `search-${Date.now()}`,
+          query: searchQuery,
+          timestamp: Date.now(),
+          isComplete: true,
+          totalCount: citations.length + images.length,
+          duration: 0,
+          sonarReasoning: {
+            reasoning: content,
+            chainOfThought: {
+              steps: searchResults.map((sr: any, i: number) => ({
+                id: `step-${i}`,
+                label: sr.title || `Search ${i + 1}`,
+                description: sr.snippet || '',
+                status: 'complete',
+                timestamp: Date.now(),
+                reasoning: sr.snippet || '',
+                searchResults: []
+              }))
+            },
+            confidence: 0.85,
+            qualityScore: 0.9,
+            sources: citations.map((c: any, i: number) => ({
+              id: `source-${i}`,
+              url: c.url || '',
+              title: c.title || '',
+              snippet: c.snippet || '',
+              relevanceScore: 0.9,
+              type: 'web',
+              domain: c.url ? new URL(c.url).hostname : ''
+            })),
+            summary: content.substring(0, 200),
+            relatedQueries: [],
+            modelUsed: 'sonar-reasoning-pro',
+            tokensUsed: 0
+          },
+          results: MOCK_SEARCH_RESPONSE.results
+        })
+        setIsLoading(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error')
+        setIsLoading(false)
+      }
+    }
+
+    fetchResults()
+  }, [searchQuery])
 
   const handleRefresh = () => {
-    setIsLoading(true)
-    // Simulate refresh
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
+    window.location.reload()
   }
 
   const handleResultClick = (result: UniversalResult) => {
@@ -512,6 +626,10 @@ export function SearchResultsPage() {
     console.log('Filters changed')
   }
 
+  const handleBackToHome = () => {
+    clearSearch()
+  }
+
   return (
     <div className="min-h-screen bg-surface-0 dark:bg-surface-900">
       {/* Page Header */}
@@ -519,6 +637,16 @@ export function SearchResultsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
+              {/* Back button */}
+              <button
+                onClick={handleBackToHome}
+                className="p-2 rounded-lg text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                title="Back to Home"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
               <div className="flex items-center gap-2">
                 <svg 
                   className="w-6 h-6 text-accent dark:text-accent-light" 

@@ -306,6 +306,8 @@ function normalizeUrl(url) {
 }
 electron.app.whenReady().then(() => {
   createWindow();
+  tabsManager.create("tab-initial", "ron://home");
+  tabsManager.switch("tab-initial");
 });
 electron.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -484,9 +486,13 @@ function processSSELine(streamId, line) {
 }
 let voiceAgentProcess = null;
 let voiceAgentStdoutBuffer = "";
+let voiceAgentStopRequested = false;
+let lastVoiceAgentApiKey;
+let appQuitting = false;
 function killVoiceAgent(timeoutMs = 1200) {
   return new Promise((resolve) => {
     if (!voiceAgentProcess) return resolve(false);
+    voiceAgentStopRequested = true;
     const proc = voiceAgentProcess;
     const pid = proc.pid;
     let finished = false;
@@ -516,11 +522,14 @@ function killVoiceAgent(timeoutMs = 1200) {
     }, timeoutMs);
   });
 }
-electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
+async function startVoiceAgent(apiKey) {
   try {
     if (voiceAgentProcess && voiceAgentProcess.pid) {
       return { success: true, pid: voiceAgentProcess.pid };
     }
+    if (appQuitting) return { success: false, error: "App is quitting" };
+    voiceAgentStopRequested = false;
+    lastVoiceAgentApiKey = apiKey;
     const agentsPath = electron.app.isPackaged ? node_path.join(process.resourcesPath, "agents") : node_path.join(__dirname$1, "..", "..", "agents");
     const agentScriptPath = node_path.join(agentsPath, "voice_onboarding", "agent.py");
     const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "venv", "bin", "python") : node_path.join(__dirname$1, "..", "..", "venv", "bin", "python");
@@ -561,6 +570,17 @@ electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
       console.log(`[Voice Agent] Process exited with code ${code}, signal ${signal}`);
       mainWindow?.webContents.send("voice-agent:stopped", { code, signal });
       voiceAgentProcess = null;
+      voiceAgentStdoutBuffer = "";
+      const wasRequested = voiceAgentStopRequested || appQuitting;
+      voiceAgentStopRequested = false;
+      if (!wasRequested) {
+        console.log("[Voice Agent] Unexpected exit; restarting...");
+        setTimeout(() => {
+          if (!appQuitting) {
+            startVoiceAgent(lastVoiceAgentApiKey).catch((err) => console.error("[Voice Agent] Restart failed:", err));
+          }
+        }, 500);
+      }
     });
     return { success: true, pid: voiceAgentProcess.pid };
   } catch (error) {
@@ -570,18 +590,24 @@ electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
       error: error instanceof Error ? error.message : "Unknown error"
     };
   }
+}
+electron.ipcMain.handle("voice-agent:start", async (_event, apiKey) => {
+  return startVoiceAgent(apiKey);
 });
 electron.ipcMain.handle("voice-agent:stop", async () => {
   if (voiceAgentProcess) {
+    voiceAgentStopRequested = true;
     await killVoiceAgent();
     return { success: true };
   }
   return { success: false, error: "No active voice agent process" };
 });
 electron.app.on("before-quit", () => {
+  appQuitting = true;
   void killVoiceAgent();
 });
 electron.app.on("window-all-closed", () => {
+  appQuitting = true;
   void killVoiceAgent();
 });
 electron.ipcMain.handle("create-tab", async (_event, url, clientTabId) => {

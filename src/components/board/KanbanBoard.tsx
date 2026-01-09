@@ -44,7 +44,7 @@ function convertToFullTask(simpleTask: SimpleTask): Task {
 
 // Column configurations with refined color system
 const columns: {
-  id: Task['status']
+  id: SimpleTask['status']
   title: string
   accentColor: string
   bgGradient: string
@@ -201,7 +201,7 @@ function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
                 />
               ))
             ) : (
-              <EmptyColumnState key="empty" columnTitle={column.title} index={index} />
+              <EmptyColumnState key="empty" index={index} />
             )}
           </AnimatePresence>
         </div>
@@ -245,7 +245,7 @@ function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
 // EMPTY STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EmptyColumnState({ columnTitle, index }: { columnTitle: string; index: number }) {
+function EmptyColumnState({ index }: { index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}

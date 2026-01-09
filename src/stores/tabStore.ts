@@ -22,6 +22,7 @@ interface TabState {
   closeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
   updateTab: (tabId: string, updates: Partial<Tab>) => void
+  setTabs: (tabs: Tab[], activeTabId?: string | null) => void
   reorderTabs: (fromIndex: number, toIndex: number) => void
   closeAllTabs: () => void
   getActiveTab: () => Tab | null
@@ -108,6 +109,13 @@ export const useTabStore = create<TabState>()(
               ? { ...tab, ...updates, lastAccessed: Date.now() }
               : tab
           )
+        }))
+      },
+
+      setTabs: (tabs: Tab[], activeTabId?: string | null) => {
+        set(() => ({
+          tabs,
+          activeTabId: activeTabId !== undefined ? activeTabId : (tabs.length ? tabs.find(t => t.id === activeTabId)?.id || tabs[0].id : null)
         }))
       },
 

@@ -1,0 +1,6 @@
+strands-agents[a2a]
+strands-agents-tools[a2a_client]
+pyautogui
+pytesseract
+opencv-python-headless
+pillow

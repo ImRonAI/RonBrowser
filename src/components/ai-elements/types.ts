@@ -353,5 +353,18 @@ export interface AIModel {
 export interface PromptInputMessage {
   text?: string
   files?: File[]
+  textAttachments?: TextAttachment[]
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Text Attachment Types (for large paste handling)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TextAttachment {
+  id: string
+  file: File
+  dataUrl: string
+  preview: string
+}
+
 

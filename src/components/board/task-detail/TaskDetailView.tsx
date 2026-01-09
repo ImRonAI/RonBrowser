@@ -48,7 +48,7 @@ export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps)
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: EASE }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10 lg:p-16"
+      className="absolute inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 md:p-10"
     >
       {/* Backdrop */}
       <motion.div
@@ -82,7 +82,6 @@ export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps)
         <TaskDetailHeader 
           task={task} 
           onClose={onClose} 
-          viewMode={viewMode}
           onToggleFullscreen={toggleFullscreen}
         />
 
@@ -139,11 +138,10 @@ export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps)
 interface TaskDetailHeaderProps {
   task: Task
   onClose: () => void
-  viewMode: ViewMode
   onToggleFullscreen: () => void
 }
 
-function TaskDetailHeader({ task, onClose, viewMode, onToggleFullscreen }: TaskDetailHeaderProps) {
+function TaskDetailHeader({ task, onClose, onToggleFullscreen }: TaskDetailHeaderProps) {
   return (
     <div className="
       flex-shrink-0

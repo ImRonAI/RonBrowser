@@ -2,13 +2,22 @@
  * PromptInput Components
  * 
  * Comprehensive chat input with attachments, model selection, and keyboard shortcuts.
+ * Includes large paste detection (2000+ chars) that auto-converts to text attachments.
  */
 
 import React, { useState, useRef, forwardRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
-import type { ChatStatus, AIModel, PromptInputMessage } from './types'
+import { TextAttachmentCard } from './text-attachment-card'
+import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
+import type { ChatStatus, AIModel, PromptInputMessage, TextAttachment } from './types'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LARGE_PASTE_THRESHOLD_CHARS = 2000
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PromptInput
@@ -36,6 +45,7 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
   }, ref) {
     const [internalValue, setInternalValue] = useState('')
     const [files, setFiles] = useState<File[]>([])
+    const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
     
     const value = controlledValue !== undefined ? controlledValue : internalValue
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -51,14 +61,19 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
     }
 
     const handleSubmit = () => {
-      if (!value.trim() && files.length === 0) return
+      if (!value.trim() && files.length === 0 && textAttachments.length === 0) return
       
-      onSubmit?.({ text: value, files })
+      onSubmit?.({ 
+        text: value, 
+        files,
+        textAttachments: textAttachments.length > 0 ? textAttachments : undefined
+      })
       
       if (!onChange) {
         setInternalValue('')
       }
       setFiles([])
+      setTextAttachments([])
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -76,6 +91,55 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       setFiles(prev => prev.filter((_, i) => i !== index))
     }
 
+    // Handle text attachment operations
+    const handleTextAttachmentRemove = (id: string) => {
+      setTextAttachments(prev => prev.filter(att => att.id !== id))
+    }
+
+    const handleTextAttachmentUpdate = (
+      id: string, 
+      next: Pick<TextAttachment, 'file' | 'dataUrl' | 'preview'>
+    ) => {
+      setTextAttachments(prev => prev.map(att => 
+        att.id === id ? { ...att, ...next } : att
+      ))
+    }
+
+    // Handle paste events - detect large pastes and convert to attachments
+    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      // 1) If the clipboard contains files (e.g., pasted image), attach them
+      const items = Array.from(e.clipboardData.items || [])
+      const fileItems = items
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((f): f is File => Boolean(f))
+
+      if (fileItems.length > 0) {
+        e.preventDefault()
+        handleFileAdd(fileItems)
+        return
+      }
+
+      // 2) If the clipboard contains a large text paste, convert to a txt attachment
+      const text = e.clipboardData.getData('text/plain')
+      if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
+        e.preventDefault()
+        const file = new File([text], makePastedTextFilename(), {
+          type: 'text/plain',
+        })
+        const dataUrl = await fileToDataUrl(file)
+        const newAttachment: TextAttachment = {
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+          dataUrl,
+          preview: dataUrl,
+        }
+        setTextAttachments(prev => [...prev, newAttachment])
+      }
+    }
+
+    const hasAttachments = files.length > 0 || textAttachments.length > 0
+
     return (
       <div className={cn(
         'bg-surface-50 dark:bg-surface-800',
@@ -87,13 +151,23 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
         className
       )}>
         {/* Attachments preview */}
-        {files.length > 0 && (
+        {hasAttachments && (
           <PromptInputAttachments>
+            {/* Regular file attachments */}
             {files.map((file, index) => (
               <PromptInputAttachment 
-                key={index} 
+                key={`file-${index}`} 
                 file={file} 
                 onRemove={() => handleFileRemove(index)} 
+              />
+            ))}
+            {/* Text attachments with special handling */}
+            {textAttachments.map((attachment) => (
+              <TextAttachmentCard
+                key={attachment.id}
+                attachment={attachment}
+                onRemove={handleTextAttachmentRemove}
+                onUpdate={handleTextAttachmentUpdate}
               />
             ))}
           </PromptInputAttachments>
@@ -106,6 +180,7 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled}
             rows={1}
@@ -129,7 +204,7 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
                 onSubmit: handleSubmit,
                 onFileAdd: handleFileAdd,
                 disabled,
-                hasValue: !!value.trim() || files.length > 0
+                hasValue: !!value.trim() || hasAttachments
               })
             }
           }
@@ -139,6 +214,7 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
     )
   }
 )
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PromptInputBody

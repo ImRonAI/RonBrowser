@@ -6,7 +6,19 @@ import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
 import { ContextPicker, type ContextItem } from './ContextPicker'
 import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
+import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
+import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
+import type { TextAttachment } from '@/components/ai-elements/types'
+
+// AI SDK v6 - useChat with DefaultChatTransport for UIMessageStream
+import { useChat, type UIMessage } from '@ai-sdk/react'
+import { DefaultChatTransport, type TextUIPart } from 'ai'
+import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
+
+type MessagePart = UIMessage['parts'][number]
+
 const EASE = [0.16, 1, 0.3, 1] as const
+const LARGE_PASTE_THRESHOLD_CHARS = 2000
 
 // Sleek pill suggestions - minimal & elegant
 const SUGGESTIONS = [
@@ -16,32 +28,16 @@ const SUGGESTIONS = [
   { icon: '?', text: 'What can you do?' },
 ]
 
-
-interface TabContextAttachment {
-  id: string
-  url: string
-  title: string
-  favicon?: string
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  isStreaming?: boolean
-  reasoning?: string
-  isReasoningComplete?: boolean
-  toolCalls?: { action: string; params: Record<string, unknown>; result?: Record<string, unknown> }[]
-  tabContexts?: TabContextAttachment[]
-}
+// API endpoint for superagent
+const SUPERAGENT_API = 'http://localhost:8765/superagent/stream'
 
 export function AgentPanel() {
-  const { 
-    isPanelOpen, 
-    closePanel, 
-    interactionMode, 
-    setInteractionMode, 
-    isViewingScreen, 
+  const {
+    isPanelOpen,
+    closePanel,
+    interactionMode,
+    setInteractionMode,
+    isViewingScreen,
     screenshotData,
     askRonStep,
     askRonSelectedText,
@@ -52,11 +48,19 @@ export function AgentPanel() {
     selectAskRonOption,
     closeAskRon
   } = useAgentStore()
-  const [messages, setMessages] = useState<Message[]>([])
+
+  // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
+      api: SUPERAGENT_API,
+    }),
+  })
+
   const [input, setInput] = useState('')
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
+  const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
 
-  const [isTyping, setIsTyping] = useState(false)
+  const isTyping = status === 'streaming' || status === 'submitted'
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -74,105 +78,13 @@ export function AgentPanel() {
 
   const handleSubmit = async (text?: string) => {
     const messageText = text || input.trim()
-    if (!messageText) return
+    if (!messageText || status !== 'ready') return
 
-    // Extract tab IDs from selectedContexts
-    const selectedTabContextItems = selectedContexts.filter(c => c.type === 'tab')
-    
-    // Resolve selected tab contexts before sending
-    let selectedTabsContext: any[] = []
-    let tabContextAttachments: TabContextAttachment[] = []
-    try {
-      if (selectedTabContextItems.length) {
-        const results = await Promise.all(
-          selectedTabContextItems.map(async (item) => {
-            const res = await window.electron!.tabs.getContext(item.id)
-            return res.success ? res.context : null
-          })
-        )
-        selectedTabsContext = results.filter(Boolean) as any[]
-        // Create lightweight attachments for display in chat
-        tabContextAttachments = selectedTabsContext.map(ctx => ({
-          id: ctx.id,
-          url: ctx.url,
-          title: ctx.title,
-          favicon: ctx.favicon,
-        }))
-      }
-    } catch (e) {
-      console.error('Failed to collect tab context', e)
-    }
-
-    // Add user message with tab context attachments
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: messageText,
-      tabContexts: tabContextAttachments.length > 0 ? tabContextAttachments : undefined,
-    }
-    setMessages(prev => [...prev, userMessage])
     setInput('')
-    setSelectedContexts([]) // Clear all context selections after sending
-    setIsTyping(true)
+    setSelectedContexts([])
 
-    // Attach selected tab contexts to agent request context
-    try {
-      useAgentStore.getState().sendMessage(messageText, {
-        currentUrl: typeof window !== 'undefined' && window.electron?.browser ? undefined : undefined,
-        // Attachments: selected tabs full context (full DOM, cookies, etc.)
-        // @ts-ignore - extra context field for backend
-        selectedTabs: selectedTabsContext,
-      })
-    } catch (e) {
-      console.error('Failed to send message with context', e)
-    }
-
-    // Simulate AI response (kept for UX continuity)
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: `msg-${Date.now()}`,
-        role: 'assistant',
-        content: '',
-        isStreaming: true,
-        reasoning: 'Analyzing your request...',
-        isReasoningComplete: false,
-      }
-      setMessages(prev => [...prev, assistantMessage])
-
-      // Simulate streaming
-      simulateStreaming(assistantMessage.id, messageText)
-    }, 500)
-  }
-
-  const simulateStreaming = async (messageId: string, _query: string) => {
-    // Complete reasoning
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setMessages(prev => prev.map(m => 
-      m.id === messageId 
-        ? { ...m, reasoning: 'I analyzed your request and prepared a helpful response.', isReasoningComplete: true }
-        : m
-    ))
-
-    // Stream response
-    const response = "I'm Ron, your AI browsing companion. I'm here to help you navigate, search, analyze content, and accomplish tasks more efficiently. What would you like to explore?"
-    const words = response.split(' ')
-
-    for (let i = 0; i < words.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 30 + Math.random() * 30))
-      setMessages(prev => prev.map(m =>
-        m.id === messageId
-          ? { ...m, content: words.slice(0, i + 1).join(' ') }
-          : m
-      ))
-    }
-
-    // Mark as complete
-    setMessages(prev => prev.map(m =>
-      m.id === messageId
-        ? { ...m, isStreaming: false }
-        : m
-    ))
-    setIsTyping(false)
+    // Send message via AI SDK useChat
+    sendMessage({ text: messageText })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -182,11 +94,44 @@ export function AgentPanel() {
     }
   }
 
+  // Handle text attachment operations
+  const handleTextAttachmentRemove = (id: string) => {
+    setTextAttachments(prev => prev.filter(att => att.id !== id))
+  }
+
+  const handleTextAttachmentUpdate = (
+    id: string,
+    next: Pick<TextAttachment, 'file' | 'dataUrl' | 'preview'>
+  ) => {
+    setTextAttachments(prev => prev.map(att =>
+      att.id === id ? { ...att, ...next } : att
+    ))
+  }
+
+  // Handle paste events - detect large pastes and convert to attachments
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
+      e.preventDefault()
+      const file = new File([text], makePastedTextFilename(), {
+        type: 'text/plain',
+      })
+      const dataUrl = await fileToDataUrl(file)
+      const newAttachment: TextAttachment = {
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        dataUrl,
+        preview: dataUrl,
+      }
+      setTextAttachments(prev => [...prev, newAttachment])
+    }
+  }
+
   const isEmpty = messages.length === 0
 
   return (
     <Transition.Root show={isPanelOpen} as={Fragment}>
-      <div className="fixed inset-y-0 right-0 z-50 flex pointer-events-none">
+      <div className="absolute inset-0 z-50 flex pointer-events-none">
         <Transition.Child
           as={Fragment}
           enter="transform transition ease-smooth duration-400"
@@ -196,9 +141,9 @@ export function AgentPanel() {
           leaveFrom="translate-x-0"
           leaveTo="translate-x-full"
         >
-          <div className="relative w-[420px] h-full pointer-events-auto">
+          <div className="relative ml-auto w-[420px] h-full pointer-events-auto">
             {/* Panel Container */}
-            <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900 border-l border-surface-200 dark:border-surface-700 shadow-dramatic">
+            <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-850 border-l border-surface-200 dark:border-surface-700 shadow-dramatic">
               
               {/* Header - Ultra Minimal */}
               <motion.div 
@@ -320,6 +265,20 @@ export function AgentPanel() {
                     )}
                   </AnimatePresence>
 
+                  {/* Text Attachments (for pasted content 2000+ chars) */}
+                  {textAttachments.length > 0 && (
+                    <div className="mb-3 px-1 flex flex-wrap gap-2">
+                      {textAttachments.map(attachment => (
+                        <TextAttachmentCard
+                          key={attachment.id}
+                          attachment={attachment}
+                          onRemove={handleTextAttachmentRemove}
+                          onUpdate={handleTextAttachmentUpdate}
+                        />
+                      ))}
+                    </div>
+                  )}
+
                   {/* Selected Context Chips */}
                   {selectedContexts.length > 0 && (
                     <div className="mb-3 px-1 flex flex-wrap gap-2">
@@ -356,6 +315,7 @@ export function AgentPanel() {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
                         placeholder="Ask anything..."
                         rows={1}
                         className={cn(
@@ -372,7 +332,7 @@ export function AgentPanel() {
                       {/* Send Button */}
                       <motion.button
                         onClick={() => handleSubmit()}
-                        disabled={!input.trim() || isTyping}
+                        disabled={(!input.trim() && textAttachments.length === 0) || status !== 'ready'}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className={cn(
@@ -380,7 +340,7 @@ export function AgentPanel() {
                           "w-8 h-8 rounded-lg",
                           "flex items-center justify-center",
                           "transition-all duration-300",
-                          input.trim() && !isTyping
+                          (input.trim() || textAttachments.length > 0) && status === 'ready'
                             ? "bg-ink dark:bg-ink-inverse text-surface-0 dark:text-surface-900"
                             : "bg-surface-200 dark:bg-surface-700 text-ink-muted/50 dark:text-ink-inverse-muted/50"
                         )}
@@ -545,7 +505,7 @@ function VoiceMode() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface TextModeProps {
-  messages: Message[]
+  messages: Array<{ id: string; role: string; parts: MessagePart[] }>
   isEmpty: boolean
   isTyping: boolean
   onSuggestionClick: (text: string) => void
@@ -669,83 +629,42 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) =
 // MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message }: { message: { id: string; role: string; parts: MessagePart[] } }) {
   const isUser = message.role === 'user'
+
+  if (isUser) {
+    // User messages - just show text
+    const textParts = message.parts.filter(p => p.type === 'text') as TextUIPart[]
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-end"
+      >
+        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gradient-to-br from-accent to-accent-light text-white rounded-br-md">
+          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
+            {textParts.map(p => p.text).join('')}
+          </p>
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Assistant messages - use ChainOfThoughtMessage
+  const isStreaming = message.parts.some(p => (p as { state?: string }).state === 'streaming')
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn("flex", isUser ? "justify-end" : "justify-start")}
+      className="flex justify-start"
     >
-      <div className={cn("max-w-[85%]", isUser ? "order-2" : "order-1")}>
-        {/* Tab context attachments (for user messages) */}
-        {isUser && message.tabContexts && message.tabContexts.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-2 flex flex-wrap gap-1.5 justify-end"
-          >
-            {message.tabContexts.map((tab) => (
-              <div
-                key={tab.id}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg",
-                  "bg-white/20 backdrop-blur-sm",
-                  "border border-white/30",
-                  "text-xs text-white/90"
-                )}
-              >
-                {tab.favicon ? (
-                  <img src={tab.favicon} alt="" className="w-3 h-3 rounded-sm" />
-                ) : (
-                  <GlobeIcon className="w-3 h-3 opacity-70" />
-                )}
-                <span className="max-w-[120px] truncate font-medium">
-                  {tab.title || new URL(tab.url).hostname}
-                </span>
-              </div>
-            ))}
-          </motion.div>
-        )}
-
-        {/* Reasoning (for assistant) */}
-        {!isUser && message.reasoning && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="mb-2"
-          >
-            <div className="flex items-center gap-2 text-body-xs text-ink-muted dark:text-ink-inverse-muted">
-              <motion.div
-                animate={!message.isReasoningComplete ? { rotate: 360 } : {}}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              >
-                <ThinkingIcon className="w-3.5 h-3.5" />
-              </motion.div>
-              <span className="italic">{message.reasoning}</span>
-            </div>
-          </motion.div>
-        )}
-        
-        {/* Message content */}
-        <div className={cn(
-          "rounded-2xl px-4 py-3",
-          isUser
-            ? "bg-gradient-to-br from-accent to-accent-light text-white rounded-br-md"
-            : "bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse rounded-bl-md"
-        )}>
-          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
-            {message.content}
-            {message.isStreaming && (
-              <motion.span
-                animate={{ opacity: [1, 0] }}
-                transition={{ duration: 0.5, repeat: Infinity }}
-                className="inline-block w-1.5 h-4 bg-current ml-0.5 align-middle"
-              />
-            )}
-          </p>
-        </div>
+      <div className="max-w-[85%]">
+        <ChainOfThoughtMessage
+          parts={message.parts}
+          isStreaming={isStreaming}
+          messageId={message.id}
+        />
       </div>
     </motion.div>
   )
@@ -836,16 +755,6 @@ function ArrowUpIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="19" x2="12" y2="5" />
       <polyline points="5 12 12 5 19 12" />
-    </svg>
-  )
-}
-
-function ThinkingIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
     </svg>
   )
 }

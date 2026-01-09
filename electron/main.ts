@@ -411,7 +411,9 @@ function normalizeUrl(url: string): string {
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
   createWindow()
-  // Tabs are created on demand via IPC; no default view created here.
+  // Create an initial tab so renderer has something to render/sync
+  tabsManager.create('tab-initial', 'ron://home')
+  tabsManager.switch('tab-initial')
 })
 
 app.on('window-all-closed', () => {
@@ -672,11 +674,16 @@ function processSSELine(streamId: string, line: string): void {
 
 let voiceAgentProcess: ChildProcess | null = null
 let voiceAgentStdoutBuffer = ''
+let voiceAgentStopRequested = false
+let lastVoiceAgentApiKey: string | undefined
+let appQuitting = false
 
 // Helper to gracefully kill the voice agent process (SIGTERM then SIGKILL fallback)
 function killVoiceAgent(timeoutMs = 1200): Promise<boolean> {
   return new Promise((resolve) => {
     if (!voiceAgentProcess) return resolve(false)
+
+    voiceAgentStopRequested = true
 
     const proc = voiceAgentProcess
     const pid = proc.pid
@@ -716,12 +723,19 @@ function killVoiceAgent(timeoutMs = 1200): Promise<boolean> {
   })
 }
 
-ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
+async function startVoiceAgent(apiKey?: string): Promise<{ success: boolean; pid?: number; error?: string }> {
   try {
-    // If already running, don't kill/restart. React StrictMode in dev can call start twice.
+    // If already running, return existing pid
     if (voiceAgentProcess && voiceAgentProcess.pid) {
       return { success: true, pid: voiceAgentProcess.pid }
     }
+
+    // Avoid restart loop during quit
+    if (appQuitting) return { success: false, error: 'App is quitting' }
+
+    // Reset stop flag for a fresh start
+    voiceAgentStopRequested = false
+    lastVoiceAgentApiKey = apiKey
 
     // Get the agents directory path
     const agentsPath = app.isPackaged
@@ -734,10 +748,10 @@ ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
     const venvPython = app.isPackaged
       ? join(process.resourcesPath, 'venv', 'bin', 'python')
       : join(__dirname, '..', '..', 'venv', 'bin', 'python')
-    
+
     // Fall back to system Python if venv doesn't exist
-    const pythonPath = require('fs').existsSync(venvPython) 
-      ? venvPython 
+    const pythonPath = require('fs').existsSync(venvPython)
+      ? venvPython
       : (process.platform === 'win32' ? 'python' : 'python3')
 
     console.log('[Voice Agent] Using Python:', pythonPath)
@@ -790,7 +804,22 @@ ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
     voiceAgentProcess.on('exit', (code, signal) => {
       console.log(`[Voice Agent] Process exited with code ${code}, signal ${signal}`)
       mainWindow?.webContents.send('voice-agent:stopped', { code, signal })
+
       voiceAgentProcess = null
+      voiceAgentStdoutBuffer = ''
+
+      const wasRequested = voiceAgentStopRequested || appQuitting
+      voiceAgentStopRequested = false
+
+      if (!wasRequested) {
+        console.log('[Voice Agent] Unexpected exit; restarting...')
+        setTimeout(() => {
+          // Avoid restart if app quit in the meantime
+          if (!appQuitting) {
+            startVoiceAgent(lastVoiceAgentApiKey).catch((err) => console.error('[Voice Agent] Restart failed:', err))
+          }
+        }, 500)
+      }
     })
 
     return { success: true, pid: voiceAgentProcess.pid }
@@ -801,10 +830,15 @@ ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
       error: error instanceof Error ? error.message : 'Unknown error'
     }
   }
+}
+
+ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
+  return startVoiceAgent(apiKey)
 })
 
 ipcMain.handle('voice-agent:stop', async () => {
   if (voiceAgentProcess) {
+    voiceAgentStopRequested = true
     await killVoiceAgent()
     return { success: true }
   }
@@ -813,11 +847,13 @@ ipcMain.handle('voice-agent:stop', async () => {
 
 // Clean up on app quit
 app.on('before-quit', () => {
+  appQuitting = true
   void killVoiceAgent()
 })
 
 // Also clean up when window is closed
 app.on('window-all-closed', () => {
+  appQuitting = true
   void killVoiceAgent()
 })
 

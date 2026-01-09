@@ -5,27 +5,25 @@
  * Sophisticated, minimal, and undeniably beautiful.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import type { FullTask } from '@/types/task'
 
-// Strands Orchestration Components
-import {
-  StrandsSwarm,
-  type SwarmState,
-  type StrandsSwarmNode,
-  type StrandsSwarmEdge,
-} from '@/components/ai-elements/strands-orchestration'
+// AI SDK v6 - useChat with DefaultChatTransport for UIMessageStream
+import { useChat, type UIMessage } from '@ai-sdk/react'
+import { DefaultChatTransport, type TextUIPart } from 'ai'
+import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 
-// Task Components (for collapsible accordion)
-import { CollapsibleTask, type TaskStatus } from '@/components/ai-elements/task'
-
-// Response Components (for streaming markdown)
-import { ResponseMarkdown } from '@/components/ai-elements/response'
+type MessagePart = UIMessage['parts'][number]
 
 // Context Picker
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
+
+// Text Attachment Components
+import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
+import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
+import type { TextAttachment } from '@/components/ai-elements/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -35,16 +33,8 @@ interface RonTabProps {
   task: FullTask
 }
 
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
-  isStreaming?: boolean
-  reasoning?: string
-  isReasoningComplete?: boolean
-  orchestration?: SwarmState // Optional orchestration state to show inline accordion
-}
+// API endpoint for superagent
+const SUPERAGENT_API = 'http://localhost:8765/superagent/stream'
 
 // Sleek, minimal suggestions
 const SUGGESTIONS = [
@@ -54,137 +44,27 @@ const SUGGESTIONS = [
   { text: 'Show agent orchestration', icon: '◎' },
 ]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SWARM STATE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function createTaskSwarmState(task: FullTask): SwarmState {
-  // Radial layout - Ron at top center, agents in a clean arc below
-  // This prevents edge crossings by using spatial hierarchy
-  const nodes: StrandsSwarmNode[] = [
-    {
-      id: "orchestrator",
-      type: "swarm-node",
-      position: { x: 320, y: 20 },
-      data: {
-        type: "swarm-node",
-        agent: {
-          id: "orchestrator",
-          name: "Ron",
-          description: "Coordinates task analysis",
-          modelProvider: "bedrock",
-          modelId: "claude-opus-4",
-          tools: ["handoff_to_agent"],
-          priority: 5,
-        },
-        status: "idle",
-        isEntryPoint: true,
-        canHandoffTo: ["analyst", "writer", "scheduler"],
-      },
-    },
-    {
-      id: "analyst",
-      type: "swarm-node",
-      position: { x: 40, y: 220 },
-      data: {
-        type: "swarm-node",
-        agent: {
-          id: "analyst",
-          name: "Analyst",
-          description: `Design new onboarding...`,
-          modelProvider: "anthropic",
-          modelId: "claude-sonnet-4",
-          tools: ["web_search", "retrieve"],
-          priority: 4,
-        },
-        status: "idle",
-        canHandoffTo: ["orchestrator", "writer"],
-      },
-    },
-    {
-      id: "writer",
-      type: "swarm-node",
-      position: { x: 320, y: 220 },
-      data: {
-        type: "swarm-node",
-        agent: {
-          id: "writer",
-          name: "Writer",
-          description: "Drafts content",
-          modelProvider: "anthropic",
-          modelId: "claude-sonnet-4",
-          tools: ["file_write"],
-          priority: 4,
-        },
-        status: "idle",
-        canHandoffTo: ["orchestrator", "scheduler"],
-      },
-    },
-    {
-      id: "scheduler",
-      type: "swarm-node",
-      position: { x: 600, y: 220 },
-      data: {
-        type: "swarm-node",
-        agent: {
-          id: "scheduler",
-          name: "Scheduler",
-          description: "Manages timelines",
-          modelProvider: "bedrock",
-          modelId: "claude-sonnet-4",
-          tools: ["calendar_api"],
-          priority: 3,
-        },
-        status: "idle",
-        canHandoffTo: ["orchestrator", "writer"],
-      },
-    },
-  ]
-
-  // Simplified edges - only show primary handoff paths (outward from orchestrator, lateral between workers)
-  // This creates a cleaner visual hierarchy without the messy back-and-forth
-  const edges: StrandsSwarmEdge[] = [
-    // From orchestrator to workers (downward flow)
-    { id: "e1", source: "orchestrator", target: "analyst", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
-    { id: "e2", source: "orchestrator", target: "writer", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
-    { id: "e3", source: "orchestrator", target: "scheduler", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
-    // Lateral flow between workers (left to right)
-    { id: "e4", source: "analyst", target: "writer", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
-    { id: "e5", source: "writer", target: "scheduler", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
-  ]
-
-  return {
-    id: `swarm_${task.id}`,
-    status: "created",
-    currentNode: null,
-    nodes,
-    edges,
-    nodeHistory: [],
-    handoffs: [],
-    sharedContext: {
-      orchestrator: {
-        taskId: task.id,
-        title: task.title.length > 40 ? task.title.slice(0, 40) + '...' : task.title,
-      },
-    },
-    maxHandoffs: 8,
-    handoffCount: 0,
-  }
-}
+const LARGE_PASTE_THRESHOLD_CHARS = 2000
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function RonTab({ task }: RonTabProps) {
-  const [messages, setMessages] = useState<Message[]>([])
+  // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
+      api: SUPERAGENT_API,
+    }),
+  })
+
   const [input, setInput] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
+  const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const swarmState = useMemo(() => createTaskSwarmState(task), [task])
+  const isTyping = status === 'streaming' || status === 'submitted'
   const isEmpty = messages.length === 0
 
   useEffect(() => {
@@ -193,67 +73,53 @@ export function RonTab({ task }: RonTabProps) {
 
   const handleSubmit = useCallback((text?: string) => {
     const messageText = text || input.trim()
-    if (!messageText) return
+    if (!messageText || status !== 'ready') return
 
-    // Check for orchestration trigger - will attach orchestration to response
-    const shouldShowOrchestration = 
-      messageText.toLowerCase().includes('orchestration') || 
-      messageText.toLowerCase().includes('agent')
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: messageText,
-      timestamp: Date.now(),
-    }
-    setMessages(prev => [...prev, userMessage])
     setInput('')
-    setIsTyping(true)
+    setSelectedContexts([])
 
-    // Simulate response with optional orchestration
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now(),
-        isStreaming: true,
-        reasoning: 'Analyzing...',
-        isReasoningComplete: false,
-        orchestration: shouldShowOrchestration ? swarmState : undefined,
-      }
-      setMessages(prev => [...prev, assistantMessage])
-      simulateStreaming(assistantMessage.id, messageText)
-    }, 400)
-  }, [input, swarmState])
-
-  const simulateStreaming = async (messageId: string, query: string) => {
-    await new Promise(r => setTimeout(r, 800))
-    
-    setMessages(prev => prev.map(m =>
-      m.id === messageId ? { ...m, reasoning: 'Ready.', isReasoningComplete: true } : m
-    ))
-
-    const response = generateResponse(query, task)
-    const words = response.split(' ')
-
-    for (let i = 0; i < words.length; i++) {
-      await new Promise(r => setTimeout(r, 20 + Math.random() * 25))
-      setMessages(prev => prev.map(m =>
-        m.id === messageId ? { ...m, content: words.slice(0, i + 1).join(' ') } : m
-      ))
-    }
-
-    setMessages(prev => prev.map(m =>
-      m.id === messageId ? { ...m, isStreaming: false } : m
-    ))
-    setIsTyping(false)
-  }
+    // Include task context in the message
+    const contextPrefix = `[Task Context: "${task.title}" - ${task.status}]\n\n`
+    sendMessage({ text: contextPrefix + messageText })
+  }, [input, status, task, sendMessage])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
+    }
+  }
+
+  // Handle text attachment operations
+  const handleTextAttachmentRemove = (id: string) => {
+    setTextAttachments(prev => prev.filter(att => att.id !== id))
+  }
+
+  const handleTextAttachmentUpdate = (
+    id: string,
+    next: Pick<TextAttachment, 'file' | 'dataUrl' | 'preview'>
+  ) => {
+    setTextAttachments(prev => prev.map(att =>
+      att.id === id ? { ...att, ...next } : att
+    ))
+  }
+
+  // Handle paste events - detect large pastes and convert to attachments
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
+      e.preventDefault()
+      const file = new File([text], makePastedTextFilename(), {
+        type: 'text/plain',
+      })
+      const dataUrl = await fileToDataUrl(file)
+      const newAttachment: TextAttachment = {
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        dataUrl,
+        preview: dataUrl,
+      }
+      setTextAttachments(prev => [...prev, newAttachment])
     }
   }
 
@@ -299,6 +165,20 @@ export function RonTab({ task }: RonTabProps) {
             className="mb-3"
           />
 
+          {/* Text Attachments (for pasted content 2000+ chars) */}
+          {textAttachments.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {textAttachments.map(attachment => (
+                <TextAttachmentCard
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={handleTextAttachmentRemove}
+                  onUpdate={handleTextAttachmentUpdate}
+                />
+              ))}
+            </div>
+          )}
+
           <div className={cn(
             "rounded-2xl transition-all duration-300",
             "bg-surface-50 dark:bg-surface-850",
@@ -321,6 +201,7 @@ export function RonTab({ task }: RonTabProps) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 placeholder="Ask anything..."
                 rows={1}
                 className={cn(
@@ -337,7 +218,7 @@ export function RonTab({ task }: RonTabProps) {
               {/* Send Button */}
               <motion.button
                 onClick={() => handleSubmit()}
-                disabled={!input.trim() || isTyping}
+                disabled={(!input.trim() && textAttachments.length === 0) || isTyping}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
@@ -345,7 +226,7 @@ export function RonTab({ task }: RonTabProps) {
                   "w-8 h-8 rounded-lg",
                   "flex items-center justify-center",
                   "transition-all duration-300",
-                  input.trim() && !isTyping
+                  (input.trim() || textAttachments.length > 0) && !isTyping
                     ? "bg-ink dark:bg-ink-inverse text-surface-0 dark:text-surface-900"
                     : "bg-surface-200 dark:bg-surface-700 text-ink-muted/50 dark:text-ink-inverse-muted/50"
                 )}
@@ -453,101 +334,44 @@ function EmptyState({ task, onSubmit }: { task: FullTask; onSubmit: (text: strin
 // MESSAGE BUBBLE - Clean & Modern
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message }: { message: { id: string; role: string; parts: MessagePart[] } }) {
   const isUser = message.role === 'user'
+
+  if (isUser) {
+    // User messages - extract text parts
+    const textParts = message.parts.filter(p => p.type === 'text') as TextUIPart[]
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-end"
+      >
+        <div className="max-w-[80%] px-4 py-3 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20 rounded-br-md">
+          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
+            {textParts.map(p => p.text).join('')}
+          </p>
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Assistant messages - use ChainOfThoughtMessage
+  const isStreaming = message.parts.some(p => (p as { state?: string }).state === 'streaming')
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn("flex flex-col gap-3", isUser ? "items-end" : "items-start")}
+      className="flex justify-start"
     >
-      <div className={cn("max-w-[80%]", isUser ? "order-2" : "order-1")}>
-        {/* Reasoning */}
-        {!isUser && message.reasoning && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-2 flex items-center gap-2"
-          >
-            {!message.isReasoningComplete && (
-              <motion.div
-                className="w-1 h-1 rounded-full bg-ink-muted dark:bg-ink-inverse-muted"
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              />
-            )}
-            <span className="text-body-xs text-ink-muted/60 dark:text-ink-inverse-muted/60 italic">
-              {message.reasoning}
-            </span>
-          </motion.div>
-        )}
-        
-        {/* Content - Using ResponseMarkdown for proper streaming and markdown */}
-        <div className={cn(
-          "px-4 py-3 rounded-2xl",
-          isUser
-            ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20 rounded-br-md [&_*]:text-white [&_code]:bg-white/20 [&_code]:text-white [&_a]:text-white [&_a]:underline"
-            : "bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse rounded-bl-md"
-        )}>
-          <ResponseMarkdown
-            content={message.content}
-            isStreaming={message.isStreaming}
-            className="text-body-sm"
-          />
-        </div>
-      </div>
-
-      {/* Inline Orchestration Accordion - Shows within the chat flow using Task component */}
-      {!isUser && message.orchestration && !message.isStreaming && (
-        <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-md"
-        >
-          <OrchestrationTaskAccordion state={message.orchestration} />
-        </motion.div>
-      )}
-    </motion.div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ORCHESTRATION TASK ACCORDION - Uses CollapsibleTask from task.tsx
-// ─────────────────────────────────────────────────────────────────────────────
-
-function OrchestrationTaskAccordion({ state }: { state: SwarmState }) {
-  // Map swarm status to TaskStatus
-  const getTaskStatus = (): TaskStatus => {
-    switch (state.status) {
-      case 'running': return 'running'
-      case 'completed': return 'success'
-      case 'error': return 'error'
-      case 'created': return 'pending'
-      default: return 'pending'
-    }
-  }
-
-  return (
-    <CollapsibleTask
-      title="Agent Orchestration"
-      description={`${state.nodes.length} agents • ${state.handoffCount} handoffs`}
-      status={getTaskStatus()}
-      defaultExpanded={false}
-    >
-      {/* The actual React Flow canvas with nodes and edges */}
-      <div className="h-[300px] w-full rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
-        <StrandsSwarm
-          initialState={state}
-          onEvent={() => {}}
-          showHistory={false}
-          showStats={false}
-          showContext={false}
-          showControls={false}
+      <div className="max-w-[85%]">
+        <ChainOfThoughtMessage
+          parts={message.parts}
+          isStreaming={isStreaming}
+          messageId={message.id}
         />
       </div>
-    </CollapsibleTask>
+    </motion.div>
   )
 }
 
@@ -572,32 +396,6 @@ function TypingIndicator() {
       ))}
     </motion.div>
   )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-function generateResponse(query: string, task: FullTask): string {
-  const q = query.toLowerCase()
-  
-  if (q.includes('summar')) {
-    return `**${task.title}**\n\nStatus: ${task.status} • Priority: ${task.priority || 'Normal'}\n\n${task.subtasks?.length || 0} subtasks, ${task.subtasks?.filter(s => s.completed).length || 0} completed.`
-  }
-  
-  if (q.includes('update') || q.includes('draft')) {
-    return `Here's a status update:\n\n"${task.title}" is currently ${task.status}. We've completed ${task.subtasks?.filter(s => s.completed).length || 0} of ${task.subtasks?.length || 0} subtasks. The team is making steady progress."`
-  }
-  
-  if (q.includes('next') || q.includes('step')) {
-    return `For "${task.title}", I recommend:\n\n1. Review remaining subtasks\n2. Address any blockers\n3. Update stakeholders on progress`
-  }
-  
-  if (q.includes('orchestration') || q.includes('agent')) {
-    return `I've activated the agent orchestration view. You can see how multiple specialized agents collaborate on your task:\n\n• **Ron** - Orchestrates the workflow\n• **Analyst** - Analyzes requirements\n• **Writer** - Drafts content\n• **Scheduler** - Manages timelines\n\nClick "Agents" above to see the visualization.`
-  }
-  
-  return `I understand you're asking about "${task.title}". How can I help further?`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

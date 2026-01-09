@@ -114,6 +114,7 @@ interface CalendarHeaderProps {
   onPrev: () => void
   onNext: () => void
   onToday: () => void
+  onModeChange?: (mode: CalendarMode) => void
 }
 
 function CalendarHeader({ currentDate, mode, onPrev, onNext, onToday }: CalendarHeaderProps) {

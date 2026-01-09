@@ -282,14 +282,4 @@ if (process.contextIsolated) {
   window.electron = electronAPI
 }
 
-// ============================================
-// TypeScript Declarations
-// ============================================
-
-declare global {
-  interface Window {
-    electron: typeof electronAPI
-  }
-}
-
 export type ElectronAPI = typeof electronAPI

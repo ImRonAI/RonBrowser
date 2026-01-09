@@ -5,14 +5,54 @@ import { cn } from '@/utils/cn'
 import { useEffect } from 'react'
 
 export function TabBar() {
-  const { tabs, activeTabId, createTab, closeTab, setActiveTab, updateTab } = useTabStore()
+  const { tabs, activeTabId, createTab, closeTab, setActiveTab, setTabs } = useTabStore()
 
+  // Initial load + live updates from main
   useEffect(() => {
+    const init = async () => {
+      try {
+        const list = await window.electron?.tabs.list?.()
+        if (Array.isArray(list)) {
+          setTabs(
+            list.map(t => ({
+              id: t.id,
+              url: t.url,
+              title: t.title,
+              favicon: t.favicon,
+              isLoading: false,
+              canGoBack: false,
+              canGoForward: false,
+              createdAt: Date.now(),
+              lastAccessed: Date.now(),
+            })),
+            list.find(t => t.isActive)?.id || list[0]?.id
+          )
+        }
+      } catch (e) {
+        console.error('Failed to load tabs from main', e)
+      }
+    }
+    init()
+
     const off = window.electron?.tabs.onUpdated?.((list) => {
-      list.forEach(t => updateTab(t.id, { title: t.title, url: t.url, favicon: t.favicon }))
+      // Overwrite store with canonical list from main
+      setTabs(
+        list.map(t => ({
+          id: t.id,
+          url: t.url,
+          title: t.title,
+          favicon: t.favicon,
+          isLoading: false,
+          canGoBack: false,
+          canGoForward: false,
+          createdAt: Date.now(),
+          lastAccessed: Date.now(),
+        })),
+        list.find(t => t.isActive)?.id
+      )
     })
     return () => { if (off) off() }
-  }, [updateTab])
+  }, [setTabs])
 
   const handleCreateTab = async () => {
     const id = createTab('ron://home', true)

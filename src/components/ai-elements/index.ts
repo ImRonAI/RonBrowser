@@ -59,6 +59,7 @@ export * from './branch'
 
 // Input components
 export * from './prompt-input'
+export * from './text-attachment-card'
 export * from './suggestion'
 
 // State components

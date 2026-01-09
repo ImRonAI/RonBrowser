@@ -7,14 +7,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useOnboardingStore } from '@/stores/onboardingStore'
 
-// React StrictMode (dev) does an intentional mount -> unmount -> mount cycle.
-// If we stop the subprocess immediately on the first unmount, it will get SIGKILL
-// during startup and never come up cleanly. Debounce stop so the next mount can
-// cancel it.
-let pendingStopTimeout: ReturnType<typeof setTimeout> | null = null
-const STOP_DEBOUNCE_MS = 150
 
-export type VoiceAgentState = 'idle' | 'starting' | 'listening' | 'thinking' | 'speaking' | 'stopped' | 'error'
+export type VoiceAgentState = 'idle' | 'starting' | 'listening' | 'thinking' | 'speaking' | 'complete' | 'stopped' | 'error'
 
 interface VoiceAgentEvent {
   type: 'state_change' | 'transcript' | 'question' | 'answer_recorded' | 'complete'
@@ -87,11 +81,6 @@ export function useVoiceAgent({
   const stop = useCallback(async () => {
     if (!window.electron?.voiceAgent) return
 
-    // If a stop is already scheduled (e.g. StrictMode remount), cancel it.
-    if (pendingStopTimeout) {
-      clearTimeout(pendingStopTimeout)
-      pendingStopTimeout = null
-    }
 
     try {
       await window.electron.voiceAgent.stop()
@@ -102,40 +91,20 @@ export function useVoiceAgent({
     }
   }, [])
 
-  // Start agent when enabled changes
+  // Start/stop when enabled toggles (no unmount stop to avoid StrictMode churn)
   useEffect(() => {
     if (!window.electron?.voiceAgent) return
-
-    // If we're (re)mounting/enabling, cancel any pending stop from a previous unmount.
-    if (enabled && pendingStopTimeout) {
-      clearTimeout(pendingStopTimeout)
-      pendingStopTimeout = null
-    }
 
     // If disabling, stop immediately (no debounce needed).
     if (!enabled) {
       if (startedRef.current) stop()
       return
     }
-
-    // Start agent when enabled (guard against React StrictMode double-mount in dev)
+    // Start agent when enabled
     if (!startedRef.current) {
       start()
     }
-
-    // Cleanup: debounce stop so StrictMode remount can cancel it
-    return () => {
-      if (pendingStopTimeout) clearTimeout(pendingStopTimeout)
-
-      pendingStopTimeout = setTimeout(() => {
-        pendingStopTimeout = null
-        // Don't touch React state here; this can fire after unmount.
-        window.electron?.voiceAgent?.stop?.().catch(() => {})
-      }, STOP_DEBOUNCE_MS)
-    }
-    // Only run when enabled changes, not when start/stop change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled])
+  }, [enabled, start, stop])
 
   // Handle agent events (separate effect to avoid restart loops)
   useEffect(() => {

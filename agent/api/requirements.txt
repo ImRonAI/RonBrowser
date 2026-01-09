@@ -1,0 +1,23 @@
+# Ron Browser Search Chat API - Python Dependencies
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# HTTP Client
+httpx>=0.26.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# Vector Database for Persistent Memory
+lancedb>=0.4.0
+pyarrow>=14.0.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Optional: For future embedding support
+# openai>=1.12.0  # For text-embedding-3-small
+# llama-index-core>=0.10.0
+# llama-index-vector-stores-lancedb>=0.1.0

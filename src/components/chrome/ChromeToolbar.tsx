@@ -70,7 +70,7 @@ export function ChromeToolbar() {
       initializeNavigationState()
 
       // Listen for URL changes
-      const unsubscribe = window.electron.browser.onUrlChanged((url: string) => {
+      const unsubscribe = window.electron.browser.onUrlChanged(() => {
         // Update navigation button states
         window.electron.browser.canGoBack().then(setCanGoBack).catch(console.error)
         window.electron.browser.canGoForward().then(setCanGoForward).catch(console.error)

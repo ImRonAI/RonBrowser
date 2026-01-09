@@ -379,7 +379,7 @@ function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
           }}
         />
 
-        {TAB_CONFIG.map((tab, index) => {
+        {TAB_CONFIG.map((tab, _index) => {
           const isActive = activeTab === tab.id
           return (
             <motion.button

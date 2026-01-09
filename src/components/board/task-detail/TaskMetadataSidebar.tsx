@@ -551,7 +551,7 @@ function LinksList({ task }: { task: Task }) {
   return (
     <div className="space-y-2">
       {task.emailThreadRef?.map((ref, i) => (
-        <LinkItem key={`email-${i}`} type="email" label={`Email Thread ${i + 1}`} />
+        <LinkItem key={`email-${i}`} type="email" label={ref || `Email Thread ${i + 1}`} />
       ))}
       {task.meetingLinks?.map((link, i) => (
         <LinkItem key={`meeting-${i}`} type="meeting" label={`Meeting ${i + 1}`} url={link} />

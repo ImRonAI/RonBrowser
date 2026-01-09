@@ -10,18 +10,57 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
       colors: {
+        // shadcn/ui color tokens
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
         // Sophisticated Minimal Palette - Bold yet refined
         // Light Mode: Warm whites and deep charcoals
         // Dark Mode: Rich blacks with warm undertones
         
-        // Primary Accent - Deep Indigo with warmth
+        // Primary Accent - Deep Indigo with warmth (merged with shadcn/ui CSS variable support)
         accent: {
-          DEFAULT: '#3730A3', // Indigo-800 - Bold, confident
-          light: '#6366F1',   // Indigo-500 - Vibrant 
-          muted: '#818CF8',   // Indigo-400 - Soft
-          subtle: '#C7D2FE', // Indigo-200 - Whisper
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+          // Custom accent variants (use accent-indigo, accent-light, etc. for these)
         },
+        // Ron's custom accent colors (for non-shadcn components)
+        'accent-indigo': '#3730A3', // Indigo-800 - Bold, confident
+        'accent-light': '#6366F1',   // Indigo-500 - Vibrant 
+        'accent-muted': '#818CF8',   // Indigo-400 - Soft
+        'accent-subtle': '#C7D2FE', // Indigo-200 - Whisper
         
         // Surface Colors - The foundation
         surface: {
@@ -121,18 +160,6 @@ const config: Config = {
         '88': '22rem',
         '112': '28rem',
         '128': '32rem',
-      },
-      
-      borderRadius: {
-        'none': '0',
-        'sm': '0.25rem',
-        'DEFAULT': '0.5rem',
-        'md': '0.625rem',
-        'lg': '0.75rem',
-        'xl': '1rem',
-        '2xl': '1.25rem',
-        '3xl': '1.5rem',
-        'full': '9999px',
       },
       
       boxShadow: {

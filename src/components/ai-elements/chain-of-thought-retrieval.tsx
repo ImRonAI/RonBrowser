@@ -116,7 +116,6 @@ export function ChainOfThoughtRetrievalItem({
   url,
   table,
   confidence,
-  sourceType,
   className
 }: ChainOfThoughtRetrievalItemProps) {
   return (

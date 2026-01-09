@@ -129,7 +129,18 @@ function createSwarmState(): SwarmState {
     { id: "e4", source: "food_expert", target: "reviewer", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
     { id: "e5", source: "local_guide", target: "reviewer", type: "swarm-edge", data: { type: "swarm-edge", isActive: false } },
   ]
-  return { id: "pizza_swarm", status: "running", currentNode: "orchestrator", nodes, edges, nodeHistory: ["orchestrator"], handoffs: [], sharedContext: { query: "Best pizza in NYC" }, maxHandoffs: 8, handoffCount: 0 }
+  return { 
+    id: "pizza_swarm", 
+    status: "running", 
+    currentNode: "orchestrator", 
+    nodes, 
+    edges, 
+    nodeHistory: ["orchestrator"], 
+    handoffs: [], 
+    sharedContext: { orchestrator: { query: "Best pizza in NYC" } }, 
+    maxHandoffs: 8, 
+    handoffCount: 0 
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -142,6 +142,13 @@ export class BrowserService {
   }
 
   /**
+   * Backward compatibility alias for navigate
+   */
+  public loadUrl(url: string): void {
+    this.navigate(url)
+  }
+
+  /**
    * Navigate to search results page
    */
   public search(query: string): void {

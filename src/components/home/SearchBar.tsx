@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { useSearchStore } from '@/stores/searchStore'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
 export function SearchBar() {
   const [query, setQuery] = useState('')
   const [isFocused, setIsFocused] = useState(false)
+  const { search } = useSearchStore()
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -13,15 +15,8 @@ export function SearchBar() {
 
     console.log('Searching:', query)
 
-    // Use browser API to search
-    if (typeof window !== 'undefined' && window.electron?.browser) {
-      try {
-        await window.electron.browser.search(query)
-        console.log('Search initiated')
-      } catch (error) {
-        console.error('Search error:', error)
-      }
-    }
+    // Trigger the search results page
+    search(query)
   }
 
   return (

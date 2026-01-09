@@ -4,6 +4,7 @@
  * Loading skeleton with shimmer animation.
  */
 
+import React from 'react'
 import { cn } from '@/utils/cn'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -12,9 +13,10 @@ import { cn } from '@/utils/cn'
 
 interface ShimmerProps {
   className?: string
+  children?: React.ReactNode
 }
 
-export function Shimmer({ className }: ShimmerProps) {
+export function Shimmer({ className, children }: ShimmerProps) {
   return (
     <div 
       className={cn(
@@ -31,6 +33,7 @@ export function Shimmer({ className }: ShimmerProps) {
           'animate-shimmer'
         )}
       />
+      {children ? <div className="invisible">{children}</div> : null}
     </div>
   )
 }

@@ -47,7 +47,8 @@ export function Branch({ defaultBranch = 0, children, className }: BranchProps) 
   let totalBranches = 0
   React.Children.forEach(children, child => {
     if (React.isValidElement(child) && child.type === BranchMessages) {
-      totalBranches = React.Children.count(child.props.children)
+      const element = child as React.ReactElement<{ children?: React.ReactNode }>
+      totalBranches = React.Children.count(element.props.children)
     }
   })
 

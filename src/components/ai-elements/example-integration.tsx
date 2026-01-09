@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { ChainOfThoughtEnhanced, useChainOfThoughtStream, type ChainOfThoughtStepData } from './chain-of-thought-enhanced'
-import { WebPreview } from './web-preview'
+import { WebPreview, WebPreviewBody } from './web-preview'
 import type { SearchResult } from './chain-of-thought-search'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -370,4 +370,5 @@ function parseSearchResults(data: any): SearchResult[] {
 // Export for use in main application
 // ─────────────────────────────────────────────────────────────────────────────
 
-export { ChainOfThoughtEnhanced, WebPreview, WebPreviewBody } from './web-preview'
+export { ChainOfThoughtEnhanced } from './chain-of-thought-enhanced'
+export { WebPreview, WebPreviewBody } from './web-preview'
