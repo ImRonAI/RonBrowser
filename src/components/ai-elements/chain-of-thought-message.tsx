@@ -110,13 +110,16 @@ export function ChainOfThoughtMessage({
     }
   }
 
-  const chainOfThoughtOpen = !hasFinalTextOutput
 
   return (
     <div className={cn('space-y-3', className)}>
       {/* Chain of Thought (wraps all process parts) */}
       {processParts.length > 0 && (
-        <ChainOfThought defaultOpen={chainOfThoughtOpen}>
+        <ChainOfThought 
+          defaultOpen={false} 
+          isStreaming={isStreaming} 
+          autoCollapseDelay={3000}
+        >
           <ChainOfThoughtHeader>
             {isStreaming && !hasFinalTextOutput ? 'Processing...' : 'Thought Process'}
           </ChainOfThoughtHeader>

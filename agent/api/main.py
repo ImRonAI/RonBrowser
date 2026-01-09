@@ -26,6 +26,11 @@ import pyarrow as pa
 # Load environment variables
 load_dotenv()
 
+# Set BYPASS_TOOL_CONSENT to bypass interactive tool confirmation prompts
+# This is required for non-interactive backends (strands tools like shell,
+# use_computer, file_write, editor all require terminal input otherwise)
+os.environ["BYPASS_TOOL_CONSENT"] = "true"
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

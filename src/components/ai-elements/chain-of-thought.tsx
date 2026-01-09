@@ -4,7 +4,7 @@
  * Visualize step-by-step reasoning process of AI.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
@@ -16,11 +16,50 @@ import { Loader } from './loader'
 interface ChainOfThoughtProps {
   children: React.ReactNode
   defaultOpen?: boolean
+  isStreaming?: boolean
+  autoCollapseDelay?: number
   className?: string
 }
 
-export function ChainOfThought({ children, defaultOpen = true, className }: ChainOfThoughtProps) {
+export function ChainOfThought({ 
+  children, 
+  defaultOpen = false, 
+  isStreaming = false,
+  autoCollapseDelay = 3000,
+  className 
+}: ChainOfThoughtProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
+  const [manualOpenPreference, setManualOpenPreference] = useState(false)
+
+  // Auto-open when streaming starts
+  useEffect(() => {
+    if (isStreaming) {
+      setIsOpen(true)
+      setManualOpenPreference(false) // Reset manual preference for new message
+    }
+  }, [isStreaming])
+
+  // Auto-collapse after streaming completes (unless manually kept open)
+  useEffect(() => {
+    if (!isStreaming && isOpen && !manualOpenPreference && autoCollapseDelay > 0) {
+      const timer = setTimeout(() => setIsOpen(false), autoCollapseDelay)
+      return () => clearTimeout(timer)
+    }
+  }, [isStreaming, manualOpenPreference, autoCollapseDelay])
+
+  const toggle = () => {
+    const newState = !isOpen
+    setIsOpen(newState)
+    
+    // If opening manually, keep it open (respect user choice)
+    if (newState) {
+      setManualOpenPreference(true)
+    } 
+    // If closing manually, allow future auto-behavior
+    else {
+      setManualOpenPreference(false)
+    }
+  }
 
   return (
     <div className={cn(
@@ -33,7 +72,7 @@ export function ChainOfThought({ children, defaultOpen = true, className }: Chai
           if (child.type === ChainOfThoughtHeader) {
             return React.cloneElement(child as React.ReactElement<ChainOfThoughtHeaderProps>, {
               isOpen,
-              onClick: () => setIsOpen(!isOpen)
+              onClick: toggle
             })
           }
           if (child.type === ChainOfThoughtContent) {

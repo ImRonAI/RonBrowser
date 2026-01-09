@@ -1,7 +1,12 @@
 """Ron Superagent - Strands-based orchestration agent with MCP/A2A capabilities."""
 import json
+import os
 from pathlib import Path
 from typing import Optional, Any, Dict, Callable
+from dotenv import load_dotenv
+
+# Load .env from project root
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from strands import Agent, tool
 from strands.models import BedrockModel
@@ -35,23 +40,27 @@ from aisdk_stream import AISDKCallbackHandler
 # Global state for MCP clients and agent reference
 _mcp_clients: Dict[str, MCPClient] = {}
 _current_agent: Optional[Agent] = None
-MCP_SERVERS_DIR = Path(__file__).parent / "tools" / "mcp-servers "
+MCP_SERVERS_DIR = Path(__file__).parent / "tools" / "mcp"
+VENV_PYTHON = Path(__file__).parent.parent / "venv" / "bin" / "python"
 
+# MCP server configs: (command, args)
 AVAILABLE_MCP_SERVERS = {
-    "cms-coverage": "cms-coverage-mcp-server/server.py",
-    "datacommons": "datacommons/server.py",
-    "openapi": "openapi-mcp/server.py",
-    "playwright": "playwright-electron-mcp/server.py",
-    "pophive": "pophive-mcp-server/server.py",
-    "telnyx": "telnyx-mcp-server/server.py",
+    "telnyx": (str(VENV_PYTHON), ["-m", "telnyx_mcp_server"]),
+    "datacommons": (str(Path(__file__).parent.parent / "venv" / "bin" / "datacommons-mcp"), ["serve", "stdio"]),
+    "cms-coverage": (str(VENV_PYTHON), ["-m", "openapi_mcp_server", "--openapi-spec-path", str(MCP_SERVERS_DIR / "cms-coverage-mcp-server" / "coverageapi.json"), "--api-base-url", "https://api.cms.gov/mcd"]),
+    "playwright": ("node", [str(MCP_SERVERS_DIR / "playwright-electron-mcp" / "dist" / "index.js")]),
+    "pophive": ("node", [str(MCP_SERVERS_DIR / "pophive-mcp-server" / "server" / "index.js")]),
+    "healthcare": ("node", [str(MCP_SERVERS_DIR / "healthcare-mcp-public" / "server" / "index.js")]),
+    "mcp-installer": ("node", [str(MCP_SERVERS_DIR / "mcp-installer" / "lib" / "index.mjs")]),
+    "gateway": ("docker", ["mcp", "gateway", "run"]),
 }
 
 @tool
-def load_mcp_server(server_id: str) -> str:
+async def load_mcp_server(server_id: str) -> str:
     """Load an MCP server's tools into your registry. After loading, call MCP tools directly by name.
 
     Args:
-        server_id: Server: cms-coverage, datacommons, openapi, playwright, pophive, or telnyx
+        server_id: Server: cms-coverage, datacommons, playwright, pophive, healthcare, mcp-installer, gateway, or telnyx
     """
     global _current_agent
 
@@ -61,11 +70,11 @@ def load_mcp_server(server_id: str) -> str:
     if server_id in _mcp_clients:
         return f"{server_id} already loaded"
 
-    server_path = MCP_SERVERS_DIR / AVAILABLE_MCP_SERVERS[server_id]
-
-    client = MCPClient(lambda: stdio_client(StdioServerParameters(command="python", args=[str(server_path)])))
+    cmd, args = AVAILABLE_MCP_SERVERS[server_id]
+    env = os.environ.copy()
+    client = MCPClient(lambda cmd=cmd, args=args, env=env: stdio_client(StdioServerParameters(command=cmd, args=args, env=env)))
     client.start()
-    tools = client.load_tools()
+    tools = await client.load_tools()
 
     if _current_agent:
         for t in tools:
@@ -75,6 +84,44 @@ def load_mcp_server(server_id: str) -> str:
     tool_names = [t.tool_name for t in tools]
 
     return f"Loaded {server_id}: {tool_names}. Call these tools directly now."
+
+
+@tool
+async def load_openapi_server(spec_path: str, api_base_url: str = None, server_id: str = None) -> str:
+    """Load any OpenAPI spec as an MCP server. Use this to dynamically add API tools from any OpenAPI/Swagger spec.
+
+    Args:
+        spec_path: Path to the OpenAPI JSON/YAML spec file or URL
+        api_base_url: Optional Base URL for the API (overrides spec)
+        server_id: Optional unique ID for this server (defaults to spec filename)
+    """
+    global _current_agent
+
+    sid = server_id or Path(spec_path).stem
+    if sid in _mcp_clients:
+        return f"{sid} already loaded"
+
+    # Use the ivo-toby/openapi-mcp-server (Node.js)
+    cmd = "node"
+    args = [str(MCP_SERVERS_DIR / "openapi-mcp" / "bin" / "mcp-server.js"), "--openapi-spec", spec_path]
+    
+    if api_base_url:
+        args.extend(["--api-base-url", api_base_url])
+        
+    env = os.environ.copy()
+
+    client = MCPClient(lambda cmd=cmd, args=args, env=env: stdio_client(StdioServerParameters(command=cmd, args=args, env=env)))
+    client.start()
+    tools = await client.load_tools()
+
+    if _current_agent:
+        for t in tools:
+            _current_agent.tool_registry.register_tool(t)
+
+    _mcp_clients[sid] = client
+    tool_names = [t.tool_name for t in tools]
+
+    return f"Loaded OpenAPI server '{sid}': {tool_names}. Call these tools directly now."
 
 
 SUPERAGENT_SYSTEM_PROMPT = """You are Ron Superagent, a powerful orchestration agent built on Strands.
@@ -99,11 +146,11 @@ send_sms(to="+1...", message="Hello!")
 make_call(to="+1...")
 ```
 
-Available MCP servers: cms-coverage, datacommons, openapi, playwright, pophive, telnyx
+Available MCP servers: cms-coverage, datacommons, playwright, pophive, telnyx
 
 ## Available Tools:
 - Meta: load_tool, editor, shell
-- MCP: load_mcp_server (loads tools as native)
+- MCP: load_mcp_server (preset servers), load_openapi_server (any OpenAPI spec)
 - Memory: retrieve, mem0_memory
 - System: environment, cron
 - Network: http_request
@@ -168,7 +215,7 @@ def create_superagent(
 
     tools = [
         load_tool, editor, shell,
-        load_mcp_server,
+        load_mcp_server, load_openapi_server,
         retrieve, mem0_memory,
         environment, cron,
         http_request,
