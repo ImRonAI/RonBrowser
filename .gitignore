@@ -1,1 +1,28 @@
-node_modules
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+out/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Electron
+*.asar
