@@ -2,48 +2,81 @@
  * Tool Components
  * 
  * Display tool execution details with collapsible input/output.
+ * 
+ * Implementation follows official Vercel AI Elements pattern:
+ * - React Context for state sharing (no cloneElement)
+ * - Controlled/uncontrolled via open/defaultOpen/onOpenChange
  */
 
-import React, { useState } from 'react'
+import React, { useState, useCallback, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
 import type { ToolState } from './types'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tool
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ToolContextValue {
+  isOpen: boolean
+  toggle: () => void
+}
+
+const ToolContext = createContext<ToolContextValue>({
+  isOpen: false,
+  toggle: () => {},
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tool (Root)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ToolProps {
   children: React.ReactNode
+  /** Controlled open state */
+  open?: boolean
+  /** Uncontrolled default open state */
   defaultOpen?: boolean
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void
   className?: string
 }
 
-export function Tool({ children, defaultOpen = false, className }: ToolProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+export function Tool({ 
+  children, 
+  open: controlledOpen,
+  defaultOpen = false, 
+  onOpenChange,
+  className 
+}: ToolProps) {
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined
+  const [internalOpen, setInternalOpen] = useState(defaultOpen)
+  const isOpen = isControlled ? controlledOpen : internalOpen
+
+  const setOpen = useCallback((newOpen: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(newOpen)
+    }
+    onOpenChange?.(newOpen)
+  }, [isControlled, onOpenChange])
+
+  const toggle = useCallback(() => {
+    setOpen(!isOpen)
+  }, [isOpen, setOpen])
 
   return (
-    <div className={cn('rounded-xl border border-surface-200/60 dark:border-surface-700/60 overflow-hidden backdrop-blur-xl bg-surface-0/60 dark:bg-surface-900/60', className)}>
-      {React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
-          if (child.type === ToolHeader) {
-            return React.cloneElement(child as React.ReactElement<ToolHeaderProps>, {
-              isOpen,
-              onClick: () => setIsOpen(!isOpen)
-            })
-          }
-          if (child.type === ToolContent) {
-            return (
-              <AnimatePresence>
-                {isOpen && child}
-              </AnimatePresence>
-            )
-          }
-        }
-        return child
-      })}
-    </div>
+    <ToolContext.Provider value={{ isOpen, toggle }}>
+      <div className={cn(
+        'rounded-xl border border-surface-200/60 dark:border-surface-700/60',
+        'overflow-hidden backdrop-blur-xl',
+        'bg-surface-0/60 dark:bg-surface-900/60',
+        className
+      )}>
+        {children}
+      </div>
+    </ToolContext.Provider>
   )
 }
 
@@ -55,15 +88,15 @@ interface ToolHeaderProps {
   title: string
   type?: string
   state: ToolState
-  isOpen?: boolean
-  onClick?: () => void
   className?: string
 }
 
-export function ToolHeader({ title, type, state, isOpen, onClick, className }: ToolHeaderProps) {
+export function ToolHeader({ title, type, state, className }: ToolHeaderProps) {
+  const { isOpen, toggle } = useContext(ToolContext)
+
   return (
     <button
-      onClick={onClick}
+      onClick={toggle}
       className={cn(
         'w-full flex items-center gap-3 p-3',
         'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
@@ -135,18 +168,24 @@ interface ToolContentProps {
 }
 
 export function ToolContent({ children, className }: ToolContentProps) {
+  const { isOpen } = useContext(ToolContext)
+
   return (
-    <motion.div
-      initial={{ height: 0 }}
-      animate={{ height: 'auto' }}
-      exit={{ height: 0 }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={cn('overflow-hidden', className)}
-    >
-      <div className="p-3 pt-0 space-y-3">
-        {children}
-      </div>
-    </motion.div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0 }}
+          animate={{ height: 'auto' }}
+          exit={{ height: 0 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className={cn('overflow-hidden', className)}
+        >
+          <div className="p-3 pt-0 space-y-3">
+            {children}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

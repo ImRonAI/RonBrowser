@@ -2,67 +2,101 @@
  * Reasoning Component
  * 
  * Collapsible interface to display AI thinking processes with auto-collapse behavior.
+ * 
+ * Implementation follows official Vercel AI Elements pattern:
+ * - React Context for state sharing (no cloneElement)
+ * - Controlled/uncontrolled via open/defaultOpen/onOpenChange
+ * - Auto-open on streaming, auto-close when complete
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reasoning
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ReasoningContextValue {
+  isOpen: boolean
+  toggle: () => void
+  isStreaming: boolean
+  duration: number
+}
+
+const ReasoningContext = createContext<ReasoningContextValue>({
+  isOpen: false,
+  toggle: () => {},
+  isStreaming: false,
+  duration: 0,
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reasoning (Root)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ReasoningProps {
   duration?: number
   isStreaming?: boolean
+  /** Controlled open state */
+  open?: boolean
+  /** Uncontrolled default open state */
   defaultOpen?: boolean
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void
   autoCollapseDelay?: number
   children: React.ReactNode
   className?: string
 }
 
 export function Reasoning({ 
-  duration, 
-  isStreaming, 
+  duration = 0, 
+  isStreaming = false, 
+  open: controlledOpen,
   defaultOpen = true,
+  onOpenChange,
   autoCollapseDelay = 2000,
   children,
   className 
 }: ReasoningProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined
+  const [internalOpen, setInternalOpen] = useState(defaultOpen)
+  const isOpen = isControlled ? controlledOpen : internalOpen
+
+  const setOpen = useCallback((newOpen: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(newOpen)
+    }
+    onOpenChange?.(newOpen)
+  }, [isControlled, onOpenChange])
+
+  const toggle = useCallback(() => {
+    setOpen(!isOpen)
+  }, [isOpen, setOpen])
+
+  // Auto-open when streaming starts
+  useEffect(() => {
+    if (isStreaming && !isOpen) {
+      setOpen(true)
+    }
+  }, [isStreaming, isOpen, setOpen])
 
   // Auto-collapse after streaming completes
   useEffect(() => {
-    if (!isStreaming && defaultOpen && autoCollapseDelay > 0) {
-      const timer = setTimeout(() => setIsOpen(false), autoCollapseDelay)
+    if (!isStreaming && isOpen && autoCollapseDelay > 0) {
+      const timer = setTimeout(() => setOpen(false), autoCollapseDelay)
       return () => clearTimeout(timer)
     }
-  }, [isStreaming, defaultOpen, autoCollapseDelay])
+  }, [isStreaming, isOpen, autoCollapseDelay, setOpen])
 
   return (
-    <div className={cn('w-full', className)}>
-      {React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
-          if (child.type === ReasoningTrigger) {
-            return React.cloneElement(child as React.ReactElement<ReasoningTriggerProps>, {
-              isOpen,
-              isStreaming,
-              duration,
-              onClick: () => setIsOpen(!isOpen)
-            })
-          }
-          if (child.type === ReasoningContent) {
-            return (
-              <AnimatePresence>
-                {isOpen && child}
-              </AnimatePresence>
-            )
-          }
-        }
-        return child
-      })}
-    </div>
+    <ReasoningContext.Provider value={{ isOpen, toggle, isStreaming, duration }}>
+      <div className={cn('w-full', className)}>
+        {children}
+      </div>
+    </ReasoningContext.Provider>
   )
 }
 
@@ -71,25 +105,16 @@ export function Reasoning({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ReasoningTriggerProps {
-  isOpen?: boolean
-  isStreaming?: boolean
-  duration?: number
-  onClick?: () => void
   className?: string
 }
 
-export function ReasoningTrigger({ 
-  isOpen, 
-  isStreaming, 
-  duration,
-  onClick,
-  className 
-}: ReasoningTriggerProps) {
+export function ReasoningTrigger({ className }: ReasoningTriggerProps) {
+  const { isOpen, toggle, isStreaming, duration } = useContext(ReasoningContext)
   const durationSeconds = duration ? Math.round(duration / 1000) : 0
 
   return (
     <motion.button
-      onClick={onClick}
+      onClick={toggle}
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       className={cn(
@@ -132,24 +157,30 @@ interface ReasoningContentProps {
 }
 
 export function ReasoningContent({ children, className }: ReasoningContentProps) {
+  const { isOpen } = useContext(ReasoningContext)
+
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={cn(
-        'mt-2 px-3 py-2 rounded-lg',
-        'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
-        'border-l-2 border-accent/30 dark:border-accent-light/30',
-        'overflow-hidden',
-        className
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className={cn(
+            'mt-2 px-3 py-2 rounded-lg',
+            'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
+            'border-l-2 border-accent/30 dark:border-accent-light/30',
+            'overflow-hidden',
+            className
+          )}
+        >
+          <p className="text-body-xs text-ink-secondary dark:text-ink-inverse-secondary italic">
+            {children}
+          </p>
+        </motion.div>
       )}
-    >
-      <p className="text-body-xs text-ink-secondary dark:text-ink-inverse-secondary italic">
-        {children}
-      </p>
-    </motion.div>
+    </AnimatePresence>
   )
 }
 

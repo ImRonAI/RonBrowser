@@ -2,91 +2,102 @@
  * Chain of Thought Components
  * 
  * Visualize step-by-step reasoning process of AI.
+ * 
+ * Implementation follows official Vercel AI Elements pattern:
+ * - React Context for state sharing (no cloneElement)
+ * - Controlled/uncontrolled via open/defaultOpen/onOpenChange
+ * - Auto-open on streaming, auto-close when complete
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ChainOfThought
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ChainOfThoughtContextValue {
+  isOpen: boolean
+  toggle: () => void
+}
+
+const ChainOfThoughtContext = createContext<ChainOfThoughtContextValue>({
+  isOpen: false,
+  toggle: () => {},
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ChainOfThought (Root)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ChainOfThoughtProps {
   children: React.ReactNode
+  /** Controlled open state */
+  open?: boolean
+  /** Uncontrolled default open state */
   defaultOpen?: boolean
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void
+  /** Is content actively streaming */
   isStreaming?: boolean
+  /** Delay before auto-collapse after streaming ends (0 to disable) */
   autoCollapseDelay?: number
   className?: string
 }
 
 export function ChainOfThought({ 
   children, 
+  open: controlledOpen,
   defaultOpen = false, 
+  onOpenChange,
   isStreaming = false,
   autoCollapseDelay = 3000,
   className 
 }: ChainOfThoughtProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
-  const [manualOpenPreference, setManualOpenPreference] = useState(false)
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined
+  const [internalOpen, setInternalOpen] = useState(defaultOpen)
+  const isOpen = isControlled ? controlledOpen : internalOpen
+
+  const setOpen = useCallback((newOpen: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(newOpen)
+    }
+    onOpenChange?.(newOpen)
+  }, [isControlled, onOpenChange])
+
+  const toggle = useCallback(() => {
+    setOpen(!isOpen)
+  }, [isOpen, setOpen])
 
   // Auto-open when streaming starts
   useEffect(() => {
-    if (isStreaming) {
-      setIsOpen(true)
-      setManualOpenPreference(false) // Reset manual preference for new message
+    if (isStreaming && !isOpen) {
+      setOpen(true)
     }
-  }, [isStreaming])
+  }, [isStreaming, isOpen, setOpen])
 
-  // Auto-collapse after streaming completes (unless manually kept open)
+  // Auto-collapse after streaming completes
   useEffect(() => {
-    if (!isStreaming && isOpen && !manualOpenPreference && autoCollapseDelay > 0) {
-      const timer = setTimeout(() => setIsOpen(false), autoCollapseDelay)
+    if (!isStreaming && isOpen && autoCollapseDelay > 0) {
+      const timer = setTimeout(() => setOpen(false), autoCollapseDelay)
       return () => clearTimeout(timer)
     }
-  }, [isStreaming, manualOpenPreference, autoCollapseDelay])
-
-  const toggle = () => {
-    const newState = !isOpen
-    setIsOpen(newState)
-    
-    // If opening manually, keep it open (respect user choice)
-    if (newState) {
-      setManualOpenPreference(true)
-    } 
-    // If closing manually, allow future auto-behavior
-    else {
-      setManualOpenPreference(false)
-    }
-  }
+  }, [isStreaming, isOpen, autoCollapseDelay, setOpen])
 
   return (
-    <div className={cn(
-      'rounded-xl border border-surface-200/60 dark:border-surface-700/60',
-      'overflow-hidden backdrop-blur-xl',
-      'bg-surface-0/60 dark:bg-surface-900/60',
-      className
-    )}>
-      {React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
-          if (child.type === ChainOfThoughtHeader) {
-            return React.cloneElement(child as React.ReactElement<ChainOfThoughtHeaderProps>, {
-              isOpen,
-              onClick: toggle
-            })
-          }
-          if (child.type === ChainOfThoughtContent) {
-            return (
-              <AnimatePresence>
-                {isOpen && child}
-              </AnimatePresence>
-            )
-          }
-        }
-        return child
-      })}
-    </div>
+    <ChainOfThoughtContext.Provider value={{ isOpen, toggle }}>
+      <div className={cn(
+        'rounded-xl border border-surface-200/60 dark:border-surface-700/60',
+        'overflow-hidden backdrop-blur-xl',
+        'bg-surface-0/60 dark:bg-surface-900/60',
+        className
+      )}>
+        {children}
+      </div>
+    </ChainOfThoughtContext.Provider>
   )
 }
 
@@ -96,15 +107,15 @@ export function ChainOfThought({
 
 interface ChainOfThoughtHeaderProps {
   children: React.ReactNode
-  isOpen?: boolean
-  onClick?: () => void
   className?: string
 }
 
-export function ChainOfThoughtHeader({ children, isOpen, onClick, className }: ChainOfThoughtHeaderProps) {
+export function ChainOfThoughtHeader({ children, className }: ChainOfThoughtHeaderProps) {
+  const { isOpen, toggle } = useContext(ChainOfThoughtContext)
+
   return (
     <button
-      onClick={onClick}
+      onClick={toggle}
       className={cn(
         'w-full flex items-center justify-between',
         'px-4 py-3',
@@ -142,18 +153,24 @@ interface ChainOfThoughtContentProps {
 }
 
 export function ChainOfThoughtContent({ children, className }: ChainOfThoughtContentProps) {
+  const { isOpen } = useContext(ChainOfThoughtContext)
+
   return (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={cn('overflow-hidden', className)}
-    >
-      <div className="p-4 space-y-3">
-        {children}
-      </div>
-    </motion.div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className={cn('overflow-hidden', className)}
+        >
+          <div className="p-4 space-y-3">
+            {children}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -179,10 +196,7 @@ export function ChainOfThoughtStep({
   className 
 }: ChainOfThoughtStepProps) {
   return (
-    <div className={cn(
-      'flex gap-3',
-      className
-    )}>
+    <div className={cn('flex gap-3', className)}>
       {/* Status indicator */}
       <div className="flex flex-col items-center">
         <StepStatusIndicator status={status} icon={icon} />
@@ -244,10 +258,7 @@ function StepStatusIndicator({
   const { bg, color } = config[status]
 
   return (
-    <div className={cn(
-      'w-6 h-6 rounded-full flex items-center justify-center',
-      bg
-    )}>
+    <div className={cn('w-6 h-6 rounded-full flex items-center justify-center', bg)}>
       {status === 'running' ? (
         <Loader size={12} />
       ) : status === 'complete' ? (
