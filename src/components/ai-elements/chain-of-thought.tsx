@@ -63,8 +63,9 @@ export function ChainOfThought({
 
   return (
     <div className={cn(
-      'rounded-xl border border-surface-200 dark:border-surface-700',
-      'overflow-hidden',
+      'rounded-xl border border-surface-200/60 dark:border-surface-700/60',
+      'overflow-hidden backdrop-blur-xl',
+      'bg-surface-0/60 dark:bg-surface-900/60',
       className
     )}>
       {React.Children.map(children, child => {
@@ -107,8 +108,8 @@ export function ChainOfThoughtHeader({ children, isOpen, onClick, className }: C
       className={cn(
         'w-full flex items-center justify-between',
         'px-4 py-3',
-        'bg-surface-50 dark:bg-surface-800',
-        'hover:bg-surface-100 dark:hover:bg-surface-700',
+        'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
+        'hover:bg-surface-100/80 dark:hover:bg-surface-700/80',
         'transition-colors duration-200',
         className
       )}
@@ -275,7 +276,7 @@ export function ChainOfThoughtSearchResults({ children, className }: ChainOfThou
   return (
     <div className={cn(
       'space-y-2 p-3 rounded-lg',
-      'bg-surface-50 dark:bg-surface-800',
+      'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
       className
     )}>
       {children}

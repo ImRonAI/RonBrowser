@@ -1,0 +1,32 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "The user has provided an email address: thunt1011@gmail.com. This appears to be their user identifier. Let me check if I have any stored memories for this user and retrieve relevant information about them.\n\nI should:\n1. Search for existing memories about this user\n2. List their memories to see what I know about them\n\nLet me retrieve memories for this user to provide a personalized greeting.",
+            "signature": "ErIECkgICxABGAIqQK0/pwjotxQH0RdjEdeO0afkTixVVWxu5gjo0C5g/mmJhD1+4mTtQY+WdcYggQ9IzrH6SrHOvlgaFY0ESew/jzkSDPpsGN3r5Pqep63bvxoMXCpftB6Y57S04kAuIjAI6ta1dkZKuD4wAXEpjSzrJjr7Ybkw05AZV7bHoG1UflI2wvjTQUMWYPKmF+Hf3r0qlwMCncvJCpCNrE/s6cA7yxlmFq0pLTxl9lpYd0h5PkmWEUNC8aoQtegKeebzvGAc9OHr8DFlA64y1xfaVKmRhB/dsuUuFb2v8Yi3Eu34zErGF//9SKeLR9GDFEntExt9SVFlQFn7O+Jnuksp1AsauEm1/agTjHY/BfMJdJHIDOEMB1gMjflFFWdP0pdd/F6H7pDyEUM3Y9G1mBYIQd1Aj+Hi5oBeHXlGb3SdQRemePRFeFmDTq+xPLpZkq41e6OS5WTA79HWYhQ/K45qkGGmHHdrnS9ETPq5IaF6MxMXb27qt1OM9adqB04l6O20je/c5HSEWO6itkDlrF2g9jbk9gV1wv0CTjCnESWDZ/OjSGJgCJXY8WRG9GR4tj7YxlfynnQmSLnY8ZpMgB4VupWH3iJ1HO7YBQsv2VmCefKftjCGCQGyWwpORQN6uz0FxNgBLIyUke3v6dngoNoRpw+eT4b99eXJU/yp+cp6Mu8aJsDpBo/GqJ3hCnfvTakwfSFvV9f3eQvscM+8Vfs8Xhk37Lq69071udi9jRgB"
+          }
+        }
+      },
+      {
+        "text": "Let me check what I know about you and retrieve your memories!"
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_v2XQyOC4SaODZ-P2ssGLNA",
+          "name": "mem0_memory",
+          "input": {
+            "action": "list",
+            "user_id": "thunt1011@gmail.com"
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 24,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:29:09.878883+00:00",
+  "updated_at": "2026-01-10T11:29:09.878885+00:00"
+}

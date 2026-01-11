@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "Both computer use functions worked correctly. The mouse position was retrieved (1178, 813) and the screen size is 1512x982. The tool is working properly.",
+            "signature": "EsQCCkgICxABGAIqQIXmEDpvgE+fRCsslb5PCB4pVShaNtM7rr9AWdD1OO/UtMPazsKNnHPfAAJ2f+eZyIUW76i24XnYV+sxiPifuJMSDJZnM9YlMhGyqAGL/hoMUBv+W4bOFjlp9RHYIjDePTEzx7VldaXGRQh5JmqdbfiL+5XixzHgHaNvI4kZvzusbnL1px5vt8JBa5Hpu34qqQF+HIAXjsfDaO8Jd8dbZsF4LMi3zPi+JHjkxpNbOC9VzeIJ2uBrv+rTFU8rDIUtm0XE3/1cnozVEA3C5UDDvA5OcxQnQ6GmQOjBeRV4InH9ksctW0JyyKI1aab1wzXbTmzxAWrWkVcJAJ4nOLwAFAb5Zpj7zEanZ+g3iBDSgvQh5krb3BHIhbLoL/U3q1lHlmwAVVcY16mOyckp74QNG/LJsbhDEJwedaiFGAE="
+          }
+        }
+      },
+      {
+        "text": "Yes! ✅ The computer use tool is working perfectly. Here's what I confirmed:\n\n| Function | Result |\n|----------|--------|\n| **Mouse Position** | Currently at coordinates (1178, 813) |\n| **Screen Size** | 1512 × 982 pixels |\n\nThe tool has full capabilities including:\n- 🖱️ **Mouse control** - click, move, drag, scroll\n- ⌨️ **Keyboard control** - type text, key presses, hotkeys\n- 📸 **Screen analysis** - capture and analyze screen content with OCR\n- 🚀 **App control** - open/close applications\n\nWould you like me to demonstrate any specific capability?"
+      }
+    ]
+  },
+  "message_id": 36,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:38:33.430637+00:00",
+  "updated_at": "2026-01-10T11:38:33.430638+00:00"
+}

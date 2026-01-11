@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "text": "🎯 **Custom Agent Team Execution Complete**\n📊 **Status:** Status.FAILED\n⏱️ **Execution Time:** 476214ms\n🤖 **Team Size:** 4 agents\n🔄 **Iterations:** 1\n🔗 **Collaboration Chain:** lead_researcher\n\n**🤖 Individual Agent Contributions:**\n\n**📈 Team Resource Usage:**\n• Input tokens: 31,122\n• Output tokens: 1,413\n• Total tokens: 32,535"
+            }
+          ],
+          "toolUseId": "tooluse_9uilycNuTBShInTD1fqUwg"
+        }
+      }
+    ]
+  },
+  "message_id": 37,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:44:41.892988+00:00",
+  "updated_at": "2026-01-10T11:44:41.892997+00:00"
+}

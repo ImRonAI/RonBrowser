@@ -38,14 +38,34 @@ function MicrosoftIcon({ className }: { className?: string }) {
 }
 
 export function SignInPage() {
+  const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [isFocused, setIsFocused] = useState<string | null>(null)
-  const { login, loginWithOAuth, isLoading, error } = useAuthStore()
+  const { login, signup, loginWithOAuth, isLoading, error, clearError } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await login(email, password)
+    if (isSignUp) {
+      await signup(email, password, name)
+    } else {
+      await login(email, password)
+    }
+  }
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp)
+    clearError()
+    // Reset form but keep email if anticipated
+    if (!isSignUp) {
+      // Switching to Sign Up
+      setPassword('')
+    } else {
+      // Switching to Sign In
+      setPassword('')
+      setName('')
+    }
   }
 
   return (
@@ -56,12 +76,13 @@ export function SignInPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: EASE }}
+        key={isSignUp ? 'signup-header' : 'signin-header'}
       >
         <h2 className="text-display-sm font-display text-ink dark:text-ink-inverse">
-          Welcome back
+          {isSignUp ? 'Create an account' : 'Welcome back'}
         </h2>
         <p className="mt-3 text-body-md text-ink-secondary dark:text-ink-inverse-secondary">
-          Sign in to continue your journey
+          {isSignUp ? 'Join us to start your journey' : 'Sign in to continue your journey'}
         </p>
       </motion.div>
 
@@ -77,7 +98,7 @@ export function SignInPage() {
         </motion.div>
       )}
 
-      {/* Sign in form */}
+      {/* Sign in/up form */}
       <motion.form 
         onSubmit={handleSubmit} 
         className="space-y-5"
@@ -85,6 +106,38 @@ export function SignInPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
       >
+        {/* Name field (Sign Up only) */}
+        {isSignUp && (
+          <motion.div
+            className="space-y-2"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <label className="block text-label text-ink-secondary dark:text-ink-inverse-secondary uppercase tracking-wider">
+              Full Name
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onFocus={() => setIsFocused('name')}
+                onBlur={() => setIsFocused(null)}
+                placeholder="John Doe"
+                required={isSignUp}
+                className="input"
+              />
+              <motion.div 
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent dark:bg-accent-light rounded-full"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: isFocused === 'name' ? 1 : 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+              />
+            </div>
+          </motion.div>
+        )}
+
         {/* Email field */}
         <div className="space-y-2">
           <label className="block text-label text-ink-secondary dark:text-ink-inverse-secondary uppercase tracking-wider">
@@ -92,13 +145,13 @@ export function SignInPage() {
           </label>
           <div className="relative">
             <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               onFocus={() => setIsFocused('email')}
               onBlur={() => setIsFocused(null)}
-            placeholder="you@example.com"
-            required
+              placeholder="you@example.com"
+              required
               className="input"
             />
             <motion.div 
@@ -114,21 +167,23 @@ export function SignInPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="block text-label text-ink-secondary dark:text-ink-inverse-secondary uppercase tracking-wider">
-            Password
-          </label>
-            <a href="#" className="text-body-xs text-accent dark:text-accent-light hover:underline">
-              Forgot?
-            </a>
+              Password
+            </label>
+            {!isSignUp && (
+              <a href="#" className="text-body-xs text-accent dark:text-accent-light hover:underline">
+                Forgot?
+              </a>
+            )}
           </div>
           <div className="relative">
             <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               onFocus={() => setIsFocused('password')}
               onBlur={() => setIsFocused(null)}
-            placeholder="••••••••"
-            required
+              placeholder="••••••••"
+              required
               className="input"
             />
             <motion.div 
@@ -165,10 +220,10 @@ export function SignInPage() {
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
               />
-              Signing in...
+              {isSignUp ? 'Creating Account...' : 'Signing in...'}
             </span>
           ) : (
-            'Sign In'
+            isSignUp ? 'Sign Up' : 'Sign In'
           )}
         </motion.button>
       </motion.form>
@@ -223,17 +278,20 @@ export function SignInPage() {
         ))}
       </motion.div>
 
-      {/* Sign up link */}
+      {/* Sign up/in toggle link */}
       <motion.p 
         className="text-center text-body-sm text-ink-secondary dark:text-ink-inverse-secondary"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.4, ease: EASE }}
       >
-        Don't have an account?{' '}
-        <a href="#" className="text-accent dark:text-accent-light font-medium hover:underline">
-          Create one
-        </a>
+        {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+        <button
+          onClick={toggleMode}
+          className="text-accent dark:text-accent-light font-medium hover:underline focus:outline-none"
+        >
+          {isSignUp ? 'Sign in' : 'Create one'}
+        </button>
       </motion.p>
 
       {/* Dev: Skip auth button */}

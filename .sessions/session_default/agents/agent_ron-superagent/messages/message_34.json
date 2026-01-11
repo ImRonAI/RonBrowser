@@ -1,0 +1,40 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "The user is asking if my computer tool is working. I should test the use_computer tool to verify it's functioning. A simple test would be to get the current mouse position or screen size, which are non-invasive actions that don't require any app interaction.",
+            "signature": "Eq0DCkgICxABGAIqQDLHk3txBUYBBrDALqurQXqKT8+yP00KSlurcU7YGlyvwbdDt03kVxPiU2Yz1PnFnfgG02l6bfiytC5t1W/z6ZASDGJnXscUcm1MPBZt/xoMHYtGE4lBDM7QWkSkIjBjmgqOnAPPIIqHgp8AfruvpVS8BodPvGz3hbj6IFPLfYYF9CYnun8ImS6pAa0ILxsqkgJfGgLdeofs+IX+wUcOb4vWsriJiPgQTciIeKIbbbfbh/LYpLOpikKDe+TYd8+YayVHjcO73xxBfM7qGqNg3yshEFjytsxfkFr33J/XZD19z/Oz6OuW9n2+xPzCLdhxKQtTo3BFi4eKJAn5QMBMfY88hiwdai3fiyOtQWa1FdPh+2ZZE137u4MhyBC4rEdQfQZOBXwdvxew16C/bXEN7/381wc84UFswCLk+a3rLT95s9PVoB6gbLaHnKIblsdjb4x+xvNmrTa+i1M9xRD37oSS4wK6FHT8Zz97yY3ukbJaL4GlF+28X0qNrAri18q/TE6To16qIVwX/IgMzqzMgAPKWT7AdOs30b1hbndeAipBqwQRGAE="
+          }
+        }
+      },
+      {
+        "text": "Let me test the computer use tool for you by checking a couple of basic functions:"
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_qoUHg8fdRS-zqVbHG2Kxvw",
+          "name": "use_computer",
+          "input": {
+            "action": "mouse_position"
+          }
+        }
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_y4K7fk4MQfijm9eWqiJknA",
+          "name": "use_computer",
+          "input": {
+            "action": "screen_size"
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 34,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:38:25.828635+00:00",
+  "updated_at": "2026-01-10T11:38:25.828637+00:00"
+}

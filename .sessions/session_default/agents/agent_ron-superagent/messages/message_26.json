@@ -1,0 +1,30 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "Hmm, I got an error trying to list memories. Let me try the retrieve action instead to search for any relevant information about this user.",
+            "signature": "ErYCCkgICxABGAIqQK1W3bid681XdcMKozRltLA6xaJWiSwUfDlgbNrx8zhVXGbjit5i60ywaC9QJPvleJYAQKOTcGAlgHEDS33EmiUSDGq0c+QPD5aIjdpqcBoM8Tktf1lPp5XCS2DCIjC3DWNWkp1+F6ER8s3epsDzyo9YP4TTZL2OJLsMCTP0nk+eCW5nS8PSYZn7IZJ4SCcqmwG193GAUy7Bf5QqZCCFWpRTHfnmklPKx2Q8SsO5HtRZpIyCc5tKZhJDx2CSK43pTK613Ky+jaWfkNCBdy4nA0JKmbKUpJTN+GjoD8WMMMKr9Jduk0eoc6tsUaT753+WEOxs3ZuwC9TT6uGOE0VM0WrWGYntnVs4gvNYmpeMGU1/YncARk6ik35pxxVy8b0gUpPg3Y1zeP3b1u4MQRgB"
+          }
+        }
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_yMCUV4zyT36_snW6l-okkg",
+          "name": "mem0_memory",
+          "input": {
+            "action": "retrieve",
+            "query": "user information preferences name background",
+            "user_id": "thunt1011@gmail.com"
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 26,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:29:14.908301+00:00",
+  "updated_at": "2026-01-10T11:29:14.908304+00:00"
+}

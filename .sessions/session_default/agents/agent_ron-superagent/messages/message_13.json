@@ -1,0 +1,14 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "text": "agent.tool.mem0_memory was called."
+      }
+    ]
+  },
+  "message_id": 13,
+  "redact_message": null,
+  "created_at": "2026-01-09T16:50:02.857987+00:00",
+  "updated_at": "2026-01-09T16:50:02.857988+00:00"
+}

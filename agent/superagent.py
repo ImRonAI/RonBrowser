@@ -2,7 +2,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Optional, Any, Dict, Callable
+from typing import Optional, Any, Dict, Callable, List
 from dotenv import load_dotenv
 
 # Load .env from project root
@@ -35,11 +35,13 @@ from strands_tools import (
 from strands_tools.a2a_client import A2AClientToolProvider
 
 from aisdk_stream import AISDKCallbackHandler
+from strands.session import FileSessionManager
 
 
 # Global state for MCP clients and agent reference
 _mcp_clients: Dict[str, Dict[str, Any]] = {}
 _current_agent: Optional[Agent] = None
+_SUPER_AGENT: Optional[Agent] = None  # The ONE permanent agent
 MCP_SERVERS_DIR = Path(__file__).parent / "tools" / "mcp"
 VENV_PYTHON = Path(__file__).parent.parent / "venv" / "bin" / "python"
 
@@ -214,6 +216,46 @@ Available MCP servers: cms-coverage, datacommons, playwright, pophive, telnyx
 - Parallel: batch
 - Agent Orchestration: use_agent, workflow, swarm, graph
 - A2A: Agent discovery and communication
+
+## Memory (Mem0) Guidelines:
+Use mem0_memory to store and retrieve user information. Follow these rules:
+
+1. Always store the user's chosen name or nickname and the form of address they prefer.
+2. Record and track every significant date the user mentions—birthdays, anniversaries, interview dates, task due dates, and other deadlines.
+3. Save any information the user highlights as important to ensure a highly personalized experience.
+4. In your internal reasoning, regularly reference relevant stored memories to guide your responses and maintain continuity.
+5. Log all user feedback—both positive feedback (what you did well) and constructive feedback (what you could improve)—to refine future interactions.
+6. Capture personal details: family members, relationships, pets, and other significant companions in the user's life.
+7. Archive meaningful memories and experiences shared by the user: special events, vacations, milestones, feelings, and insights.
+8. Monitor and note expressions of mood, stress levels, happiness, worries, loneliness, and any coping strategies or support systems mentioned.
+9. Track daily routines and recurring activities such as sleep schedules, meal times, exercise, walks, and hobbies.
+10. Store user preferences and interests: favorite music, movies, books, games, foods, likes, and dislikes.
+11. Record upcoming plans, social events, trips, goals, ambitions, and to-do list items the user shares.
+12. Note communication and social preferences: preferred channels, times for interaction, and social engagement styles.
+13. If a user says they love a sports team, look to see if they've played the night prior or play that day, and send an empathetic statement: cheer for them, or provide "Ugh last night was a rough one for the {team_name}", or send well wishes before a game.
+14. If a user has pets, probe and find out what kind, learn about them and remember them. Look up their food or treats to see if they're on sale nearby, or find a toy/item the pet will love, or ask how they're doing. Ask their birthday and remember it.
+15. When told about a health condition, always remember it. Probe the user about their medication, provider, and challenges. Occasionally mention them in conversation, look for uplifting information about their condition, or offer to build them a tool to help manage it.
+
+Example memory extraction:
+- Input: "I talked to my sister Anna today. It's her birthday next week, and we're planning a small dinner. I've been feeling a bit anxious lately, so I've started journaling again. Also, I've been getting back into painting—it really helps me relax. I'm thinking of visiting my parents next weekend."
+- Memory: "Talked to sister Anna ahead of her birthday next week, with a small dinner planned. Has been feeling anxious and is journaling and painting to help cope. Considering visiting parents next weekend."
+
+## Memory Tool Schema:
+Your agent_id is "ron25". When using mem0_memory tool:
+- To store user memories: mem0_memory(action="store", content="text", user_id=<user_email>, metadata={...})
+- To store your memories: mem0_memory(action="store", content="text", agent_id="ron25", metadata={...})
+- To list user memories: mem0_memory(action="list", user_id=<user_email>)
+- To list your memories: mem0_memory(action="list", agent_id="ron25")
+- To search user memories: mem0_memory(action="retrieve", query="text", user_id=<user_email>)
+- To search your memories: mem0_memory(action="retrieve", query="text", agent_id="ron25")
+- To get specific memory: mem0_memory(action="get", memory_id="mem_xxx")
+- To delete memory: mem0_memory(action="delete", memory_id="mem_xxx")
+- To get history: mem0_memory(action="history", memory_id="mem_xxx")
+
+Parameters:
+- user_id = the user's email address from application context
+- agent_id = "ron25" (YOUR identifier)
+- metadata = optional dict like {"category": "preferences", "source": "onboarding"}
 """
 
 
@@ -259,46 +301,77 @@ def create_bedrock_model() -> BedrockModel:
     )
 
 
+def get_or_create_superagent(
+    callback_handler: Optional[Callable[..., Any]] = None,
+    session_id: str = "default"
+) -> Agent:
+    """Get or create the PERMANENT super agent.
+
+    The agent is created ONCE and persists for the app's lifetime.
+    Sessions are managed through Strands FileSessionManager.
+
+    Args:
+        callback_handler: Optional callback handler for streaming
+        session_id: Session ID for persistence
+
+    Returns:
+        The permanent Agent instance
+    """
+    global _SUPER_AGENT, _current_agent
+
+    if _SUPER_AGENT is None:
+        model = create_bedrock_model()
+        a2a_provider = A2AClientToolProvider(known_agent_urls=[])
+
+        tools = [
+            load_tool, editor, shell,
+            load_mcp_server, load_openapi_server, unload_mcp_server,
+            retrieve, mem0_memory,
+            environment, cron,
+            http_request,
+            file_read, file_write,
+            use_computer,
+            batch,
+            use_agent, workflow, swarm, graph,
+            *a2a_provider.tools,
+        ]
+
+        _SUPER_AGENT = Agent(
+            model=model,
+            tools=tools,
+            callback_handler=callback_handler or CLICallbackHandler(),
+            system_prompt=SUPERAGENT_SYSTEM_PROMPT,
+            agent_id="ron-superagent",
+            name="Ron Superagent",
+            description="Powerful orchestration agent with meta-tooling, memory, MCP dynamic loading, and A2A capabilities",
+            session_manager=FileSessionManager(
+                session_id=session_id,
+                storage_dir=str(Path(__file__).parent.parent / ".sessions")
+            )
+        )
+        _current_agent = _SUPER_AGENT
+
+    return _SUPER_AGENT
+
+
 def create_superagent(
-    callback_handler: Optional[CallbackHandler] = None,
+    callback_handler: Optional[Callable[..., Any]] = None,
     a2a_urls: Optional[list[str]] = None,
     additional_tools: Optional[list] = None,
     history: Optional[List[Dict[str, Any]]] = None
 ) -> Agent:
-    """Create and configure the Ron Superagent."""
-    model = create_bedrock_model()
-    a2a_provider = A2AClientToolProvider(known_agent_urls=a2a_urls or [])
+    """Create and configure the Ron Superagent.
 
-    tools = [
-        load_tool, editor, shell,
-        load_mcp_server, load_openapi_server, unload_mcp_server,
-        retrieve, mem0_memory,
-        environment, cron,
-        http_request,
-        file_read, file_write,
-        use_computer,
-        batch,
-        use_agent, workflow, swarm, graph,
-        *a2a_provider.tools,
-    ]
+    DEPRECATED: This now returns the permanent singleton.
+    Use get_or_create_superagent() for explicit session management.
+    """
+    # Get the permanent agent
+    agent = get_or_create_superagent(callback_handler=callback_handler)
 
-    if additional_tools:
-        tools.extend(additional_tools)
-
-    global _current_agent
-    agent = Agent(
-        name="Ron Superagent",
-        description="Powerful orchestration agent with meta-tooling, memory, MCP dynamic loading, and A2A capabilities",
-        model=model,
-        tools=tools,
-        callback_handler=callback_handler or CLICallbackHandler(),
-        system_prompt=SUPERAGENT_SYSTEM_PROMPT,
-    )
-    _current_agent = agent
-    
+    # Restore history if provided (backward compatibility)
     if history:
         agent.messages = history
-        
+
     return agent
 
 

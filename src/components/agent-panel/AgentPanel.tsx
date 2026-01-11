@@ -67,10 +67,22 @@ export function AgentPanel() {
     }
   }, [isPanelOpen, fetchSessions])
 
+  // Use useRef to hold the session ID for stable reference in body callback
+  const sessionIdRef = useRef<string>(
+    useAgentStore.getState().currentSessionId || `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  )
+
   // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
+  // body option adds session_id to every request per AI SDK docs
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
+      body: () => {
+        console.log('[AgentPanel] Sending request with session_id:', sessionIdRef.current)
+        return {
+          session_id: sessionIdRef.current,
+        }
+      },
     }),
   })
 

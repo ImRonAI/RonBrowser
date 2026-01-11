@@ -1,0 +1,33 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "text": "Mouse position: (1178, 813)"
+            }
+          ],
+          "toolUseId": "tooluse_qoUHg8fdRS-zqVbHG2Kxvw"
+        }
+      },
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "text": "Screen size: 1512x982"
+            }
+          ],
+          "toolUseId": "tooluse_y4K7fk4MQfijm9eWqiJknA"
+        }
+      }
+    ]
+  },
+  "message_id": 35,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:38:26.067283+00:00",
+  "updated_at": "2026-01-10T11:38:26.067293+00:00"
+}

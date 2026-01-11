@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "error",
+          "content": [
+            {
+              "text": "Error: 'list' object has no attribute 'get'"
+            }
+          ],
+          "toolUseId": "tooluse_x_fdLQS3TGC6vAgSaM36Xw"
+        }
+      }
+    ]
+  },
+  "message_id": 4,
+  "redact_message": null,
+  "created_at": "2026-01-09T16:49:15.400496+00:00",
+  "updated_at": "2026-01-09T16:49:15.400497+00:00"
+}

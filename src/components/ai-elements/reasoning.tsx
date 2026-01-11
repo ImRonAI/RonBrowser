@@ -140,7 +140,7 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       className={cn(
         'mt-2 px-3 py-2 rounded-lg',
-        'bg-surface-50 dark:bg-surface-800/50',
+        'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
         'border-l-2 border-accent/30 dark:border-accent-light/30',
         'overflow-hidden',
         className

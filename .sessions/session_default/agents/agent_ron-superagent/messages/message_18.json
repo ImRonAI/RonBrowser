@@ -1,0 +1,89 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "text": "Batch execution completed: 2/2 succeeded\n\n✅ Successful:\n  • mem0_memory\n  • environment"
+            },
+            {
+              "json": {
+                "batch_summary": {
+                  "total_tools": 2,
+                  "successful": 2,
+                  "failed": 0,
+                  "batch_status": "success"
+                },
+                "successful_results": [
+                  {
+                    "name": "mem0_memory",
+                    "status": "success",
+                    "result": {
+                      "status": "error",
+                      "content": [
+                        {
+                          "text": "Error: 'list' object has no attribute 'get'"
+                        }
+                      ],
+                      "toolUseId": "tooluse_mem0_memory_343184628"
+                    }
+                  },
+                  {
+                    "name": "environment",
+                    "status": "success",
+                    "result": {
+                      "status": "success",
+                      "content": [
+                        {
+                          "text": "   MEM0_API_KEY = m0-z...pURu"
+                        }
+                      ],
+                      "toolUseId": "tooluse_environment_516179676"
+                    }
+                  }
+                ],
+                "failed_results": [],
+                "all_results": [
+                  {
+                    "name": "mem0_memory",
+                    "status": "success",
+                    "result": {
+                      "status": "error",
+                      "content": [
+                        {
+                          "text": "Error: 'list' object has no attribute 'get'"
+                        }
+                      ],
+                      "toolUseId": "tooluse_mem0_memory_343184628"
+                    }
+                  },
+                  {
+                    "name": "environment",
+                    "status": "success",
+                    "result": {
+                      "status": "success",
+                      "content": [
+                        {
+                          "text": "   MEM0_API_KEY = m0-z...pURu"
+                        }
+                      ],
+                      "toolUseId": "tooluse_environment_516179676"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "toolUseId": "tooluse_qIg2I2G6SVWVjrPCCBNPag"
+        }
+      }
+    ]
+  },
+  "message_id": 18,
+  "redact_message": null,
+  "created_at": "2026-01-09T16:50:02.867275+00:00",
+  "updated_at": "2026-01-09T16:50:02.867277+00:00"
+}

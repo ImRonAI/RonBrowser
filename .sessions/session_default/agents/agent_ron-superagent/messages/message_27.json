@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "error",
+          "content": [
+            {
+              "text": "Error: {\"error\":\"Graph memories feature is not available in the FREE or STARTER plan. Please upgrade to PRO plan here: https://app.mem0.ai/dashboard/subscriptions\"}"
+            }
+          ],
+          "toolUseId": "tooluse_yMCUV4zyT36_snW6l-okkg"
+        }
+      }
+    ]
+  },
+  "message_id": 27,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:29:15.369655+00:00",
+  "updated_at": "2026-01-10T11:29:15.369658+00:00"
+}

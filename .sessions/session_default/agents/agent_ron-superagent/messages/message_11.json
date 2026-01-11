@@ -1,0 +1,21 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_mem0_memory_343184628",
+          "name": "mem0_memory",
+          "input": {
+            "action": "list",
+            "agent_id": "ron25"
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 11,
+  "redact_message": null,
+  "created_at": "2026-01-09T16:50:02.856831+00:00",
+  "updated_at": "2026-01-09T16:50:02.856835+00:00"
+}

@@ -24,7 +24,7 @@ export function Tool({ children, defaultOpen = false, className }: ToolProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <div className={cn('rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden', className)}>
+    <div className={cn('rounded-xl border border-surface-200/60 dark:border-surface-700/60 overflow-hidden backdrop-blur-xl bg-surface-0/60 dark:bg-surface-900/60', className)}>
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
           if (child.type === ToolHeader) {
@@ -66,8 +66,8 @@ export function ToolHeader({ title, type, state, isOpen, onClick, className }: T
       onClick={onClick}
       className={cn(
         'w-full flex items-center gap-3 p-3',
-        'bg-surface-50 dark:bg-surface-800',
-        'hover:bg-surface-100 dark:hover:bg-surface-700',
+        'bg-surface-50/60 dark:bg-surface-800/60 backdrop-blur-sm',
+        'hover:bg-surface-100/80 dark:hover:bg-surface-700/80',
         'transition-colors duration-200',
         className
       )}
@@ -167,7 +167,7 @@ export function ToolInput({ input, className }: ToolInputProps) {
       <label className="text-label text-ink-muted dark:text-ink-inverse-muted font-medium">
         Input
       </label>
-      <pre className="p-3 rounded-lg bg-surface-100 dark:bg-surface-900 text-body-xs text-ink dark:text-ink-inverse font-mono overflow-x-auto">
+      <pre className="p-3 rounded-lg bg-surface-100/60 dark:bg-surface-900/60 backdrop-blur-sm text-body-xs text-ink dark:text-ink-inverse font-mono overflow-x-auto">
         {displayValue}
       </pre>
     </div>
@@ -202,7 +202,7 @@ export function ToolOutput({ output, errorText, className }: ToolOutputProps) {
         'p-3 rounded-lg text-body-xs font-mono overflow-x-auto',
         hasError 
           ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
-          : 'bg-surface-100 dark:bg-surface-900 text-ink dark:text-ink-inverse'
+          : 'bg-surface-100/60 dark:bg-surface-900/60 backdrop-blur-sm text-ink dark:text-ink-inverse'
       )}>
         {displayValue}
       </pre>

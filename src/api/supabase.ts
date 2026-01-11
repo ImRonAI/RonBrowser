@@ -50,6 +50,10 @@ const getSupabaseConfig = (): SupabaseConfig => {
 // Supabase Client Singleton
 // ============================================
 
+// ============================================
+// Supabase Client Singleton
+// ============================================
+
 let supabaseInstance: SupabaseClient | null = null
 
 export function getSupabaseClient(): SupabaseClient {
@@ -58,6 +62,11 @@ export function getSupabaseClient(): SupabaseClient {
     supabaseInstance = createClient(config.url, config.anonKey, config.options)
   }
   return supabaseInstance
+}
+
+export function isSupabaseConfigured(): boolean {
+  const config = getSupabaseConfig()
+  return config.url !== 'https://placeholder.supabase.co'
 }
 
 // Export singleton for convenience

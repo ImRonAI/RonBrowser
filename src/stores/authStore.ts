@@ -8,6 +8,7 @@ import {
   signOut as supabaseSignOut,
   onAuthStateChange,
   getSession,
+  isSupabaseConfigured,
 } from '@/api/supabase'
 import type { User, UserPreferences, AuthError } from '@/types/user'
 
@@ -255,6 +256,17 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true, error: null })
 
+        if (!isSupabaseConfigured()) {
+          set({
+            isLoading: false,
+            error: {
+              code: 'CONFIG_ERROR',
+              message: 'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.',
+            }
+          })
+          return
+        }
+
         try {
           const { data, error } = await signInWithEmail(email, password)
 
@@ -298,6 +310,17 @@ export const useAuthStore = create<AuthState>()(
       // ----------------------------------------
       loginWithOAuth: async (provider: 'google' | 'apple' | 'microsoft' | 'github') => {
         set({ isLoading: true, error: null })
+
+        if (!isSupabaseConfigured()) {
+          set({
+            isLoading: false,
+            error: {
+              code: 'CONFIG_ERROR',
+              message: 'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.',
+            }
+          })
+          return
+        }
 
         try {
           // Map our provider names to Supabase provider names
@@ -360,6 +383,17 @@ export const useAuthStore = create<AuthState>()(
       // ----------------------------------------
       signup: async (email: string, password: string, name: string) => {
         set({ isLoading: true, error: null })
+
+        if (!isSupabaseConfigured()) {
+          set({
+            isLoading: false,
+            error: {
+              code: 'CONFIG_ERROR',
+              message: 'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.',
+            }
+          })
+          return
+        }
 
         try {
           const { data, error } = await signUpWithEmail(email, password, { name })

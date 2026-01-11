@@ -17,14 +17,15 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import httpx
 from dotenv import load_dotenv
+from pathlib import Path
 from openai import OpenAI
 
 # LanceDB for persistent memory
 import lancedb
 import pyarrow as pa
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root .env
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Set BYPASS_TOOL_CONSENT to bypass interactive tool confirmation prompts
 # This is required for non-interactive backends (strands tools like shell,
@@ -656,15 +657,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from superagent import create_superagent, UICallbackHandler
 import superagent as sa
 
-# Global state for active superagent sessions
-_active_agents: Dict[str, Any] = {}
+# PERMANENT SINGLETON AGENT - created once at module load, never recreated
+_global_agent = create_superagent()
+logger.info("Permanent SuperAgent (ron25) initialized")
 
 @app.post("/superagent/stream")
 async def superagent_stream(request: Request):
     """
     Stream superagent responses in AI SDK v5 UIMessageStream format.
-
-    Returns SSE stream compatible with Vercel AI SDK useChat hook.
+    Uses permanent agent with per-session conversation history.
     """
     body = await request.json()
     logger.info(f"Received request body: {json.dumps(body, indent=2)}")
@@ -688,8 +689,9 @@ async def superagent_stream(request: Request):
     if not message:
         message = body.get("message", "").strip()
 
-    session_id = body.get("session_id")
-    logger.info(f"Extracted message: '{message}'")
+    # Get session_id for this conversation (frontend must provide this)
+    session_id = body.get("session_id", "default")
+    logger.info(f"Session: {session_id}, Message: '{message}'")
 
     if not message:
         return JSONResponse(status_code=400, content={"error": "Message cannot be empty"})
@@ -700,35 +702,17 @@ async def superagent_stream(request: Request):
         """Receive complete SSE strings from AISDKCallbackHandler."""
         queue.put_nowait(sse_event)
 
-    # Convert session_id to string if present, or generate a temporary one for tracking (though session_id is preferred)
-    if not session_id:
-        session_id = str(uuid.uuid4())
-        logger.info(f"No session_id provided, created temp: {session_id}")
+    # Load this session's conversation history from LanceDB
+    db_messages = memory.get_messages(session_id, limit=1000)
+    session_history = [{"role": msg["role"], "content": msg["content"]} for msg in db_messages]
+    logger.info(f"Loaded {len(session_history)} messages for session {session_id}")
 
-    # Retrieve or create agent
-    if session_id in _active_agents:
-        logger.info(f"Resuming existing agent session: {session_id}")
-        agent = _active_agents[session_id]
-        # Update callback handler to point to current request's queue
-        agent.callback_handler = UICallbackHandler(emit)
-        initial_msg_count = len(agent.messages)
-    else:
-        logger.info(f"Restoring agent session from LanceDB: {session_id}")
-        
-        # Load history from LanceDB
-        db_messages = memory.get_messages(session_id, limit=1000)
-        history = []
-        for msg in db_messages:
-            history.append({
-                "role": msg["role"],
-                "content": msg["content"]
-            })
-            
-        logger.info(f"Loaded {len(history)} messages from history")
-        
-        agent = create_superagent(callback_handler=UICallbackHandler(emit), history=history)
-        _active_agents[session_id] = agent
-        initial_msg_count = len(history)
+    # Set up the permanent agent for this request
+    _global_agent.messages = session_history  # Load session context
+    _global_agent.callback_handler = UICallbackHandler(emit)
+    
+    agent = _global_agent
+    initial_msg_count = len(agent.messages)
 
     # Ensure this agent is set as the 'current' one for global tool access
     sa._current_agent = agent
@@ -744,9 +728,9 @@ async def superagent_stream(request: Request):
             except asyncio.TimeoutError:
                 continue
 
-        # After execution, sync new messages to LanceDB persistence
+        # After execution, sync new messages to this session's LanceDB storage
         new_messages = agent.messages[initial_msg_count:]
-        logger.info(f"Syncing {len(new_messages)} new messages to persistent memory")
+        logger.info(f"Syncing {len(new_messages)} new messages to session {session_id}")
         
         for msg in new_messages:
             role = msg.get("role")

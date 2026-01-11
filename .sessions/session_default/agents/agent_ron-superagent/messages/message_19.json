@@ -1,0 +1,14 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "text": "HI, what's my name"
+      }
+    ]
+  },
+  "message_id": 19,
+  "redact_message": null,
+  "created_at": "2026-01-10T11:28:26.877278+00:00",
+  "updated_at": "2026-01-10T11:28:26.877281+00:00"
+}

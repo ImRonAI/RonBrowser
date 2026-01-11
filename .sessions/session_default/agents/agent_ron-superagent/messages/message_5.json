@@ -1,0 +1,30 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "The list action returned an error. Let me try the retrieve action with a broad query to see what memories I have about this user.",
+            "signature": "EqwCCkgICxABGAIqQMGqzMoY324QN9BXOBeMmJ+McyMaLAasND1GkV3dsA2eIgm0B3YU/xY65cpsjB/ymXKMfjZScfikphsKbXheL+USDFAfldyHWuWTRsjq1hoMkCGBz4nTznW8E8ChIjBF8biA9CIpgIFaHE3+i5dYLG1LTaUZC0Y2J9Mnq951bMuQzh1kUH0I7UOe0dI80+AqkQF/Yp05wI1QzsrRrLl+RAroE2OZo3ItCEDywu0sHQ+njZ5lis7/oB5UsVh8Y80QN9mUCucvU+IlMYvmmPCc2msu5JbH98uVjLvB+Z2BWQU74hGLISA9ai7UxxGotcXoZ8zNN+nNfV7BMUkSFXWD0fs/RfWyuF1mrSPXBIxasVfICOmGM4bbcUwmIfEA3J5i4J6TGAE="
+          }
+        }
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_0VteiGupTaqR3pSnVKQJ7A",
+          "name": "mem0_memory",
+          "input": {
+            "action": "retrieve",
+            "query": "user preferences information details",
+            "user_id": "thunt1011@gmail.com"
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 5,
+  "redact_message": null,
+  "created_at": "2026-01-09T16:49:20.115159+00:00",
+  "updated_at": "2026-01-09T16:49:20.115160+00:00"
+}
