@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "Excellent! The metrics show impressive stats. Let me present this nicely to the user.",
+            "signature": "Ev8BCkgICxABGAIqQF79L8mZyld0ScsvgXSI+ZKIKAS03KJQTWMipGEc4HQYCWsuzaJApcF358thkv55okxIrSYZzmxERHYxddXG0GcSDAy4ozcIDhpN6E/xDxoMJGk8o+Gs8HLvWFGEIjBMyMFnmIIRiGeeD1gofPukQRb3DfyThwnaGNTZ80wlsuE7cTAfx0dnRPFpjI2/csIqZUQi6IhYWUR9GxYgEmGJJO0jFpqJNjuriYPgQQcd37O7pNBeaJtEJIdiakFXMsezRjee4gWiKjQfebfCspIEZDjA4ey0nKluA4cBtLAWG3tMZeETTF0upaZTvNr8Z7VuzN7J4tqJGAE="
+          }
+        }
+      },
+      {
+        "text": "🎉 **APIs.guru Directory Stats:**\n\n| Metric | Value |\n|--------|-------|\n| 📊 **Total API Specs** | 3,992 |\n| 🔌 **Unique APIs** | 2,529 |\n| 🎯 **Endpoints** | 108,837 |\n| 🏢 **Providers** | 677 |\n| ⭐ **GitHub Stars** | 3,151 |\n\n### Top Providers by API Count:\n- **Azure.com**: 1,829 APIs\n- **Google APIs**: 464 APIs\n- **AWS**: 286 APIs\n- **India Gov APIs**: 181 APIs\n- **Adyen**: 89 APIs\n- **Twilio**: 44 APIs\n- **Sportsdata.io**: 35 APIs\n\n### This Week:\n- 📥 **9** APIs added\n- 🔄 **437** APIs updated\n\n---\n\n**What would you like to explore?** You can:\n- `get-providers` - See all 677 providers\n- `get-provider(provider=\"googleapis.com\")` - See all Google APIs\n- `get-svcs(provider=\"amazonaws.com\")` - See all AWS services\n- Or ask me to find a specific API!"
+      }
+    ]
+  },
+  "message_id": 115,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:30:51.615390+00:00",
+  "updated_at": "2026-01-13T06:30:51.615391+00:00"
+}

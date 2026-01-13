@@ -1,0 +1,14 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "text": "Given the things you've discovered today... What would be helpful to add to your system instructions so that you're clear on what exists and how to intuitively use and interact with it"
+      }
+    ]
+  },
+  "message_id": 133,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:36:19.206885+00:00",
+  "updated_at": "2026-01-13T06:36:19.206887+00:00"
+}

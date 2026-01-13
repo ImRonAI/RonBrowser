@@ -1,0 +1,33 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "toolUseId": "tooluse_j8pKr8zmjGKVkH5cxtP0s0",
+          "status": "error",
+          "content": [
+            {
+              "text": "Unknown tool: use_agent"
+            }
+          ]
+        }
+      },
+      {
+        "toolResult": {
+          "toolUseId": "tooluse_f6dr8Cabfs0Ajz32BR8XCt",
+          "status": "error",
+          "content": [
+            {
+              "text": "Unknown tool: use_agent"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "message_id": 44,
+  "redact_message": null,
+  "created_at": "2026-01-11T23:01:23.984530+00:00",
+  "updated_at": "2026-01-11T23:01:23.984534+00:00"
+}

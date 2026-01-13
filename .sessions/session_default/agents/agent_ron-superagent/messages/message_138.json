@@ -1,0 +1,38 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "Interesting! So I have access to:\n1. A huge API directory with nearly 4000 specs and over 100,000 endpoints from 677 providers\n2. The RonBrowser app support directory exists but doesn't have a custom_tools folder yet\n\nLet me explore a bit more and then provide comprehensive recommendations for system instructions. Let me check what tools exist currently and explore the MCP servers that are available.",
+            "signature": "ErsECkgICxABGAIqQBw0EkDsMzyT7CikFcZYgGp7pc091vcampu9+jV3urvnMUIKCz7PSLOWswr1U7i3SGbgLYtlqo9VGBgSIOFEXOMSDLWJMEJmcqcJfRm/qRoMc+1W6bXyDqQxn/XrIjC3/cWxfnL+Q2BG1Eg5In8xEtzo8sVLdf/zUMopMkI8b9uTrV2inr/b6H3Ux0cXxzYqoAPVwOXKNFwTyZeLuVVUac4e9nREGU3yejA+/zRGRoEgwR8EASKqPitmJPBssDhkTlDUony4JJBrgnODoNH6Fo+yJg9hqNi+UjcbWUvafKW3ahj9iJKQlBpgvoOybu0lnxS6rKfQVmRb3OOk7YL94Q/OCuVhTyCwiPMj5fzoSaHSffCDVYM5n84H1nUA8DrxWoU1C541wB/aG0pY2E0jvqGVG0gvNuup3yQWKNXDcwfdwL+f6OQS4HeYpJO3vQ5MQ5wBh9Y5IEFtlUbfBnpYujuqo3LiBVhKrqvr80jEn3mQuEvMkqsaLNi792Y33r5Osed4lgo/GRy77uk1wo3Dj+XgsK1wD5jk5ioYzERwtjWOC7P+oL7mCWNtWi4pqp8uL8TTor6AbhBcPGyz4rha4G5pZvTj26zw4WFAGOmHMUuZMlCBRWWGzJ95i4/HNbxkRTZxobT1gMaKAwXCcqvhdzTKQ9mwVB8hNi+p108sq1STcKmKGc0JbGyCA8OqyXryIPJeU9MTB9vYsr/ALxA5fJToAUjE53o83f0k3aSZJzYyBxgB"
+          }
+        }
+      },
+      {
+        "text": "Let me explore a few more things - the available MCP servers and some sample APIs:"
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_xoSRfpn9aMRkMnaOTpw44p",
+          "name": "get-providers",
+          "input": {}
+        }
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_XTz2cSQnvpwE5mFwNaJCRv",
+          "name": "shell",
+          "input": {
+            "command": "mkdir -p ~/Library/Application\\ Support/RonBrowser/custom_tools && echo \"Created custom_tools directory\""
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 138,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:36:47.205028+00:00",
+  "updated_at": "2026-01-13T06:36:47.205030+00:00"
+}

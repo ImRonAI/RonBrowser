@@ -1,0 +1,25 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "json": {
+                "sessionName": "hi-ron-demo-session",
+                "description": "Session to visit hi-ron.com and interact with chatbot"
+              }
+            }
+          ],
+          "toolUseId": "tooluse_V1fzxV1uSGZi8DSKmQWpgf"
+        }
+      }
+    ]
+  },
+  "message_id": 145,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:40:10.541264+00:00",
+  "updated_at": "2026-01-13T06:40:10.541268+00:00"
+}

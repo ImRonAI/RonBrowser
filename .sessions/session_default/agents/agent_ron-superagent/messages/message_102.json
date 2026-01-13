@@ -1,0 +1,25 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "text": "Execution Summary:\nTotal commands: 1\nSuccessful: 1\nFailed: 0"
+            },
+            {
+              "text": "Command: ls -la ./agent/tools/open-api-specs/\nStatus: success\nExit Code: 0\nOutput: total 29840\r\ndrwxr-xr-x@ 24 timhunter  staff      768 Jan 11 08:31 .\r\ndrwxr-xr-x  27 timhunter  staff      864 Jan 12 23:15 ..\r\n-rw-r--r--@  1 timhunter  staff    21891 Jan 11 07:57 apiguru.json\r\n-rw-r--r--@  1 timhunter  staff    12309 Dec 11 13:50 apiguru.yml\r\n-rw-r--r--   1 timhunter  staff     5878 Oct  7 09:14 Attachments_Retrieval_V1.json\r\n-rw-r--r--   1 timhunter  staff     7222 Oct  7 09:14 Attachments_Status_V1.json\r\n-rw-r--r--   1 timhunter  staff    13081 Oct  7 09:14 Attachments_Submission_V1.json\r\n-rw-r--r--@  1 timhunter  staff  1700392 Aug 14 22:00 Authorization_v2.json\r\n-rw-r--r--   1 timhunter  staff    25207 Oct  7 09:15 Claim_Status_V2.json\r\n-rw-r--r--   1 timhunter  staff   272755 Oct  7 09:08 coverageapi.json\r\n-rw-r--r--   1 timhunter  staff     2131 Oct  7 09:16 cpthcpcsama.json\r\n-rw-r--r--@  1 timhunter  staff    84932 Aug 15 16:56 Eligibility.json\r\n-rw-r--r--@  1 timhunter  staff    94468 Aug 15 17:15 Enhanced_Eligibility_API_v1.json\r\n-rw-r--r--@  1 timhunter  staff    27436 Dec 12 04:23 healthcare-gov.json\r\n-rw-r--r--@  1 timhunter  staff    95266 Aug 15 17:06 InstitutionalClaims.json\r\n-rw-r--r--@  1 timhunter  staff    94378 Aug 15 17:05 MedicalNetworkClaims.json\r\n-rw-r--r--@  1 timhunter  staff    14733 Dec 11 21:46 MyHealth.json\r\n-rw-r--r--@  1 timhunter  staff      508 Oct  4 05:14 new_prod_token.json\r\n-rw-r--r--   1 timhunter  staff    16839 Oct  7 09:15 payerListV1.json\r\n-rw-r--r--@  1 timhunter  staff  1693950 Oct  7 07:06 priorauthorizationv1.json\r\n-rw-r--r--@  1 timhunter  staff    47599 Dec 12 05:04 providers.json\r\n-rw-r--r--@  1 timhunter  staff    55028 Aug 15 17:06 ReportsandResponses.json\r\n-rw-r--r--@  1 timhunter  staff  5710593 Jan 11 08:31 Telnyx.json\r\n-rw-r--r--@  1 timhunter  staff  5225708 Dec 11 13:47 Telnyx.yml\r\n\nError: "
+            }
+          ],
+          "toolUseId": "tooluse_Yzzj5iCVbht4tR4KKEJyWl"
+        }
+      }
+    ]
+  },
+  "message_id": 102,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:28:59.220978+00:00",
+  "updated_at": "2026-01-13T06:28:59.220979+00:00"
+}

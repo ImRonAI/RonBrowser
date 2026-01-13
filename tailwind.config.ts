@@ -71,7 +71,7 @@ const config: Config = {
           200: '#E5E5E5',     // Border gray
           300: '#D4D4D4',     // Scrollbar hover gray
           400: '#A3A3A3',     // Medium gray
-          // Dark mode  
+          // Dark mode
           900: '#0A0A0A',     // Near black
           850: '#121212',     // Elevated black
           800: '#171717',     // Card black

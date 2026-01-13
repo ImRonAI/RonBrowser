@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "The user is asking if I understand how to use the load_tool function. Let me explain my understanding of it clearly.",
+            "signature": "Ep8CCkgICxABGAIqQH9wnJjlPrwO4ky4psZaS2U5ea2sHxmBxoeF5UxOcd+GmVkNnhEbq8F9zj21NIpm1nm6bv/DN/VHMb87bc2pqAESDNDPvV+1c3BP/ei3WRoM+nhNGclaO63XL9phIjAKznEdcujDhZ9Df9fHQe6nK/NGbOUiVE595Kh8YGVN73oi3uQeEirh/x5Ph9/4TFwqhAFwDMPZb1QyidJyjDwOszZgE16vIfDm6IOH0Yj4ST9pYbuQsYcP5JuJb2PQiuu8cbWBNqgo3DDLfMRfOuZX4WLd6z3AJYIBo9ZcxkZYzlbN/74rGyijHQCrTCIjpElGHZlYUrpNlSV1Gn212Z+wjdm+PJKTelbTNrUoP+wqYJhs+6j07g8YAQ=="
+          }
+        }
+      },
+      {
+        "text": "Yes, I understand how to use `load_tool` perfectly! Here's a summary:\n\n## `load_tool` - Dynamic Tool Loading\n\n### Purpose\nLoad a Python tool file at runtime and register it with my tool registry, making it immediately available for use.\n\n### Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| `path` | string | ✅ | Path to the Python tool file (supports `~` expansion) |\n| `name` | string | ✅ | Name of the tool function to register |\n\n### Key Rules\n1. **Name must match**: The `name` parameter must match the function name inside the Python file\n2. **File name convention**: The file should be named `tool_name.py` where `tool_name` matches the function name\n\n### Example Workflow\n\n**1. Create a tool file** (using `editor`):\n```python\n# ~/Library/Application Support/RonBrowser/custom_tools/reverse_string.py\nfrom strands import tool\n\n@tool\ndef reverse_string(text: str) -> str:\n    \"\"\"Reverse the input string.\"\"\"\n    return text[::-1]\n```\n\n**2. Load the tool**:\n```python\nload_tool(\n    path=\"~/Library/Application Support/RonBrowser/custom_tools/reverse_string.py\",\n    name=\"reverse_string\"\n)\n```\n\n**3. Use the tool**: Once loaded, I can call it directly like any built-in tool.\n\n### Important Notes\n- Tools in `~/Library/Application Support/RonBrowser/custom_tools/` are auto-discovered (hot-reloaded)\n- Dynamic loading can be disabled via `STRANDS_DISABLE_LOAD_TOOL=true`\n- The `@tool` decorator approach is recommended (cleaner and type-safe)\n- The alternative `TOOL_SPEC` dictionary method also works\n\nWould you like me to create and load a custom tool for you?"
+      }
+    ]
+  },
+  "message_id": 61,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:20:32.377083+00:00",
+  "updated_at": "2026-01-13T06:20:32.377085+00:00"
+}

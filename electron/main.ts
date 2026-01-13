@@ -3,6 +3,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
 
+// Tool Management System (behind feature flag)
+import { initializeToolManager, registerToolManagerIPC, getDiscoveredTools, stopWatcher } from './tool-manager'
+import { executeToolInSandbox, terminateAllWorkers } from './tool-executor'
+import { performSecurityCheck, logExecutionStart, logExecutionComplete } from './tool-security'
+
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = join(__filename, '..')
@@ -409,14 +414,62 @@ function normalizeUrl(url: string): string {
 }
 
 // This method will be called when Electron has finished initialization
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow()
   // Create an initial tab so renderer has something to render/sync
   tabsManager.create('tab-initial', 'ron://home')
   tabsManager.switch('tab-initial')
+
+  // Initialize Tool Management System (if feature flag enabled)
+  if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {
+    console.log('[Main] Initializing Python Tool Management System...')
+    registerToolManagerIPC()
+    
+    // Register tool execution IPC handler
+    ipcMain.handle('tools:execute', async (_, toolName: string, args: Record<string, unknown>) => {
+      const tools = getDiscoveredTools()
+      const tool = tools.find(t => t.name === toolName)
+      
+      if (!tool) {
+        return {
+          success: false,
+          error: `Tool not found: ${toolName}`,
+          result: { status: 'error', content: [{ text: `Tool not found: ${toolName}` }] }
+        }
+      }
+      
+      // Security check
+      const securityCheck = await performSecurityCheck(tool, args)
+      if (!securityCheck.allowed) {
+        return {
+          success: false,
+          error: securityCheck.errors.join(', '),
+          result: { status: 'error', content: [{ text: securityCheck.errors.join(', ') }] }
+        }
+      }
+      
+      // Log and execute
+      await logExecutionStart(tool, securityCheck.sanitizedArgs || args)
+      const result = await executeToolInSandbox(tool, securityCheck.sanitizedArgs || args)
+      await logExecutionComplete(tool, result.success, result.duration, result.error)
+      
+      return result
+    })
+    
+    await initializeToolManager((tools) => {
+      mainWindow?.webContents.send('tools:inventory-updated', tools)
+    })
+    console.log('[Main] Python Tool Management System ready')
+  }
 })
 
 app.on('window-all-closed', () => {
+  // Clean up tool management resources
+  if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {
+    stopWatcher()
+    terminateAllWorkers()
+  }
+  
   if (process.platform !== 'darwin') {
     app.quit()
   }

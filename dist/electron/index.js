@@ -1,8 +1,566 @@
 "use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 const electron = require("electron");
 const node_path = require("node:path");
 const node_url = require("node:url");
 const node_child_process = require("node:child_process");
+const promises = require("node:fs/promises");
+const node_fs = require("node:fs");
+const chokidar = require("chokidar");
+const node_crypto = require("node:crypto");
+const FEATURE_FLAG$2 = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
+function getProjectRoot() {
+  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked") : node_path.join(__dirname, "..", "..");
+}
+function getToolsDir() {
+  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "agent", "tools", "src", "strands_tools") : node_path.join(__dirname, "..", "..", "agent", "tools", "src", "strands_tools");
+}
+function getUserCustomToolsDir() {
+  return node_path.join(electron.app.getPath("userData"), "custom_tools");
+}
+function getManifestsDir() {
+  return node_path.join(electron.app.getPath("userData"), "tool_manifests");
+}
+function getPythonScriptsDir() {
+  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "python_scripts") : node_path.join(__dirname, "..", "..", "python_scripts");
+}
+function getPythonPath$1() {
+  const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "bundled_python", "python") : node_path.join(__dirname, "..", "..", "venv", "bin", "python");
+  if (!electron.app.isPackaged) {
+    try {
+      require("fs").accessSync(venvPython, node_fs.constants.X_OK);
+      return venvPython;
+    } catch {
+      return process.platform === "win32" ? "python" : "python3";
+    }
+  }
+  return venvPython;
+}
+let discoveredTools = [];
+let watcher = null;
+let isInitialized = false;
+async function initializeAndSyncManifests() {
+  if (!FEATURE_FLAG$2) {
+    return { success: true };
+  }
+  const pythonPath = getPythonPath$1();
+  const updaterScript = node_path.join(getPythonScriptsDir(), "manifest_updater.py");
+  const projectRoot = getProjectRoot();
+  const manifestsDir = getManifestsDir();
+  const customToolsDir = getUserCustomToolsDir();
+  await promises.mkdir(manifestsDir, { recursive: true });
+  await promises.mkdir(customToolsDir, { recursive: true });
+  return new Promise((resolve) => {
+    console.log("[ToolManager] Syncing manifests...");
+    console.log("[ToolManager] Python:", pythonPath);
+    console.log("[ToolManager] Script:", updaterScript);
+    console.log("[ToolManager] Project root:", projectRoot);
+    console.log("[ToolManager] Manifests dir:", manifestsDir);
+    console.log("[ToolManager] Custom tools dir:", customToolsDir);
+    const proc = node_child_process.spawn(pythonPath, [updaterScript, projectRoot, manifestsDir, customToolsDir]);
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+    proc.on("close", (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log(`[ToolManager] Manifest sync complete: ${result.loadable_tools_count} tools discovered`);
+          resolve({ success: true });
+        } catch {
+          console.log("[ToolManager] Manifest sync complete");
+          resolve({ success: true });
+        }
+      } else {
+        console.error("[ToolManager] Manifest sync failed:", stderr);
+        resolve({ success: false, error: stderr });
+      }
+    });
+    proc.on("error", (err) => {
+      console.error("[ToolManager] Failed to spawn manifest updater:", err);
+      resolve({ success: false, error: err.message });
+    });
+  });
+}
+async function discoverDynamicToolsForAgent() {
+  if (!FEATURE_FLAG$2) {
+    return [];
+  }
+  const manifestsDir = getManifestsDir();
+  const toolsDir = getToolsDir();
+  const tools = [];
+  try {
+    const manifestPath = node_path.join(manifestsDir, "strands_tools_manifest.json");
+    await promises.access(manifestPath, node_fs.constants.R_OK);
+    const content = await promises.readFile(manifestPath, "utf-8");
+    const manifest = JSON.parse(content);
+    for (const tool of manifest.tools) {
+      const executablePath = node_path.join(toolsDir, tool.executable_filename);
+      try {
+        await promises.access(executablePath, node_fs.constants.R_OK);
+      } catch {
+        console.warn(`[ToolManager] Tool file not found: ${executablePath}`);
+        continue;
+      }
+      tools.push({
+        name: tool.name,
+        description: tool.description,
+        version: tool.version,
+        executableFilename: tool.executable_filename,
+        executablePath,
+        category: "strands_tools",
+        // All strands tools in one category
+        argsSchema: tool.args_schema
+      });
+    }
+  } catch (err) {
+    console.log("[ToolManager] No manifest found yet, run sync first");
+  }
+  discoveredTools = tools;
+  console.log(`[ToolManager] Discovered ${tools.length} tools`);
+  return tools;
+}
+function getDiscoveredTools() {
+  return discoveredTools;
+}
+async function getFullManifest() {
+  const manifestPath = node_path.join(getManifestsDir(), "tools_discovery_manifest.json");
+  try {
+    const content = await promises.readFile(manifestPath, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    console.log("[ToolManager] No discovery manifest found");
+    return null;
+  }
+}
+function getCustomToolsDir() {
+  return getUserCustomToolsDir();
+}
+function startWatcher(onUpdate) {
+  if (!FEATURE_FLAG$2) {
+    return;
+  }
+  const toolsDir = getToolsDir();
+  const customToolsDir = getUserCustomToolsDir();
+  if (watcher) {
+    watcher.close();
+  }
+  console.log(`[ToolManager] Starting file watcher on: ${toolsDir}`);
+  console.log(`[ToolManager] Also watching custom tools: ${customToolsDir}`);
+  watcher = chokidar.watch([toolsDir, customToolsDir], {
+    ignored: /(^|[\/\\])\../,
+    // Ignore dotfiles
+    persistent: true,
+    depth: 2,
+    ignoreInitial: true,
+    // Don't trigger on initial scan
+    awaitWriteFinish: {
+      stabilityThreshold: 500,
+      pollInterval: 100
+    }
+  });
+  let updateTimeout = null;
+  const triggerUpdate = async () => {
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+    }
+    updateTimeout = setTimeout(async () => {
+      console.log("[ToolManager] Tools directory changed, resyncing...");
+      await initializeAndSyncManifests();
+      const tools = await discoverDynamicToolsForAgent();
+      onUpdate(tools);
+    }, 1e3);
+  };
+  watcher.on("add", (path) => {
+    if (path.endsWith(".py") || path.endsWith(".toolinfo.json")) {
+      console.log(`[ToolManager] Tool added: ${node_path.basename(path)}`);
+      triggerUpdate();
+    }
+  }).on("change", (path) => {
+    if (path.endsWith(".py") || path.endsWith(".toolinfo.json")) {
+      console.log(`[ToolManager] Tool changed: ${node_path.basename(path)}`);
+      triggerUpdate();
+    }
+  }).on("unlink", (path) => {
+    if (path.endsWith(".py") || path.endsWith(".toolinfo.json")) {
+      console.log(`[ToolManager] Tool removed: ${node_path.basename(path)}`);
+      triggerUpdate();
+    }
+  }).on("error", (error) => {
+    console.error("[ToolManager] Watcher error:", error);
+  });
+}
+function stopWatcher() {
+  if (watcher) {
+    watcher.close();
+    watcher = null;
+  }
+}
+async function initializeToolManager(onInventoryUpdate) {
+  if (!FEATURE_FLAG$2) {
+    console.log("[ToolManager] Feature flag disabled, skipping initialization");
+    return;
+  }
+  if (isInitialized) {
+    console.log("[ToolManager] Already initialized");
+    return;
+  }
+  console.log("[ToolManager] Initializing tool management system...");
+  await initializeAndSyncManifests();
+  await discoverDynamicToolsForAgent();
+  if (onInventoryUpdate) {
+    startWatcher(onInventoryUpdate);
+  }
+  isInitialized = true;
+  console.log("[ToolManager] Initialization complete");
+}
+function registerToolManagerIPC() {
+  if (!FEATURE_FLAG$2) {
+    return;
+  }
+  electron.ipcMain.handle("tools:discover", async () => {
+    return await discoverDynamicToolsForAgent();
+  });
+  electron.ipcMain.handle("tools:refresh", async () => {
+    await initializeAndSyncManifests();
+    return await discoverDynamicToolsForAgent();
+  });
+  electron.ipcMain.handle("tools:list", () => {
+    return getDiscoveredTools();
+  });
+  electron.ipcMain.handle("tools:getManifest", async () => {
+    return await getFullManifest();
+  });
+  electron.ipcMain.handle("tools:getCustomToolsDir", async () => {
+    const dir = getCustomToolsDir();
+    await promises.mkdir(dir, { recursive: true });
+    return dir;
+  });
+  electron.ipcMain.handle("tools:saveCustomTool", async (_, name, code) => {
+    const { writeFile } = await import("node:fs/promises");
+    const dir = getCustomToolsDir();
+    await promises.mkdir(dir, { recursive: true });
+    const toolPath = node_path.join(dir, `${name}.py`);
+    await writeFile(toolPath, code, "utf-8");
+    return { success: true, path: toolPath };
+  });
+  console.log("[ToolManager] IPC handlers registered");
+}
+const FEATURE_FLAG$1 = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
+const DEFAULT_TIMEOUT = 3e5;
+let workerPool = [];
+const pendingExecutions = /* @__PURE__ */ new Map();
+function getUtilityRunnerPath() {
+  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "electron", "utility-runner.js") : node_path.join(__dirname, "utility-runner.js");
+}
+function getPythonPath() {
+  const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "bundled_python", "python") : node_path.join(__dirname, "..", "..", "venv", "bin", "python");
+  if (!electron.app.isPackaged) {
+    try {
+      require("fs").accessSync(venvPython);
+      return venvPython;
+    } catch {
+      return process.platform === "win32" ? "python" : "python3";
+    }
+  }
+  return venvPython;
+}
+function createWorker() {
+  const utilityRunnerPath = getUtilityRunnerPath();
+  console.log("[ToolExecutor] Creating worker with script:", utilityRunnerPath);
+  const worker = electron.utilityProcess.fork(utilityRunnerPath, [], {
+    stdio: "pipe",
+    serviceName: "python-tool-executor"
+  });
+  worker.on("message", (msg) => {
+    const pending = pendingExecutions.get(msg.requestId);
+    if (!pending) return;
+    switch (msg.type) {
+      case "stdout":
+        pending.stdout += msg.data;
+        break;
+      case "stderr":
+        pending.stderr += msg.data;
+        break;
+      case "complete":
+        clearTimeout(pending.timeout);
+        pendingExecutions.delete(msg.requestId);
+        pending.resolve({
+          success: msg.success,
+          exitCode: msg.exitCode,
+          result: msg.result,
+          stdout: msg.stdout,
+          stderr: msg.stderr,
+          duration: msg.duration
+        });
+        break;
+      case "error":
+        clearTimeout(pending.timeout);
+        pendingExecutions.delete(msg.requestId);
+        pending.resolve({
+          success: false,
+          exitCode: -1,
+          result: {
+            status: "error",
+            content: [{ text: msg.message }]
+          },
+          stdout: pending.stdout,
+          stderr: pending.stderr,
+          duration: Date.now() - pending.startTime,
+          error: msg.message
+        });
+        break;
+    }
+  });
+  worker.on("exit", (code) => {
+    console.log(`[ToolExecutor] Worker exited with code: ${code}`);
+    for (const [requestId, pending] of pendingExecutions.entries()) {
+      clearTimeout(pending.timeout);
+      pending.resolve({
+        success: false,
+        exitCode: code ?? -1,
+        result: {
+          status: "error",
+          content: [{ text: "Worker process exited unexpectedly" }]
+        },
+        stdout: pending.stdout,
+        stderr: pending.stderr,
+        duration: Date.now() - pending.startTime,
+        error: "Worker process exited"
+      });
+      pendingExecutions.delete(requestId);
+    }
+    const idx = workerPool.indexOf(worker);
+    if (idx >= 0) {
+      workerPool.splice(idx, 1);
+    }
+  });
+  return worker;
+}
+function getWorker() {
+  if (workerPool.length === 0) {
+    workerPool.push(createWorker());
+  }
+  return workerPool[0];
+}
+async function executeToolInSandbox(toolInfo, args = {}, timeout = DEFAULT_TIMEOUT) {
+  if (!FEATURE_FLAG$1) {
+    return {
+      success: false,
+      exitCode: -1,
+      result: {
+        status: "error",
+        content: [{ text: "Python tool management is disabled" }]
+      },
+      stdout: "",
+      stderr: "",
+      duration: 0,
+      error: "Feature disabled"
+    };
+  }
+  const requestId = node_crypto.randomUUID();
+  const worker = getWorker();
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    const timeoutHandle = setTimeout(() => {
+      pendingExecutions.delete(requestId);
+      resolve({
+        success: false,
+        exitCode: -1,
+        result: {
+          status: "error",
+          content: [{ text: `Tool execution timed out after ${timeout}ms` }]
+        },
+        stdout: pendingExecutions.get(requestId)?.stdout ?? "",
+        stderr: pendingExecutions.get(requestId)?.stderr ?? "",
+        duration: timeout,
+        error: "Timeout"
+      });
+    }, timeout);
+    pendingExecutions.set(requestId, {
+      resolve,
+      reject,
+      timeout: timeoutHandle,
+      stdout: "",
+      stderr: "",
+      startTime
+    });
+    worker.postMessage({
+      type: "executePythonTool",
+      requestId,
+      pythonPath: getPythonPath(),
+      loadToolPath: "",
+      // Not using load_tool.py wrapper for now
+      toolPath: toolInfo.executablePath,
+      toolName: toolInfo.name,
+      args,
+      env: {}
+    });
+  });
+}
+function terminateAllWorkers() {
+  for (const worker of workerPool) {
+    try {
+      worker.kill();
+    } catch (err) {
+      console.error("[ToolExecutor] Error killing worker:", err);
+    }
+  }
+  workerPool = [];
+  for (const [_requestId, pending] of pendingExecutions.entries()) {
+    clearTimeout(pending.timeout);
+    pending.resolve({
+      success: false,
+      exitCode: -1,
+      result: {
+        status: "error",
+        content: [{ text: "Executor terminated" }]
+      },
+      stdout: pending.stdout,
+      stderr: pending.stderr,
+      duration: Date.now() - pending.startTime,
+      error: "Terminated"
+    });
+  }
+  pendingExecutions.clear();
+}
+const FEATURE_FLAG = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
+function getAuditLogPath() {
+  return node_path.join(electron.app.getPath("userData"), "tool-audit.jsonl");
+}
+function isToolAllowed(toolName) {
+  {
+    return true;
+  }
+}
+function validateToolArgs(_tool, args) {
+  const errors = [];
+  const sanitizedArgs = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (typeof value === "string") {
+      if (value.includes("..") && (key.includes("path") || key.includes("file"))) {
+        errors.push(`Potential path traversal in ${key}`);
+        continue;
+      }
+      const dangerousPatterns = [
+        /;\s*rm\s/i,
+        /;\s*sudo\s/i,
+        /\|\s*bash/i,
+        /`.*`/,
+        /\$\(.*\)/
+      ];
+      for (const pattern of dangerousPatterns) {
+        if (pattern.test(value)) {
+          errors.push(`Potential command injection in ${key}`);
+          continue;
+        }
+      }
+    }
+    sanitizedArgs[key] = value;
+  }
+  return {
+    valid: errors.length === 0,
+    sanitizedArgs,
+    errors
+  };
+}
+async function logAuditEvent(entry) {
+  if (!FEATURE_FLAG) return;
+  const logPath = getAuditLogPath();
+  try {
+    await promises.mkdir(node_path.join(electron.app.getPath("userData")), { recursive: true });
+    const logLine = JSON.stringify({
+      ...entry,
+      timestamp: entry.timestamp || (/* @__PURE__ */ new Date()).toISOString()
+    }) + "\n";
+    await promises.appendFile(logPath, logLine);
+  } catch (err) {
+    console.error("[ToolSecurity] Failed to write audit log:", err);
+  }
+}
+async function logExecutionStart(tool, args) {
+  await logAuditEvent({
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    event: "execution_start",
+    toolName: tool.name,
+    toolPath: tool.executablePath,
+    args
+  });
+}
+async function logExecutionComplete(tool, success, duration, error) {
+  await logAuditEvent({
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    event: success ? "execution_complete" : "execution_error",
+    toolName: tool.name,
+    result: success ? "success" : "error",
+    duration,
+    error
+  });
+}
+async function logWhitelistBlock(toolName) {
+  await logAuditEvent({
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    event: "whitelist_block",
+    toolName
+  });
+}
+async function logValidationFailure(tool, errors) {
+  await logAuditEvent({
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    event: "validation_failure",
+    toolName: tool.name,
+    error: errors.join("; ")
+  });
+}
+async function performSecurityCheck(tool, args) {
+  if (!isToolAllowed(tool.name)) {
+    await logWhitelistBlock(tool.name);
+    return {
+      allowed: false,
+      errors: [`Tool '${tool.name}' is not in the whitelist`]
+    };
+  }
+  const validation = validateToolArgs(tool, args);
+  if (!validation.valid) {
+    await logValidationFailure(tool, validation.errors);
+    return {
+      allowed: false,
+      errors: validation.errors
+    };
+  }
+  return {
+    allowed: true,
+    tool,
+    sanitizedArgs: validation.sanitizedArgs,
+    errors: []
+  };
+}
 const __filename$1 = node_url.fileURLToPath(require("url").pathToFileURL(__filename).href);
 const __dirname$1 = node_path.join(__filename$1, "..");
 const CDP_PORT = 9222;
@@ -304,12 +862,47 @@ function normalizeUrl(url) {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   return `https://${url}`;
 }
-electron.app.whenReady().then(() => {
+electron.app.whenReady().then(async () => {
   createWindow();
   tabsManager.create("tab-initial", "ron://home");
   tabsManager.switch("tab-initial");
+  if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true") {
+    console.log("[Main] Initializing Python Tool Management System...");
+    registerToolManagerIPC();
+    electron.ipcMain.handle("tools:execute", async (_, toolName, args) => {
+      const tools = getDiscoveredTools();
+      const tool = tools.find((t) => t.name === toolName);
+      if (!tool) {
+        return {
+          success: false,
+          error: `Tool not found: ${toolName}`,
+          result: { status: "error", content: [{ text: `Tool not found: ${toolName}` }] }
+        };
+      }
+      const securityCheck = await performSecurityCheck(tool, args);
+      if (!securityCheck.allowed) {
+        return {
+          success: false,
+          error: securityCheck.errors.join(", "),
+          result: { status: "error", content: [{ text: securityCheck.errors.join(", ") }] }
+        };
+      }
+      await logExecutionStart(tool, securityCheck.sanitizedArgs || args);
+      const result = await executeToolInSandbox(tool, securityCheck.sanitizedArgs || args);
+      await logExecutionComplete(tool, result.success, result.duration, result.error);
+      return result;
+    });
+    await initializeToolManager((tools) => {
+      mainWindow?.webContents.send("tools:inventory-updated", tools);
+    });
+    console.log("[Main] Python Tool Management System ready");
+  }
 });
 electron.app.on("window-all-closed", () => {
+  if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true") {
+    stopWatcher();
+    terminateAllWorkers();
+  }
   if (process.platform !== "darwin") {
     electron.app.quit();
   }

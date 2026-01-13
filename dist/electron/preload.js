@@ -181,6 +181,31 @@ const electronAPI = {
     goBack: () => electron.ipcRenderer.invoke("go-back"),
     goForward: () => electron.ipcRenderer.invoke("go-forward"),
     reload: () => electron.ipcRenderer.invoke("reload")
+  },
+  // ----------------------------------------
+  // Python Tool Management
+  // ----------------------------------------
+  tools: {
+    // Discover all available Python tools
+    discover: () => electron.ipcRenderer.invoke("tools:discover"),
+    // Force refresh tool inventory (resync manifests)
+    refresh: () => electron.ipcRenderer.invoke("tools:refresh"),
+    // Get currently loaded tools (cached)
+    list: () => electron.ipcRenderer.invoke("tools:list"),
+    // Execute a tool by name with arguments
+    execute: (toolName, args = {}) => electron.ipcRenderer.invoke("tools:execute", toolName, args),
+    // Listen for inventory updates (hot-reload)
+    onInventoryUpdated: (callback) => {
+      const handler = (_, tools) => callback(tools);
+      electron.ipcRenderer.on("tools:inventory-updated", handler);
+      return () => electron.ipcRenderer.removeListener("tools:inventory-updated", handler);
+    },
+    // Get the full discovery manifest for agent system prompt
+    getManifest: () => electron.ipcRenderer.invoke("tools:getManifest"),
+    // Get the directory where custom tools should be saved
+    getCustomToolsDir: () => electron.ipcRenderer.invoke("tools:getCustomToolsDir"),
+    // Save a custom tool created by the agent
+    saveCustomTool: (name, code) => electron.ipcRenderer.invoke("tools:saveCustomTool", name, code)
   }
 };
 if (process.contextIsolated) {

@@ -74,7 +74,7 @@ export function AgentPanel() {
 
   // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
   // body option adds session_id to every request per AI SDK docs
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
       body: () => {
@@ -85,6 +85,22 @@ export function AgentPanel() {
       },
     }),
   })
+
+  // Handle new chat - resets both local UI state and store state
+  const handleNewChat = () => {
+    // 1. Generate new session ID for next request
+    const newSessionId = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    sessionIdRef.current = newSessionId
+    
+    // 2. Clear local chat UI state (AI SDK)
+    setMessages([])
+    
+    // 3. Clear store state (for history tracking)
+    startNewChat()
+    
+    // 4. Focus input for immediate typing
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }
 
   const [input, setInput] = useState('')
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
@@ -206,7 +222,7 @@ export function AgentPanel() {
                 <div className="flex items-center gap-1">
                   {/* New Chat Button */}
                   <motion.button
-                    onClick={startNewChat}
+                    onClick={handleNewChat}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     className="p-2 rounded-lg text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"

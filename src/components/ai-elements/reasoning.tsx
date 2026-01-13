@@ -9,7 +9,7 @@
  * - Auto-open on streaming, auto-close when complete
  */
 
-import React, { useState, useEffect, useCallback, createContext, useContext } from 'react'
+import React, { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
@@ -76,16 +76,20 @@ export function Reasoning({
     setOpen(!isOpen)
   }, [isOpen, setOpen])
 
-  // Auto-open when streaming starts
+  // Track previous streaming state to detect edges
+  const prevIsStreaming = useRef(isStreaming)
+
   useEffect(() => {
-    if (isStreaming && !isOpen) {
+    const wasStreaming = prevIsStreaming.current
+    prevIsStreaming.current = isStreaming
+
+    // Auto-open when streaming starts (Rising Edge: false -> true)
+    if (!wasStreaming && isStreaming && !isOpen) {
       setOpen(true)
     }
-  }, [isStreaming, isOpen, setOpen])
 
-  // Auto-collapse after streaming completes
-  useEffect(() => {
-    if (!isStreaming && isOpen && autoCollapseDelay > 0) {
+    // Auto-collapse ONLY when streaming ends (Falling Edge: true -> false)
+    if (wasStreaming && !isStreaming && isOpen && autoCollapseDelay > 0) {
       const timer = setTimeout(() => setOpen(false), autoCollapseDelay)
       return () => clearTimeout(timer)
     }

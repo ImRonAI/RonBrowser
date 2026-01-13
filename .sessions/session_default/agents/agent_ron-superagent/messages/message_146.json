@@ -1,0 +1,37 @@
+{
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "reasoningContent": {
+          "reasoningText": {
+            "text": "Good, the session has been initialized. Now let me navigate to the website.",
+            "signature": "EvUBCkgICxABGAIqQMUBfubF4zbKugdLsbK6uJivhKNJf3YYtIdeLlDs1bZNFtdjDtJd1+XRdulWDPvy+gjFiPHJ7AH3N1PtuNwzw5QSDAqLu1Xr6o2u1tgLrRoMk30oISq+KMtaMwUFIjDDZeQte1r+1vQTN/CFY0aqinqJqTo8s9A/VZ+Q/vEz2R1pBBAeOvTP+rfKO0Ash6QqW0w87UP9JQxmbyKudBwkcwh1Ktmq0uYdHoNBmGtTBHD55ptchXsiFa42GDib679TpJjtj/J7mbkWF8Eztv3Bt06Ybijj8mmI7r4Xh9Nh3CksP8T69uYIcA5JaDkYAQ=="
+          }
+        }
+      },
+      {
+        "text": "Session initialized. Now navigating to the website..."
+      },
+      {
+        "toolUse": {
+          "toolUseId": "tooluse_kk3L3ppA32o7qWuoEnlHpq",
+          "name": "browser",
+          "input": {
+            "browser_input": {
+              "action": {
+                "type": "navigate",
+                "url": "https://www.hi-ron.com",
+                "session_name": "hi-ron-demo-session"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "message_id": 146,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:40:15.745978+00:00",
+  "updated_at": "2026-01-13T06:40:15.745980+00:00"
+}

@@ -27,7 +27,11 @@ import {
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
 import { ResponseMarkdown } from '@/components/ai-elements/response'
+import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
 import type { ToolState } from '@/components/ai-elements/types'
+
+// Orchestration tool names to render with special visualization
+const ORCHESTRATION_TOOLS = ['workflow', 'swarm', 'graph']
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -184,6 +188,28 @@ function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
     const toolState = mapToolPartState(toolPart.state)
     const stepStatus = toolState === 'success' ? 'complete' : toolState === 'error' ? 'error' : 'running'
 
+    // Check if this is an orchestration tool (workflow, swarm, graph)
+    if (ORCHESTRATION_TOOLS.includes(toolName.toLowerCase())) {
+      return (
+        <ChainOfThoughtStep
+          label={toolName}
+          status={stepStatus}
+        >
+          <ChainOfThoughtOrchestration
+            tool={{
+              type: toolPart.type,
+              toolCallId: toolPart.toolCallId,
+              toolName: toolName,
+              state: toolPart.state,
+              input: toolPart.input,
+              output: toolPart.output,
+            }}
+          />
+        </ChainOfThoughtStep>
+      )
+    }
+
+    // Regular tool rendering
     return (
       <ChainOfThoughtStep
         label={toolName}

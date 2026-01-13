@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "toolUseId": "tooluse_fx23FKeKY17Q5blnVGGd9r",
+          "status": "error",
+          "content": [
+            {
+              "text": "Unknown tool: swarm"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "message_id": 40,
+  "redact_message": null,
+  "created_at": "2026-01-11T23:00:55.920803+00:00",
+  "updated_at": "2026-01-11T23:00:55.920805+00:00"
+}

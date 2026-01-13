@@ -1,0 +1,22 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "toolResult": {
+          "status": "success",
+          "content": [
+            {
+              "text": "Screenshot saved as screenshots/screenshot_1768286426.png"
+            }
+          ],
+          "toolUseId": "tooluse_LRuDriMTFju2cJOgM2HYBA"
+        }
+      }
+    ]
+  },
+  "message_id": 149,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:40:26.256200+00:00",
+  "updated_at": "2026-01-13T06:40:26.256202+00:00"
+}

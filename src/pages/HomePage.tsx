@@ -4,6 +4,7 @@ import { SearchBar } from '@/components/home/SearchBar'
 import { useAuthStore } from '@/stores/authStore'
 import { useOnboardingStore } from '@/stores/onboardingStore'
 import { KanbanBoard, CalendarView } from '@/components/board'
+import { SuperAgentInterface } from '@/components/superagent'
 
 type HomeTab = 'discover' | 'tasks' | 'calendar' | 'superagent' | 'vibe'
 type CalendarMode = 'day' | 'week' | 'month'
@@ -188,9 +189,9 @@ export function HomePage() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.98, y: -20 }}
                 transition={{ duration: 0.5, ease: EASE }}
-                className="h-full px-8 pb-8 flex items-center justify-center"
+                className="h-full"
               >
-                <SuperAgentPlaceholder />
+                <SuperAgentInterface />
               </motion.div>
             )}
             {activeTab === 'vibe' && (
@@ -356,12 +357,12 @@ function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
 
       {/* Main container */}
       <div className="
-        relative flex items-center gap-1 p-1.5
+        relative flex items-center justify-center gap-4 p-2
         rounded-2xl
-        bg-surface-0/80 dark:bg-surface-850/80
-        backdrop-blur-xl
+        bg-surface-0/60 dark:bg-surface-850/60
+        backdrop-blur-2xl
         border border-surface-200/50 dark:border-surface-700/50
-        shadow-bold dark:shadow-dark-bold
+        shadow-glow-accent dark:shadow-glow-accent-lg
       ">
         {/* Animated pill indicator */}
         <motion.div
@@ -427,37 +428,6 @@ function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PLACEHOLDER COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
-
-function SuperAgentPlaceholder() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="text-center space-y-6"
-    >
-      <motion.div
-        className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-accent to-accent-light flex items-center justify-center shadow-glow-accent-lg"
-        animate={{
-          rotate: [0, 5, -5, 0],
-          scale: [1, 1.02, 1]
-        }}
-        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" className="w-12 h-12">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5" />
-          <path d="M2 12l10 5 10-5" />
-        </svg>
-      </motion.div>
-      <div>
-        <h2 className="text-display-sm font-display text-ink dark:text-ink-inverse">SuperAgent</h2>
-        <p className="text-body-md text-ink-muted dark:text-ink-inverse-muted mt-2">
-          AI-powered automation coming soon
-        </p>
-      </div>
-    </motion.div>
-  )
-}
 
 function VibePlaceholder() {
   return (

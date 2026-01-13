@@ -265,6 +265,74 @@ const electronAPI = {
     goForward: () => ipcRenderer.invoke('go-forward'),
     reload: () => ipcRenderer.invoke('reload'),
   },
+
+  // ----------------------------------------
+  // Python Tool Management
+  // ----------------------------------------
+  tools: {
+    // Discover all available Python tools
+    discover: () => ipcRenderer.invoke('tools:discover') as Promise<Array<{
+      name: string
+      description: string
+      version: string
+      executablePath: string
+      category: string
+      argsSchema?: object
+    }>>,
+    
+    // Force refresh tool inventory (resync manifests)
+    refresh: () => ipcRenderer.invoke('tools:refresh'),
+    
+    // Get currently loaded tools (cached)
+    list: () => ipcRenderer.invoke('tools:list'),
+    
+    // Execute a tool by name with arguments
+    execute: (toolName: string, args: Record<string, unknown> = {}) => 
+      ipcRenderer.invoke('tools:execute', toolName, args) as Promise<{
+        success: boolean
+        exitCode: number
+        result: {
+          status: 'success' | 'error'
+          content: Array<{ text?: string; json?: unknown }>
+        }
+        stdout: string
+        stderr: string
+        duration: number
+        error?: string
+      }>,
+    
+    // Listen for inventory updates (hot-reload)
+    onInventoryUpdated: (callback: (tools: Array<{
+      name: string
+      description: string
+      version: string
+      category: string
+    }>) => void) => {
+      const handler = (_: unknown, tools: Array<{
+        name: string
+        description: string
+        version: string
+        category: string
+      }>) => callback(tools)
+      ipcRenderer.on('tools:inventory-updated', handler)
+      return () => ipcRenderer.removeListener('tools:inventory-updated', handler)
+    },
+    
+    // Get the full discovery manifest for agent system prompt
+    getManifest: () => ipcRenderer.invoke('tools:getManifest') as Promise<{
+      loadable_tools: Array<{ name: string; description: string; path: string; category: string; load_command: string }>
+      mcp_servers: Array<{ id: string; description: string; connect_command: string }>
+      openapi_specs: Array<{ name: string; path: string; mcp_command: string }>
+      custom_tools_dir: string | null
+    } | null>,
+    
+    // Get the directory where custom tools should be saved
+    getCustomToolsDir: () => ipcRenderer.invoke('tools:getCustomToolsDir') as Promise<string>,
+    
+    // Save a custom tool created by the agent
+    saveCustomTool: (name: string, code: string) => 
+      ipcRenderer.invoke('tools:saveCustomTool', name, code) as Promise<{ success: boolean; path: string }>,
+  },
 }
 
 // ============================================

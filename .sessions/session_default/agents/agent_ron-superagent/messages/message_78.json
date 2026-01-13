@@ -1,0 +1,14 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "text": "What about in your mcp_client , check what's there"
+      }
+    ]
+  },
+  "message_id": 78,
+  "redact_message": null,
+  "created_at": "2026-01-13T06:25:38.903826+00:00",
+  "updated_at": "2026-01-13T06:25:38.903829+00:00"
+}

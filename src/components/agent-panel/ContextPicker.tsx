@@ -12,7 +12,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  PlusIcon, 
+  // PlusIcon, -> Removed unused import 
   DocumentIcon, 
   GlobeAltIcon, 
   ChatBubbleLeftRightIcon, 
@@ -25,6 +25,7 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
   CheckIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline'
 import { cn } from '@/utils/cn'
 
@@ -267,7 +268,7 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
           selectedContexts.length > 0 && "text-accent dark:text-accent-light"
         )}
       >
-        <PlusIcon className="w-5 h-5" />
+        <LinkIcon className="w-5 h-5" />
       </button>
 
       {/* Portal Dropdown */}

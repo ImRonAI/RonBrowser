@@ -1,0 +1,14 @@
+{
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "text": "Please create a research swarm with expertise in phD level research, and then writing out a stunning, objective, unbiased and purely factually based report that would be worth of publish in any major journal. Please use citations, and create a reference page,  be sure to have the researchers document their  findings, ensure there is one agent purely for creating visual charts, and then assign two writers one for the beginning  which sill be about studying the population health of Salt Lake City in comparison to the rest of the country, and identifying it's strengths and vulnerabilities in terms of SDOH, and community issues, and where the compare to the rest of the nation. and the other writer will be for the end which is writing up a community intervention plan of action that will take place over 10 years and provide a highly educated hypothesis over the results of such implementation., please make sure the writer's styles are the same, and that it's impossible to tell where one left off, and the other started.. Please ensure you have researchers for both parts and remember to accurately cite sources an provide a reference page. There should be quality checks after the research is gathered, and after the writer's go, the quality checks  will pass or fail the research or writing piece based on our goal of submitting this for publish. For this swarm there should be one researcher assigned to each half, one writer for each half, and two quality agents for each half (one for research one for writing, and you should specify that they're different and tell put in their prompt what they're looking for.), and each half should have a data analyst whose job is to build charts and visuals for the final report. you will be the final stop of this and you're job will be to incorporate the final write-up, the charts, and tailwind css cdn html file that is sleek, professional, and clean to make the final product look production ready. Best of luck."
+      }
+    ]
+  },
+  "message_id": 38,
+  "redact_message": null,
+  "created_at": "2026-01-11T22:59:43.434441+00:00",
+  "updated_at": "2026-01-11T22:59:43.434444+00:00"
+}
