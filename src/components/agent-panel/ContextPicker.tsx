@@ -122,15 +122,15 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
   
   // Refs for positioning
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const [coords, setCoords] = useState({ bottom: 0, left: 0 })
 
   // Calculate position and open - done synchronously to avoid render flash
   const handleOpen = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
-      // Position so menu opens UPWARD from button
+      // Position menu ABOVE button using bottom anchor
       setCoords({
-        top: rect.top, // Top of button - menu will translateY(-100%) to go above
+        bottom: window.innerHeight - rect.top + 8, // 8px gap above button
         left: rect.left
       })
     }
@@ -294,10 +294,8 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
                 transition={{ duration: 0.15 }}
                 style={{
                   position: 'fixed',
-                  top: coords.top, // We calculate this - height of list
-                  left: coords.left,
-                  transform: 'translateY(-100%)', // Anchor to bottom left of button, grow up
-                  marginTop: '-8px'
+                  bottom: coords.bottom,
+                  left: coords.left
                 }}
                 className={cn(
                   "z-[9999]", // High z-index in Portal
