@@ -1,37 +1,9 @@
 import { motion } from 'framer-motion'
+import { Task } from '@/types/task'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
-
-export interface TaskContact {
-  id: string
-  name: string
-  avatar?: string
-  initials: string
-}
-
-export interface TaskInterest {
-  id: string
-  label: string
-  color: string
-}
-
-export interface Task {
-  id: string
-  title: string
-  description?: string
-  dueDate: Date | null
-  hasNotification: boolean
-  contacts: TaskContact[]
-  interest: TaskInterest | null
-  subtasks: {
-    total: number
-    completed: number
-  }
-  priority?: 'low' | 'medium' | 'high'
-  status: 'backlog' | 'in-progress' | 'review' | 'done'
-}
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
@@ -46,14 +18,25 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, index = 0, onClick }: TaskCardProps) {
-  const progress = task.subtasks.total > 0 
-    ? Math.round((task.subtasks.completed / task.subtasks.total) * 100) 
+  // Calculate progress from subtasks array
+  const subtasks = task.subtasks || []
+  const totalSubtasks = subtasks.length
+  const completedSubtasks = subtasks.filter(s => s.completed).length
+  
+  const progress = totalSubtasks > 0 
+    ? Math.round((completedSubtasks / totalSubtasks) * 100) 
     : 0
 
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
   const isDueSoon = task.dueDate && !isOverdue && 
     new Date(task.dueDate).getTime() - Date.now() < 24 * 60 * 60 * 1000
   const isDone = task.status === 'done'
+
+  // Map assignees to contacts for display
+  const contacts = task.assignees || []
+  
+  // Get primary label/interest
+  const interest = task.labels && task.labels.length > 0 ? task.labels[0] : null
 
   return (
     <motion.div
@@ -139,21 +122,21 @@ export function TaskCard({ task, index = 0, onClick }: TaskCardProps) {
         {/* Tags & Footer */}
         <div className="flex items-end justify-between mt-auto">
           <div className="flex flex-col gap-3">
-             {task.interest && (
+             {interest && (
               <div className={`
                 self-start px-2 py-0.5 rounded-md
                 text-[10px] uppercase font-bold tracking-widest
                 glass-subtle
-                ${task.interest.color.replace('bg-', 'text-').replace('text-', 'border-transparent text-')}
+                ${interest.color.replace('bg-', 'text-').replace('text-', 'border-transparent text-')}
               `}>
-                {task.interest.label}
+                {interest.label}
               </div>
             )}
             
             {/* Avatars Stack */}
-            {task.contacts.length > 0 && (
+            {contacts.length > 0 && (
               <div className="flex -space-x-2 pl-1">
-                {task.contacts.slice(0, 3).map((contact) => (
+                {contacts.slice(0, 3).map((contact) => (
                   <div
                     key={contact.id}
                     className="
@@ -174,7 +157,7 @@ export function TaskCard({ task, index = 0, onClick }: TaskCardProps) {
           </div>
 
           {/* Progress Circular Indiciator */}
-          {task.subtasks.total > 0 && (
+          {totalSubtasks > 0 && (
              <div className="flex flex-col items-center gap-1">
                <ProgressRing radius={14} stroke={3} progress={progress} />
                <span className="text-[9px] font-medium text-ink-muted dark:text-ink-inverse-muted">
@@ -232,7 +215,7 @@ function ProgressRing({ radius, stroke, progress }: { radius: number, stroke: nu
   )
 }
 
-function formatDueDate(date: Date): string {
+function formatDueDate(date: Date | number): string {
   const now = new Date()
   const dueDate = new Date(date)
   const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -265,63 +248,4 @@ function CalendarIcon({ className }: { className?: string }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SAMPLE DATA
-// ─────────────────────────────────────────────────────────────────────────────
 
-export const sampleTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Design new onboarding flow with voice interaction',
-    dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-    hasNotification: true,
-    contacts: [
-      { id: 'c1', name: 'Alex Chen', initials: 'AC' },
-      { id: 'c2', name: 'Sarah Kim', initials: 'SK' },
-      { id: 'c3', name: 'Mike Ross', initials: 'MR' },
-    ],
-    interest: { id: 'i1', label: 'Design', color: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400' },
-    subtasks: { total: 8, completed: 5 },
-    priority: 'high',
-    status: 'in-progress',
-  },
-  {
-    id: '2',
-    title: 'Implement agent memory persistence',
-    dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    hasNotification: false,
-    contacts: [
-      { id: 'c1', name: 'Alex Chen', initials: 'AC' },
-    ],
-    interest: { id: 'i2', label: 'Engineering', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' },
-    subtasks: { total: 4, completed: 1 },
-    priority: 'high',
-    status: 'in-progress',
-  },
-  {
-    id: '3',
-    title: 'Research competitor AI browsers',
-    dueDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    hasNotification: true,
-    contacts: [
-      { id: 'c2', name: 'Sarah Kim', initials: 'SK' },
-      { id: 'c4', name: 'Emma Liu', initials: 'EL' },
-      { id: 'c5', name: 'John Doe', initials: 'JD' },
-    ],
-    interest: { id: 'i3', label: 'Research', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' },
-    subtasks: { total: 3, completed: 3 },
-    priority: 'medium',
-    status: 'review',
-  },
-  {
-    id: '4',
-    title: 'Write privacy policy documentation',
-    dueDate: null,
-    hasNotification: false,
-    contacts: [],
-    interest: { id: 'i4', label: 'Legal', color: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400' },
-    subtasks: { total: 0, completed: 0 },
-    priority: 'low',
-    status: 'backlog',
-  },
-]

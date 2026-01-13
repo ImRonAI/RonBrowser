@@ -5,10 +5,12 @@ import tippy from 'tippy.js'
 import { SlashCommandMenu } from '../SlashCommandMenu'
 
 export const SLASH_COMMANDS = [
+  { id: 'ask-ron', label: 'Ask Ron', icon: 'sparkles', action: 'askRon' },
+  { id: 'upload', label: 'Upload File', icon: 'upload', action: 'fileUpload' },
+  { id: 'text', label: 'Text', icon: 'T', action: 'paragraph' },
   { id: 'h1', label: 'Heading 1', icon: 'H1', action: 'heading', level: 1 },
   { id: 'h2', label: 'Heading 2', icon: 'H2', action: 'heading', level: 2 },
   { id: 'h3', label: 'Heading 3', icon: 'H3', action: 'heading', level: 3 },
-  { id: 'text', label: 'Text', icon: 'T', action: 'paragraph' },
   { id: 'bullet', label: 'Bullet List', icon: 'list', action: 'bulletList' },
   { id: 'todo', label: 'To-Do List', icon: 'check-square', action: 'taskList' },
   { id: 'table', label: 'Table', icon: 'table', action: 'table' },
@@ -45,7 +47,7 @@ export const suggestionOptions = {
   items: ({ query }: { query: string }) => {
     return SLASH_COMMANDS.filter(item =>
       item.label.toLowerCase().startsWith(query.toLowerCase())
-    ).slice(0, 10)
+    ).slice(0, 20)
   },
 
   render: () => {

@@ -6,16 +6,22 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import type { FullTask } from '@/types/task'
+import type { FullTask, TaskConversation } from '@/types/task'
+import { useTaskStore } from '@/stores/taskStore'
 
 // AI SDK v6 - useChat with DefaultChatTransport for UIMessageStream
 import { useChat, type UIMessage } from '@ai-sdk/react'
 import { DefaultChatTransport, type TextUIPart } from 'ai'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
-
-type MessagePart = UIMessage['parts'][number]
+import { 
+  Plus as PlusIcon, 
+  History as HistoryIcon, 
+  ChevronDown as ChevronDownIcon,
+  ArrowUp as ArrowUpIcon,
+  MessageSquare as ChatIcon
+} from 'lucide-react'
 
 // Context Picker
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
@@ -44,6 +50,8 @@ const SUGGESTIONS = [
   { text: 'Show agent orchestration', icon: '◎' },
 ]
 
+type MessagePart = UIMessage['parts'][number]
+
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,46 +59,137 @@ const LARGE_PASTE_THRESHOLD_CHARS = 2000
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function RonTab({ task }: RonTabProps) {
-  // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
-  const { messages, sendMessage, status } = useChat({
+  // Store Access
+  const updateTask = useTaskStore(state => state.updateTask)
+  
+  // State for conversation management
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+
+  // 1. INITIALIZATION ONLY
+  // Load latest conversation on mount. 
+  // IMPORTANT: We do NOT put this in a useEffect dependant on 'task', 
+  // or we risk loops if we update the task.
+  useEffect(() => {
+    if (activeConversationId) return 
+
+    if (task.conversations && task.conversations.length > 0) {
+      // Sort by lastActiveAt desc
+      const sorted = [...task.conversations].sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+      setActiveConversationId(sorted[0].id)
+    } else {
+      // Start new if none
+      const newId = `conv-${Date.now()}`
+      setActiveConversationId(newId)
+    }
+  }, []) // Empty dependency array = absolute safety from render loops.
+
+
+  // 2. CHAT HOOK
+  const { messages, setMessages, sendMessage, status, input, handleInputChange, handleSubmit } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
     }),
+    id: activeConversationId || 'new',
+    // 3. SAFE PERSISTENCE
+    // We only save to the store when the AI generation FINISHES.
+    // This happens once per turn, preventing any rapid render cycles.
+    onFinish: (message: any, ...args: any[]) => {
+      const options = args[0]
+      if (!activeConversationId) return
+      
+      const fullHistory = options?.messages || [] // Safely access
+      const existingConvs = task.conversations || []
+      const currentConv = existingConvs.find(c => c.id === activeConversationId)
+      
+      const newConv: TaskConversation = {
+        id: activeConversationId,
+        taskId: task.id,
+        createdAt: currentConv?.createdAt || Date.now(),
+        lastActiveAt: Date.now(),
+        messageCount: fullHistory.length,
+        messages: fullHistory as any
+      }
+      
+      const others = existingConvs.filter(c => c.id !== activeConversationId)
+      
+      // Update global store
+      updateTask(task.id, { conversations: [newConv, ...others] })
+    }
   })
 
-  const [input, setInput] = useState('')
-  const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
-  const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  // 4. LOAD MESSAGES ON SWITCH
+  // When the USER explicitly switches chats (updates activeConversationId), we load the messages.
+  useEffect(() => {
+    if (!activeConversationId) return
+    
+    // We strictly look for the conversation in the props
+    const conv = task.conversations?.find(c => c.id === activeConversationId)
+    if (conv) {
+       setMessages(conv.messages as any)
+    } else {
+       setMessages([])
+    }
+  }, [activeConversationId]) // Only runs when ID changes, not when messages/task change.
+
+
+  // 5. AUTO SCROLL
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const isTyping = status === 'streaming' || status === 'submitted'
-  const isEmpty = messages.length === 0
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSubmit = useCallback((text?: string) => {
-    const messageText = text || input.trim()
-    if (!messageText || status !== 'ready') return
 
-    setInput('')
-    setSelectedContexts([])
-
-    // Include task context in the message
-    const contextPrefix = `[Task Context: "${task.title}" - ${task.status}]\n\n`
-    sendMessage({ text: contextPrefix + messageText })
-  }, [input, status, task, sendMessage])
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit()
-    }
+  // 6. EVENT HANDLERS
+  const handleCreateNewChat = () => {
+    const newId = `conv-${Date.now()}`
+    setActiveConversationId(newId)
+    setMessages([])
+    setIsHistoryOpen(false)
   }
 
-  // Handle text attachment operations
+  const handleSwitchChat = (convId: string) => {
+    const conv = task.conversations?.find(c => c.id === convId)
+    if (conv) {
+      setActiveConversationId(convId)
+      setMessages(conv.messages as any)
+    }
+    setIsHistoryOpen(false)
+  }
+  
+  // Custom submit to handle context injection
+  const handleCustomSubmit = (text?: string) => {
+    const messageText = text || input
+    if (!messageText.trim() && textAttachments.length === 0) return
+
+    // Ensure we have an active ID
+    if (!activeConversationId) {
+        setActiveConversationId(`conv-${Date.now()}`)
+    }
+
+    // Include task context in the message via system instruction prefix if needed
+    // or just rely on the backend provided tools. 
+    // Here we append context for clarity.
+    const contextPrefix = `[System] Task Context: ID="${task.id}" Title="${task.title}" Status="${task.status}"\n\n`
+    
+    // Using standard handleSubmit from useChat if possible, or direct sendMessage
+    sendMessage({ text: contextPrefix + messageText })
+    
+    // Reset local state if not handled by hook
+    if (!text) handleInputChange({ target: { value: '' } } as any)
+    setSelectedContexts([])
+    setTextAttachments([])
+  }
+
+
+  // 7. INPUT STATE (Attachments/Context)
+  const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
+  const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  
+  const isTyping = status === 'streaming' || status === 'submitted'
+  const isEmpty = messages.length === 0
+
   const handleTextAttachmentRemove = (id: string) => {
     setTextAttachments(prev => prev.filter(att => att.id !== id))
   }
@@ -104,7 +203,6 @@ export function RonTab({ task }: RonTabProps) {
     ))
   }
 
-  // Handle paste events - detect large pastes and convert to attachments
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = e.clipboardData.getData('text/plain')
     if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
@@ -123,9 +221,87 @@ export function RonTab({ task }: RonTabProps) {
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleCustomSubmit()
+    }
+  }
+
+
   return (
-    <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900">
-      {/* Content - Pure chat with inline orchestration */}
+    <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900 relative">
+      {/* Header Toolbar */}
+      <div className="flex-shrink-0 px-4 py-2 border-b border-surface-100 dark:border-surface-800 flex items-center justify-between z-20 bg-surface-0/80 dark:bg-surface-900/80 backdrop-blur-md">
+        <div className="relative">
+          <button
+            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-sm font-medium text-ink dark:text-ink-inverse transition-colors"
+            aria-label="History"
+          >
+            <HistoryIcon size={14} className="text-ink-muted" />
+            <span className="truncate max-w-[150px]">
+              {messages[0]?.content.slice(0, 20) + '...' || 'New Chat'}
+            </span>
+            <ChevronDownIcon size={14} className={cn("text-ink-muted transition-transform", isHistoryOpen && "rotate-180")} />
+          </button>
+
+          {/* History Dropdown */}
+          <AnimatePresence>
+            {isHistoryOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute top-full left-0 mt-2 w-64 p-2 rounded-xl glass-card border border-surface-200 dark:border-surface-700 shadow-xl"
+              >
+                <div className="flex items-center justify-between px-2 pb-2 mb-2 border-b border-surface-100/50 dark:border-surface-700/50">
+                   <span className="text-[10px] font-bold uppercase text-ink-muted">Recent Chats</span>
+                   <button 
+                     onClick={handleCreateNewChat} 
+                     className="p-1 hover:bg-surface-200 dark:hover:bg-surface-700 rounded-md"
+                     aria-label="New Chat"
+                   >
+                     <PlusIcon size={14} />
+                   </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {task.conversations?.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleSwitchChat(c.id)}
+                      className={cn(
+                        "w-full text-left px-2 py-2 rounded-lg text-xs truncate transition-colors",
+                        activeConversationId === c.id 
+                          ? "bg-accent/10 text-accent font-medium" 
+                          : "hover:bg-surface-100 dark:hover:bg-surface-800 text-ink-muted"
+                      )}
+                    >
+                      {c.messages[0]?.content || 'Empty Chat'}
+                      <div className="text-[9px] opacity-60 mt-0.5">
+                        {new Date(c.lastActiveAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                  {(!task.conversations || task.conversations.length === 0) && (
+                    <div className="text-center py-4 text-xs text-ink-muted">No history</div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <button 
+          onClick={handleCreateNewChat}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-xs font-medium transition-colors"
+        >
+          <PlusIcon size={14} />
+          <span>New Chat</span>
+        </button>
+      </div>
+
+      {/* Content */}
       <div className="flex-1 overflow-hidden">
         <motion.div
           initial={{ opacity: 0 }}
@@ -133,9 +309,9 @@ export function RonTab({ task }: RonTabProps) {
           className="h-full flex flex-col"
         >
           {isEmpty ? (
-            <EmptyState task={task} onSubmit={handleSubmit} />
+            <EmptyState task={task} onSubmit={handleCustomSubmit} />
           ) : (
-            <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6">
+            <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6" id="messages-container">
               <div className="max-w-2xl mx-auto space-y-6">
                 {messages.map((msg) => (
                   <MessageBubble key={msg.id} message={msg} />
@@ -158,14 +334,12 @@ export function RonTab({ task }: RonTabProps) {
         className="flex-shrink-0 p-4 border-t border-surface-100 dark:border-surface-800"
       >
         <div className="max-w-2xl mx-auto">
-          {/* Selected Contexts Display */}
+          {/* Contexts & Attachments */}
           <SelectedContexts
             contexts={selectedContexts}
             onRemove={(id) => setSelectedContexts(prev => prev.filter(c => c.id !== id))}
             className="mb-3"
           />
-
-          {/* Text Attachments (for pasted content 2000+ chars) */}
           {textAttachments.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {textAttachments.map(attachment => (
@@ -189,17 +363,14 @@ export function RonTab({ task }: RonTabProps) {
           )}>
             {/* Input Row */}
             <div className="flex items-center gap-2 px-3 py-2">
-              {/* Context Picker */}
               <ContextPicker
                 selectedContexts={selectedContexts}
                 onContextsChange={setSelectedContexts}
               />
-
-              {/* Text Input */}
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder="Ask anything..."
@@ -214,10 +385,8 @@ export function RonTab({ task }: RonTabProps) {
                   "min-h-[32px] max-h-32",
                 )}
               />
-              
-              {/* Send Button */}
               <motion.button
-                onClick={() => handleSubmit()}
+                onClick={() => handleCustomSubmit()}
                 disabled={(!input.trim() && textAttachments.length === 0) || isTyping}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -246,13 +415,12 @@ export function RonTab({ task }: RonTabProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EMPTY STATE - Minimal & Elegant
+// EMPTY STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function EmptyState({ task, onSubmit }: { task: FullTask; onSubmit: (text: string) => void }) {
   return (
     <div className="h-full flex flex-col items-center justify-center px-8">
-      {/* Minimal logo mark */}
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -262,7 +430,6 @@ function EmptyState({ task, onSubmit }: { task: FullTask; onSubmit: (text: strin
         <div className="w-16 h-16 rounded-2xl bg-ink dark:bg-ink-inverse flex items-center justify-center">
           <span className="text-2xl font-display font-light text-surface-0 dark:text-surface-900">R</span>
         </div>
-        {/* Subtle pulse ring */}
         <motion.div
           className="absolute inset-0 rounded-2xl border border-ink/20 dark:border-ink-inverse/20"
           animate={{ scale: [1, 1.3], opacity: [0.5, 0] }}
@@ -270,7 +437,6 @@ function EmptyState({ task, onSubmit }: { task: FullTask; onSubmit: (text: strin
         />
       </motion.div>
 
-      {/* Headline */}
       <motion.h2
         initial={{ y: 16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -289,7 +455,6 @@ function EmptyState({ task, onSubmit }: { task: FullTask; onSubmit: (text: strin
         I have full context of <span className="text-ink dark:text-ink-inverse font-medium">"{task.title}"</span>
       </motion.p>
 
-      {/* Sleek Pill Suggestions */}
       <motion.div
         initial={{ y: 16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -331,14 +496,13 @@ function EmptyState({ task, onSubmit }: { task: FullTask; onSubmit: (text: strin
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MESSAGE BUBBLE - Clean & Modern
+// MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: { id: string; role: string; parts: MessagePart[] } }) {
   const isUser = message.role === 'user'
 
   if (isUser) {
-    // User messages - extract text parts
     const textParts = message.parts.filter(p => p.type === 'text') as TextUIPart[]
     return (
       <motion.div
@@ -355,7 +519,6 @@ function MessageBubble({ message }: { message: { id: string; role: string; parts
     )
   }
 
-  // Assistant messages - use ChainOfThoughtMessage
   const isStreaming = message.parts.some(p => (p as { state?: string }).state === 'streaming')
 
   return (
@@ -395,18 +558,5 @@ function TypingIndicator() {
         />
       ))}
     </motion.div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ICONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ArrowUpIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="19" x2="12" y2="5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
   )
 }

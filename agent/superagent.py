@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional, Any, Dict, Callable, List
 from dotenv import load_dotenv
-
+import logging
 # Load .env from project root
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -48,6 +48,7 @@ _mcp_clients: Dict[str, Dict[str, Any]] = {}
 _current_agent: Optional[Agent] = None
 _SUPER_AGENT: Optional[Agent] = None  # The ONE permanent agent
 _global_browser: Optional[LocalChromiumBrowser] = None  # Access to the browser instance
+logger = logging.getLogger(__name__)
 MCP_SERVERS_DIR = Path(__file__).parent / "tools" / "mcp"
 VENV_PYTHON = Path(__file__).parent.parent / "venv" / "bin" / "python"
 
@@ -211,6 +212,15 @@ that would perform the same operations. Proactively identify when tasks can be c
 - **File Operations**: Read, write, edit files via `file_read`, `file_write`, `editor`
 - **Parallel Execution**: Batch multiple tools via `batch`
 - **A2A Communication**: Discover and communicate with other AI agents
+- **Task Management**: Create and update tasks via `create_task`, `update_task`. 
+
+## TASK MODE & FILE TRACKING (CRITICAL)
+When you are working within a specific Task context (indicated by "Task Context: [ID] ..."):
+1.  **IMMEDIATELY** set the task ID in your environment variables:
+    `environment(action="set", name="CURRENT_TASK_ID", value="<id>")`
+2.  This enables automatic file tracking. Any files you create/edit will be linked to the task.
+3.  If you create a file that is NOT code (e.g. a document), you may also manually call `add_file_reference`.
+4.  When the user changes tasks or context, update `CURRENT_TASK_ID` accordingly.
 
 ---
 
@@ -567,6 +577,59 @@ def create_bedrock_model() -> BedrockModel:
     )
 
 
+from tools.task_tools import TaskTools
+
+# ... (Previous imports)
+
+# Wrapper for automatic file tracking
+def create_file_tracking_wrapper(original_tool: Callable, task_tools_instance: TaskTools, tool_name: str) -> Callable:
+    """Wraps a file creation tool to automatically register the file with the current task."""
+    
+    # We need to preserve the original tool's metadata (name, description, args)
+    # Strands tools usually have these attributes.
+    
+    async def wrapped_tool(*args, **kwargs):
+        # Execute the original tool first
+        result = await original_tool(*args, **kwargs)
+        
+        # Check if we are in a task context
+        current_task_id = os.getenv("CURRENT_TASK_ID")
+        if not current_task_id:
+            return result
+            
+        # Extract file path based on tool signature
+        file_path = None
+        if tool_name == "file_write":
+            file_path = kwargs.get("file_path") or (args[0] if args else None)
+        elif tool_name == "editor":
+            # Editor usually has 'path' or 'file_path'
+            file_path = kwargs.get("path") or kwargs.get("file_path") or (args[0] if args else None)
+            
+        if file_path and "error" not in str(result).lower():
+            try:
+                # Fire and forget - tracking shouldn't fail the operation
+                await task_tools_instance.add_file_reference(
+                    task_id=current_task_id,
+                    file_path=file_path,
+                    file_type="code"
+                )
+                logger.info(f"Auto-tracked file {file_path} for task {current_task_id}")
+            except Exception as e:
+                logger.error(f"Failed to auto-track file: {e}")
+                
+        return result
+    
+    # Copy metadata
+    if hasattr(original_tool, "_tool_def"):
+         wrapped_tool._tool_def = original_tool._tool_def
+    
+    # Or strict copy if using @tool decorator struct
+    wrapped_tool.__name__ = original_tool.__name__
+    wrapped_tool.__doc__ = original_tool.__doc__
+    
+    return wrapped_tool
+
+
 def get_or_create_superagent(
     callback_handler: Optional[Callable[..., Any]] = None,
     session_id: str = "default"
@@ -592,19 +655,29 @@ def get_or_create_superagent(
         # Connect to existing Electron browser on port 9222 (set in main.ts)
         browser = LocalChromiumBrowser(launch_options={"cdp_url": "http://localhost:9222"})
         
+        # Initialize Task Tools with browser access
+        task_tools = TaskTools(browser)
+        
+        # Wrap file tools for tracking
+        tracked_file_write = create_file_tracking_wrapper(file_write, task_tools, "file_write")
+        tracked_editor = create_file_tracking_wrapper(editor, task_tools, "editor")
+
         # Use Electron-bridged code interpreter (delegates to UtilityProcess via browser)
         code_interpreter = ElectronCodeInterpreter(browser=browser)
 
         tools = [
             # Meta-tooling
-            load_tool, editor, shell,
+            load_tool, tracked_editor, shell,
             # Multi-agent orchestration
             use_agent, workflow, swarm, graph, think,
             # Core utilities
-            http_request, file_read, file_write, environment,
+            http_request, file_read, tracked_file_write, environment,
             mcp_client, mem0_memory, stop, sleep, image_reader,
             # Browser execution
             browser.browser,
+            # Task Management
+            task_tools.create_task, task_tools.update_task, task_tools.add_file_reference,
+            task_tools.search_tasks, task_tools.get_task, task_tools.add_relationship,
             # MCP server management
             load_mcp_server, load_openapi_server, unload_mcp_server,
             # A2A

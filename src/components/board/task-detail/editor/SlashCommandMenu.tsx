@@ -1,4 +1,4 @@
-import { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useState, forwardRef, useImperativeHandle, useRef } from 'react'
 import { 
   Heading1, 
   Heading2, 
@@ -9,8 +9,11 @@ import {
   Table, 
   Code, 
   Minus, 
-  Quote 
+  Quote,
+  Upload,
+  Sparkles
 } from 'lucide-react'
+import { fileToDataUrl } from '@/utils/file-utils'
 
 // Map icons
 const icons: Record<string, any> = {
@@ -24,10 +27,36 @@ const icons: Record<string, any> = {
   code: Code,
   minus: Minus,
   'quote-right': Quote,
+  upload: Upload,
+  sparkles: Sparkles,
 }
 
 export const SlashCommandMenu = forwardRef((props: any, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  
+  // We need a ref for the input inside the component
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const { editor, range } = props
+    const dataUrl = await fileToDataUrl(file)
+    
+    // reset input
+    if (inputRef.current) inputRef.current.value = ''
+
+    editor.chain().focus().deleteRange(range).insertContent({
+      type: 'fileAttachment',
+      attrs: {
+        dataUrl,
+        name: file.name,
+        size: file.size,
+        type: file.type
+      }
+    }).run()
+  }
 
   const selectItem = (index: number) => {
     const item = props.items[index]
@@ -40,6 +69,17 @@ export const SlashCommandMenu = forwardRef((props: any, ref) => {
     const { editor, range } = props
     
     switch (item.action) {
+      case 'fileUpload':
+        inputRef.current?.click()
+        break
+      case 'askRon':
+        editor.chain().focus().deleteRange(range).insertContent({
+            type: 'askRon',
+            attrs: {
+                taskId: (props as any).taskId || '', // We need to pass taskId through props or extension options
+            }
+        }).run()
+        break
       case 'heading':
         editor.chain().focus().deleteRange(range).setNode('heading', { level: item.level }).run()
         break
@@ -98,6 +138,13 @@ export const SlashCommandMenu = forwardRef((props: any, ref) => {
       shadow-dramatic dark:shadow-dark-bold
       flex flex-col p-1
     ">
+      <input 
+        type="file" 
+        ref={inputRef} 
+        className="hidden" 
+        onChange={handleFileChange}
+      />
+      
       <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted opacity-50">
         Basic Blocks
       </div>

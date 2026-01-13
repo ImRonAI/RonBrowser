@@ -1,21 +1,29 @@
 import { motion } from 'framer-motion'
 import type { Task, TaskPriority, TaskStatus, TaskLabel } from '@/types/task'
 import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG } from '@/types/task'
+import { useTaskStore } from '@/stores/taskStore'
+import { RelationshipManager } from './RelationshipManager'
+import { RelationshipSummary } from './RelationshipSummary'
 import {
     Plus as PlusIcon,
     Calendar as CalendarIcon,
     FileText as DocumentIcon,
     Mail as MailIcon,
     Video as VideoIcon,
-    ExternalLink as ExternalLinkIcon
+    ExternalLink as ExternalLinkIcon,
+    ArrowUpLeft as ArrowUpLeftIcon
 } from 'lucide-react'
 
 interface TaskMetadataSidebarProps {
   task: Task
   onUpdate?: (task: Task) => void
+  onTaskClick?: (taskId: string) => void
 }
 
-export function TaskMetadataSidebar({ task }: TaskMetadataSidebarProps) {
+export function TaskMetadataSidebar({ task, onUpdate: _onUpdate, onTaskClick }: TaskMetadataSidebarProps) {
+  // Access global tasks to find parent name if needed
+  const tasks = useTaskStore(state => state.tasks)
+  const parentTask = task.parentTaskId ? tasks.find(t => t.id === task.parentTaskId) : null
   return (
     <div className="
       w-80 flex-shrink-0
@@ -24,6 +32,44 @@ export function TaskMetadataSidebar({ task }: TaskMetadataSidebarProps) {
       overflow-y-auto scrollbar-thin
     ">
       <div className="p-5 space-y-6">
+        {/* Parent Task Navigation */}
+        {task.parentTaskId && (
+            <MetadataSection title="Parent Task">
+                <button 
+                    onClick={() => onTaskClick?.(task.parentTaskId!)}
+                    className="flex items-center gap-2 p-2 w-full text-left rounded-lg bg-accent/5 hover:bg-accent/10 border border-accent/10 transition-colors group"
+                >
+                    <ArrowUpLeftIcon size={16} className="text-accent shrink-0" />
+                    <div className="min-w-0">
+                        <div className="text-xs font-medium text-accent">Return to Parent</div>
+                        <div className="text-sm text-ink dark:text-ink-inverse truncate">
+                            {parentTask?.title || task.parentTaskId}
+                        </div>
+                    </div>
+                </button>
+            </MetadataSection>
+        )}
+
+        {/* Relationships */}
+        <MetadataSection title="Relationships">
+          <RelationshipSummary task={task} onTaskClick={onTaskClick} />
+          
+          <RelationshipManager
+            task={task}
+            onRelationshipAdd={(_category, targetId, relType) => {
+              // Use the store to add the relationship
+              useTaskStore.getState().addRelationship(
+                task.id, 
+                targetId, 
+                (relType as any) || 'relates-to'
+              )
+            }}
+            onRelationshipRemove={(relId) => {
+              useTaskStore.getState().removeRelationship(task.id, relId)
+            }}
+          />
+        </MetadataSection>
+
         {/* Status */}
         <MetadataSection title="Status">
           <StatusSelect value={task.status} />

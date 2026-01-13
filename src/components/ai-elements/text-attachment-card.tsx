@@ -294,7 +294,7 @@ export function TextAttachmentCard({
             <div className="flex flex-col items-center gap-1">
               <FileTextIcon className="h-5 w-5 text-ink-muted dark:text-ink-inverse-muted" />
               <span className="rounded-full border border-surface-200 dark:border-surface-600 bg-surface-0/80 dark:bg-surface-700/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-muted dark:text-ink-inverse-muted">
-                TXT
+                {attachment.file.type === 'application/pdf' ? 'PDF' : 'TXT'}
               </span>
             </div>
           </div>
@@ -384,9 +384,18 @@ export function TextAttachmentCard({
               <FileTextIcon className="h-3.5 w-3.5" />
               Preview
             </div>
-            <pre className="max-h-[280px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-surface-100 dark:bg-surface-800 p-3 font-mono text-[12px] leading-relaxed text-ink dark:text-ink-inverse scrollbar-thin">
-              {previewText ?? 'Preview unavailable.'}
-            </pre>
+            
+            {attachment.file.type === 'application/pdf' ? (
+                <iframe 
+                    src={attachment.dataUrl} 
+                    className="w-full h-[300px] rounded-lg border border-surface-200 dark:border-surface-700 bg-white"
+                    title="PDF Preview"
+                />
+            ) : (
+                <pre className="max-h-[280px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-surface-100 dark:bg-surface-800 p-3 font-mono text-[12px] leading-relaxed text-ink dark:text-ink-inverse scrollbar-thin">
+                  {previewText ?? 'Preview unavailable.'}
+                </pre>
+            )}
           </div>
         </div>
       </HoverCardContent>

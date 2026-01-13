@@ -177,6 +177,45 @@ export interface TaskConversationMessage {
 }
 
 // ============================================
+// Relationship Types
+// ============================================
+
+export type RelationshipType = 
+  | 'parent' | 'child'
+  | 'blocks' | 'blocked-by'
+  | 'implements' | 'implemented-by'
+  | 'causes' | 'caused-by'
+  | 'relates-to'
+
+export interface TaskRelationship {
+  id: string
+  type: RelationshipType
+  targetTaskId: string
+  targetTaskTitle: string
+  targetTaskStatus?: TaskStatus
+  createdAt: number
+  createdBy?: string
+}
+
+export interface FileReference {
+  id: string
+  path: string
+  name: string
+  type: 'project' | 'document' | 'code' | 'image' | 'other'
+  createdBy: 'agent' | 'user'
+  createdAt: number
+  description?: string
+}
+
+export interface ContextLink {
+  id: string
+  url: string
+  title: string
+  type?: 'documentation' | 'reference' | 'design' | 'other'
+  addedBy?: string
+}
+
+// ============================================
 // Dependency Types
 // ============================================
 
@@ -272,6 +311,14 @@ export interface Task {
   callbackNumber?: string
   externalRefId?: string // Third-party system ID
   
+  // ─────────────────────────────────────────
+  // Relationships & References (New)
+  // ─────────────────────────────────────────
+  relationships?: TaskRelationship[]
+  fileReferences?: FileReference[]
+  contextLinks?: ContextLink[]
+  parentTaskId?: string
+
   // ─────────────────────────────────────────
   // Flags & Toggles
   // ─────────────────────────────────────────

@@ -752,6 +752,7 @@ async def superagent_stream(request: Request):
             try:
                 from strands_tools.browser.models import InitSessionAction
                 action = InitSessionAction(
+                    type="init_session",
                     session_name=browser_session_name,
                     description=f"Browser session for chat {session_id}"
                 )

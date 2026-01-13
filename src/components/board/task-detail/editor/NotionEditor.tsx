@@ -14,6 +14,8 @@ import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 import { SlashCommand, suggestionOptions } from './extensions/slash-command'
+import { FileAttachmentExtension } from './extensions/FileAttachmentExtension'
+import { AskRonExtension } from './extensions/AskRonExtension'
 import { 
   Bold, 
   Italic, 
@@ -84,6 +86,8 @@ export function NotionEditor({
       SlashCommand.configure({
         suggestion: suggestionOptions,
       }),
+      FileAttachmentExtension,
+      AskRonExtension,
     ],
     content,
     onUpdate: ({ editor }) => {

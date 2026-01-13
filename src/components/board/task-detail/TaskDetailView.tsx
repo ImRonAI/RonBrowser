@@ -129,7 +129,11 @@ export function TaskDetailView({ task, onClose, onUpdate, onTaskClick }: TaskDet
           </div>
 
           {/* Right Panel - Metadata Sidebar */}
-          <TaskMetadataSidebar task={task} onUpdate={onUpdate} />
+          <TaskMetadataSidebar 
+            task={task} 
+            onUpdate={onUpdate} 
+            onTaskClick={onTaskClick}
+          />
         </div>
       </motion.div>
     </motion.div>

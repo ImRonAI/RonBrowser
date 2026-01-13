@@ -1,51 +1,41 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TaskCard, sampleTasks, type Task as SimpleTask } from './TaskCard'
+import { TaskCard, type Task as SimpleTask } from './TaskCard'
 import { TaskDetailView } from './task-detail'
 import type { Task } from '@/types/task'
+import { useTaskStore } from '@/stores/taskStore'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
 
-// Convert simple task to full task for detail view
-function convertToFullTask(simpleTask: SimpleTask): Task {
+// Convert full task to simple task for card display
+function convertToSimpleTask(task: Task): SimpleTask {
   return {
-    id: simpleTask.id,
-    title: simpleTask.title,
-    description: simpleTask.description,
-    status: simpleTask.status as Task['status'],
-    priority: simpleTask.priority as Task['priority'] | undefined,
-    type: 'feature',
-    createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000, // 7 days ago
-    updatedAt: Date.now(),
-    dueDate: simpleTask.dueDate?.getTime() || null,
-    assignees: simpleTask.contacts.map(c => ({
-      id: c.id,
-      name: c.name,
-      avatar: c.avatar,
-      initials: c.initials,
-    })),
-    labels: simpleTask.interest ? [{
-      id: simpleTask.interest.id,
-      label: simpleTask.interest.label,
-      color: simpleTask.interest.color,
-    }] : [],
-    subtasks: Array.from({ length: simpleTask.subtasks.total }, (_, i) => ({
-      id: `subtask-${simpleTask.id}-${i}`,
-      title: `Subtask ${i + 1}`,
-      completed: i < simpleTask.subtasks.completed,
-      order: i,
-    })),
-    hasNotification: simpleTask.hasNotification,
-    healthIndicator: simpleTask.status === 'done' ? 'on-track' : 
-      simpleTask.priority === 'high' ? 'at-risk' : 'on-track',
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    status: (task.status === 'blocked' ? 'in-progress' : 
+             task.status === 'testing' ? 'review' : 
+             task.status) as 'backlog' | 'in-progress' | 'review' | 'done',
+    priority: (task.priority === 'critical' ? 'high' : task.priority) as 'low' | 'medium' | 'high' | undefined,
+    dueDate: task.dueDate ? new Date(task.dueDate) : null,
+    hasNotification: task.hasNotification,
+    contacts: task.assignees,
+    interest: task.labels[0] ? {
+        id: task.labels[0].id,
+        label: task.labels[0].label,
+        color: task.labels[0].color
+    } : null,
+    subtasks: {
+        total: task.subtasks?.length || 0,
+        completed: task.subtasks?.filter(s => s.completed).length || 0
+    }
   }
 }
 
 // Column configurations with refined color system
-// Column configurations with refined color system and specific glows
 const columns: {
-  id: SimpleTask['status']
+  id: Task['status']
   title: string
   accentColor: string
   bgGradient: string
@@ -86,48 +76,51 @@ const columns: {
   },
 ]
 
-function getTasksForColumn(columnId: SimpleTask['status']): SimpleTask[] {
-  return sampleTasks.filter(task => task.status === columnId)
-}
-
 export function KanbanBoard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const { tasks, updateTask } = useTaskStore()
 
-  const handleTaskClick = (simpleTask: SimpleTask) => {
-    const fullTask = convertToFullTask(simpleTask)
-    setSelectedTask(fullTask)
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task)
+  }
+  
+  const handleUpdateTask = (updatedTask: Task) => {
+      updateTask(updatedTask.id, updatedTask)
+      setSelectedTask(updatedTask)
+  }
+
+  function getTasksForColumn(columnId: Task['status']): Task[] {
+    // Map simplified statuses if necessary, but for now exact match works for core columns
+    return tasks.filter(task => {
+        if (columnId === 'in-progress' && task.status === 'blocked') return true
+        if (columnId === 'review' && task.status === 'testing') return true
+        return task.status === columnId
+    })
   }
 
   const handleCloseDetail = () => {
     setSelectedTask(null)
   }
-
-  const handleUpdateTask = (updatedTask: Task) => {
-    // TODO: Implement task update logic
-    console.log('Task updated:', updatedTask)
-    setSelectedTask(updatedTask)
-  }
   
   const handleSubtaskClick = (subtaskId: string) => {
     if (!selectedTask) return
     
-    // Find subtask data
+    // Find subtask (flattened search if needed, but here simple)
+    // Note: Task interface uses Subtask[], which is simpler
     const subtask = selectedTask.subtasks.find(s => s.id === subtaskId)
     if (!subtask) return
     
-    // Convert subtask to full task view (mock promotion)
+    // For now, subtasks don't have full metadata in the type, but let's mock promotion like before
     const promotedTask: Task = {
       ...selectedTask,
       id: subtask.id,
       title: subtask.title,
-      description: '', // Subtasks often start empty
-      type: 'feature', // Default or inherit
-      // Inherit parent context for navigation back? (Future work: Breadcrumbs)
-      subtasks: [], // Subtask's subtasks?
+      description: '', 
+      type: 'feature',
+      subtasks: [],
       priority: subtask.priority || selectedTask.priority,
       status: subtask.status || 'in-progress',
       assignees: subtask.assignee ? [subtask.assignee] : [],
-      // Keep some context
       projectId: selectedTask.projectId,
       projectName: selectedTask.projectName,
     }
@@ -144,6 +137,7 @@ export function KanbanBoard() {
               key={column.id}
               column={column}
               index={index}
+              tasks={getTasksForColumn(column.id)}
               onTaskClick={handleTaskClick}
             />
           ))}
@@ -172,11 +166,11 @@ export function KanbanBoard() {
 interface KanbanColumnProps {
   column: typeof columns[number]
   index: number
-  onTaskClick?: (task: SimpleTask) => void
+  tasks: Task[]
+  onTaskClick?: (task: Task) => void
 }
 
-function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
-  const tasks = getTasksForColumn(column.id)
+function KanbanColumn({ column, index, tasks, onTaskClick }: KanbanColumnProps) {
   const taskCount = tasks.length
 
   return (
@@ -238,7 +232,7 @@ function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
               tasks.map((task, taskIndex) => (
                 <TaskCard 
                   key={task.id} 
-                  task={task} 
+                  task={convertToSimpleTask(task)} 
                   index={taskIndex} 
                   onClick={() => onTaskClick?.(task)}
                 />
@@ -255,6 +249,7 @@ function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
+          /* Implement Add Task logic later */
           className="
             w-full py-3 px-4
             flex items-center justify-center gap-2
