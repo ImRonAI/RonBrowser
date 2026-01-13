@@ -83,7 +83,11 @@ export function RelationshipManager({ task, onRelationshipAdd, onRelationshipRem
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<RelationshipCategory | null>(null)
 
-  const relationships = task.relationships || []
+  // Filter out excessive "Parent Of" items (laundry list), 
+  // but KEEP "Child Of" items so we can navigate back to the parent.
+  const relationships = (task.relationships || []).filter(r => 
+    r.type !== 'parent'
+  )
 
   return (
     <div className="space-y-3">

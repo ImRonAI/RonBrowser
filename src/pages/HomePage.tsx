@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useOnboardingStore } from '@/stores/onboardingStore'
 import { KanbanBoard, CalendarView } from '@/components/board'
 import { SuperAgentInterface } from '@/components/superagent'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 type HomeTab = 'discover' | 'tasks' | 'calendar' | 'superagent' | 'vibe'
 type CalendarMode = 'day' | 'week' | 'month'
@@ -167,7 +168,9 @@ export function HomePage() {
                 transition={{ duration: 0.5, ease: EASE }}
                 className="h-full px-8 pb-8"
               >
-                <KanbanBoard />
+                <ErrorBoundary componentName="KanbanBoard">
+                  <KanbanBoard />
+                </ErrorBoundary>
               </motion.div>
             )}
             {activeTab === 'calendar' && (

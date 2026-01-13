@@ -7,6 +7,7 @@ import { DescriptionTab } from './tabs/DescriptionTab'
 import { RonTab } from './tabs/RonTab'
 import { CommsTab } from './tabs/CommsTab'
 import { HistoryTab } from './tabs/HistoryTab'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
@@ -111,7 +112,9 @@ export function TaskDetailView({ task, onClose, onUpdate, onTaskClick }: TaskDet
                 )}
                 {activeTab === 'ron' && (
                   <TabPanel key="ron">
-                    <RonTab task={task} />
+                    <ErrorBoundary componentName="RonTab">
+                      <RonTab task={task} />
+                    </ErrorBoundary>
                   </TabPanel>
                 )}
                 {activeTab === 'comms' && (

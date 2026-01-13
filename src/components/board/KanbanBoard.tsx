@@ -1,37 +1,12 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TaskCard, type Task as SimpleTask } from './TaskCard'
+import { TaskCard } from './TaskCard'
 import { TaskDetailView } from './task-detail'
 import type { Task } from '@/types/task'
 import { useTaskStore } from '@/stores/taskStore'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
-
-// Convert full task to simple task for card display
-function convertToSimpleTask(task: Task): SimpleTask {
-  return {
-    id: task.id,
-    title: task.title,
-    description: task.description,
-    status: (task.status === 'blocked' ? 'in-progress' : 
-             task.status === 'testing' ? 'review' : 
-             task.status) as 'backlog' | 'in-progress' | 'review' | 'done',
-    priority: (task.priority === 'critical' ? 'high' : task.priority) as 'low' | 'medium' | 'high' | undefined,
-    dueDate: task.dueDate ? new Date(task.dueDate) : null,
-    hasNotification: task.hasNotification,
-    contacts: task.assignees,
-    interest: task.labels[0] ? {
-        id: task.labels[0].id,
-        label: task.labels[0].label,
-        color: task.labels[0].color
-    } : null,
-    subtasks: {
-        total: task.subtasks?.length || 0,
-        completed: task.subtasks?.filter(s => s.completed).length || 0
-    }
-  }
-}
 
 // Column configurations with refined color system
 const columns: {
@@ -232,7 +207,7 @@ function KanbanColumn({ column, index, tasks, onTaskClick }: KanbanColumnProps) 
               tasks.map((task, taskIndex) => (
                 <TaskCard 
                   key={task.id} 
-                  task={convertToSimpleTask(task)} 
+                  task={task}
                   index={taskIndex} 
                   onClick={() => onTaskClick?.(task)}
                 />

@@ -4,6 +4,7 @@ import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG } from '@/types/task'
 import { useTaskStore } from '@/stores/taskStore'
 import { RelationshipManager } from './RelationshipManager'
 import { RelationshipSummary } from './RelationshipSummary'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import {
     Plus as PlusIcon,
     Calendar as CalendarIcon,
@@ -51,8 +52,11 @@ export function TaskMetadataSidebar({ task, onUpdate: _onUpdate, onTaskClick }: 
         )}
 
         {/* Relationships */}
+        {/* Relationships */}
         <MetadataSection title="Relationships">
-          <RelationshipSummary task={task} onTaskClick={onTaskClick} />
+          <ErrorBoundary componentName="RelationshipSummary">
+            <RelationshipSummary task={task} onTaskClick={onTaskClick} />
+          </ErrorBoundary>
           
           <RelationshipManager
             task={task}

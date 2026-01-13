@@ -26,7 +26,7 @@ export function RelationshipSummary({ task, onTaskClick }: RelationshipSummaryPr
           count={subtasks.length}
           icon={<Layers size={14} />}
         >
-          <SubtaskList subtasks={subtasks} onTaskClick={null} /> {/* Subtasks are currently checklists, not full tasks usually, but if they have IDs we can pretend? */}
+          <SubtaskList subtasks={subtasks} onTaskClick={null} /> 
         </RelationshipHoverCard>
       )}
 
