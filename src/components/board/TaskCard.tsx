@@ -36,7 +36,7 @@ export interface Task {
 const EASE = [0.16, 1, 0.3, 1] as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TASK CARD
+// COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface TaskCardProps {
@@ -60,139 +60,177 @@ export function TaskCard({ task, index = 0, onClick }: TaskCardProps) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, delay: index * 0.04, ease: EASE }}
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.99 }}
+      transition={{ duration: 0.4, delay: index * 0.05, ease: EASE }}
+      whileHover={{ y: -4, scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className="group relative cursor-pointer"
     >
-      {/* Card */}
+      {/* Glass Card Container */}
       <div className="
-        relative p-5 rounded-xl
-        bg-surface-0 dark:bg-surface-800
-        border border-surface-200 dark:border-surface-700
-        shadow-soft dark:shadow-dark-soft
-        hover:shadow-medium dark:hover:shadow-dark-medium
-        hover:border-surface-300 dark:hover:border-surface-600
-        transition-all duration-300
+        relative p-5 glass-card
+        hover:elevated transition-all duration-500
+        group-hover:border-accent/20 dark:group-hover:border-accent-light/20
+        overflow-hidden
       ">
-        {/* Priority accent */}
+        
+        {/* Ambient Glow on Hover */}
+        <div className="
+          absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700
+          bg-gradient-to-tr from-accent/5 via-transparent to-accent-light/5
+          pointer-events-none
+        " />
+
+        {/* Floating Priority Orb */}
         {task.priority === 'high' && (
-          <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full bg-accent dark:bg-accent-light" />
+          <div className="absolute -top-3 -right-3">
+             <div className="
+               relative w-12 h-12 flex items-center justify-center
+             ">
+               <div className="absolute inset-0 bg-accent/20 blur-xl rounded-full" />
+               <div className="w-3 h-3 rounded-full bg-gradient-to-br from-accent-light to-accent shadow-glow-accent animate-pulse-subtle" />
+             </div>
+          </div>
         )}
 
-        {/* Top row */}
-        <div className="flex items-center justify-between mb-3">
-          {task.dueDate ? (
-            <div className={`
-              flex items-center gap-1.5
-              px-2.5 py-1 rounded-lg
-              text-label uppercase tracking-wider
-              ${isOverdue 
-                ? 'bg-danger/10 text-danger' 
-                : isDueSoon 
-                  ? 'bg-warning/10 text-warning'
-                  : 'bg-surface-100 dark:bg-surface-700 text-ink-muted dark:text-ink-inverse-muted'
-              }
-            `}>
-              <CalendarIcon className="w-3 h-3" />
-              {formatDueDate(task.dueDate)}
-            </div>
-          ) : <span />}
-
+        {/* Top Meta Row */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            {task.dueDate ? (
+              <div className={`
+                flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                text-[10px] font-bold uppercase tracking-wider
+                glass-subtle transition-colors duration-300
+                ${isOverdue 
+                  ? 'bg-danger/10 text-danger border-danger/20' 
+                  : isDueSoon 
+                    ? 'bg-warning/10 text-warning border-warning/20'
+                    : 'text-ink-secondary dark:text-ink-inverse-secondary group-hover:bg-surface-100/50'
+                }
+              `}>
+                <CalendarIcon className="w-3 h-3" />
+                {formatDueDate(task.dueDate)}
+              </div>
+            ) : <span />}
+          </div>
+          
           {task.hasNotification && (
             <div className="
-              relative w-7 h-7 rounded-lg
-              bg-accent/10 dark:bg-accent-light/10
+              relative w-6 h-6 rounded-full glass-subtle
               flex items-center justify-center
+              text-accent dark:text-accent-light
             ">
-              <BellIcon className="w-3.5 h-3.5 text-accent dark:text-accent-light" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent dark:bg-accent-light animate-pulse" />
+              <BellIcon className="w-3 h-3" />
+              <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-accent dark:bg-accent-light animate-pulse" />
             </div>
           )}
         </div>
 
         {/* Title */}
         <h4 className={`
-          text-body-md font-semibold leading-snug
+          text-body-lg font-semibold tracking-tight leading-snug mb-4
           text-ink dark:text-ink-inverse
+          group-hover:text-accent dark:group-hover:text-accent-light transition-colors duration-300
           ${isDone ? 'line-through opacity-50' : ''}
         `}>
           {task.title}
         </h4>
 
-        {/* Interest tag */}
-        {task.interest && (
-          <div className={`
-            inline-flex items-center gap-1.5 mt-3
-            px-2.5 py-1 rounded-lg
-            text-label uppercase tracking-wider
-            ${task.interest.color}
-          `}>
-            {task.interest.label}
-          </div>
-        )}
-
-        {/* Bottom row */}
-        {(task.contacts.length > 0 || task.subtasks.total > 0) && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-surface-100 dark:border-surface-700">
-            {/* Avatars */}
+        {/* Tags & Footer */}
+        <div className="flex items-end justify-between mt-auto">
+          <div className="flex flex-col gap-3">
+             {task.interest && (
+              <div className={`
+                self-start px-2 py-0.5 rounded-md
+                text-[10px] uppercase font-bold tracking-widest
+                glass-subtle
+                ${task.interest.color.replace('bg-', 'text-').replace('text-', 'border-transparent text-')}
+              `}>
+                {task.interest.label}
+              </div>
+            )}
+            
+            {/* Avatars Stack */}
             {task.contacts.length > 0 && (
-              <div className="flex -space-x-1.5">
+              <div className="flex -space-x-2 pl-1">
                 {task.contacts.slice(0, 3).map((contact) => (
                   <div
                     key={contact.id}
                     className="
-                      w-6 h-6 rounded-full
-                      bg-accent dark:bg-accent-light
-                      ring-2 ring-surface-0 dark:ring-surface-800
+                      w-7 h-7 rounded-full
+                      bg-gradient-to-br from-surface-100 to-surface-200
+                      dark:from-surface-700 dark:to-surface-800
+                      border-2 border-surface-0/50 dark:border-surface-800/50
                       flex items-center justify-center
-                      text-[8px] font-bold text-white
+                      text-[9px] font-bold text-ink dark:text-ink-inverse
+                      shadow-sm
                     "
                   >
                     {contact.initials}
                   </div>
                 ))}
-                {task.contacts.length > 3 && (
-                  <div className="
-                    w-6 h-6 rounded-full
-                    bg-surface-100 dark:bg-surface-700
-                    ring-2 ring-surface-0 dark:ring-surface-800
-                    flex items-center justify-center
-                    text-[8px] font-bold text-ink-muted dark:text-ink-inverse-muted
-                  ">
-                    +{task.contacts.length - 3}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Progress */}
-            {task.subtasks.total > 0 && (
-              <div className="flex items-center gap-2">
-                <div className="w-12 h-1 rounded-full bg-surface-100 dark:bg-surface-700 overflow-hidden">
-                  <motion.div
-                    className={`h-full rounded-full ${isDone ? 'bg-success' : 'bg-accent dark:bg-accent-light'}`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.5, ease: EASE }}
-                  />
-                </div>
-                <span className="text-label text-ink-muted dark:text-ink-inverse-muted">
-                  {task.subtasks.completed}/{task.subtasks.total}
-                </span>
               </div>
             )}
           </div>
-        )}
+
+          {/* Progress Circular Indiciator */}
+          {task.subtasks.total > 0 && (
+             <div className="flex flex-col items-center gap-1">
+               <ProgressRing radius={14} stroke={3} progress={progress} />
+               <span className="text-[9px] font-medium text-ink-muted dark:text-ink-inverse-muted">
+                 {Math.round(progress)}%
+               </span>
+             </div>
+          )}
+        </div>
       </div>
     </motion.div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
+// SUB-COMPONENTS & HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+
+function ProgressRing({ radius, stroke, progress }: { radius: number, stroke: number, progress: number }) {
+  const normalizedRadius = radius - stroke * 2
+  const circumference = normalizedRadius * 2 * Math.PI
+  const strokeDashoffset = circumference - (progress / 100) * circumference
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg
+        height={radius * 2}
+        width={radius * 2}
+        className="rotate-[-90deg]"
+      >
+        <circle
+          stroke="currentColor"
+          fill="transparent"
+          strokeWidth={stroke}
+          strokeDasharray={circumference + ' ' + circumference}
+          style={{ strokeDashoffset: 0 }}
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+          className="text-surface-200 dark:text-surface-700"
+        />
+        <circle
+          stroke="currentColor"
+          fill="transparent"
+          strokeWidth={stroke}
+          strokeDasharray={circumference + ' ' + circumference}
+          style={{ strokeDashoffset }}
+          strokeLinecap="round"
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+          className="text-accent dark:text-accent-light transition-all duration-1000 ease-out"
+        />
+      </svg>
+    </div>
+  )
+}
 
 function formatDueDate(date: Date): string {
   const now = new Date()
@@ -268,6 +306,7 @@ export const sampleTasks: Task[] = [
     contacts: [
       { id: 'c2', name: 'Sarah Kim', initials: 'SK' },
       { id: 'c4', name: 'Emma Liu', initials: 'EL' },
+      { id: 'c5', name: 'John Doe', initials: 'JD' },
     ],
     interest: { id: 'i3', label: 'Research', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' },
     subtasks: { total: 3, completed: 3 },

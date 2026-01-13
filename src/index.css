@@ -1,5 +1,5 @@
 /* Import premium fonts - must be first */
-@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -18,23 +18,23 @@
     --color-bg-tertiary: 245 245 245;
     --color-border: 229 229 229;
     --color-border-subtle: 245 245 245;
-    
+
     --color-text-primary: 10 10 10;
     --color-text-secondary: 82 82 82;
     --color-text-muted: 163 163 163;
-    
+
     --color-accent: 55 48 163;
     --color-accent-light: 99 102 241;
-    
+
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
     --shadow-md: 0 4px 16px -4px rgb(0 0 0 / 0.08);
     --shadow-lg: 0 8px 32px -8px rgb(0 0 0 / 0.12);
-    
+
     /* Transitions */
     --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-    
+
     /* shadcn/ui CSS variables - Light mode */
     --background: 0 0% 100%;
     --foreground: 0 0% 4%;
@@ -64,15 +64,15 @@
     --color-bg-tertiary: 23 23 23;
     --color-border: 38 38 38;
     --color-border-subtle: 30 30 30;
-    
+
     --color-text-primary: 250 250 250;
     --color-text-secondary: 163 163 163;
     --color-text-muted: 115 115 115;
-    
+
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
     --shadow-md: 0 4px 16px -4px rgb(0 0 0 / 0.4);
     --shadow-lg: 0 8px 32px -8px rgb(0 0 0 / 0.5);
-    
+
     /* shadcn/ui CSS variables - Dark mode */
     --background: 0 0% 4%;
     --foreground: 0 0% 98%;
@@ -97,7 +97,7 @@
 
   html {
     @apply antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     text-rendering: optimizeLegibility;
   }
 
@@ -111,7 +111,12 @@
   }
 
   /* Typography hierarchy */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-display tracking-tight;
   }
 
@@ -161,7 +166,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: #E5E5E5;
+    background-color: #e5e5e5;
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: content-box;
@@ -172,7 +177,7 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: #D4D4D4;
+    background-color: #d4d4d4;
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
@@ -287,14 +292,14 @@
   .link-underline {
     @apply relative;
   }
-  
+
   .link-underline::after {
-    content: '';
+    content: "";
     @apply absolute bottom-0 left-0 w-0 h-px;
     @apply bg-current;
     @apply transition-all duration-300 ease-smooth;
   }
-  
+
   .link-underline:hover::after {
     @apply w-full;
   }
@@ -326,14 +331,14 @@
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: #E5E5E5;
+    background-color: #e5e5e5;
     border-radius: 3px;
   }
   .dark .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: #262626;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: #D4D4D4;
+    background-color: #d4d4d4;
   }
   .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: #404040;
@@ -346,22 +351,24 @@
 
   /* Gradient backgrounds */
   .bg-gradient-subtle {
-    background: linear-gradient(135deg, 
-      rgb(var(--color-bg-primary)) 0%, 
+    background: linear-gradient(
+      135deg,
+      rgb(var(--color-bg-primary)) 0%,
       rgb(var(--color-bg-secondary)) 100%
     );
   }
 
   .bg-gradient-accent {
-    background: linear-gradient(135deg, 
-      rgb(var(--color-accent)) 0%, 
+    background: linear-gradient(
+      135deg,
+      rgb(var(--color-accent)) 0%,
       rgb(var(--color-accent-light)) 100%
     );
   }
 
   /* Noise texture overlay */
   .noise-texture::before {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     opacity: 0.015;
@@ -423,12 +430,24 @@
   }
 
   /* Stagger animation delays */
-  .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.1s; }
-  .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.2s; }
-  .stagger-5 { animation-delay: 0.25s; }
-  .stagger-6 { animation-delay: 0.3s; }
+  .stagger-1 {
+    animation-delay: 0.05s;
+  }
+  .stagger-2 {
+    animation-delay: 0.1s;
+  }
+  .stagger-3 {
+    animation-delay: 0.15s;
+  }
+  .stagger-4 {
+    animation-delay: 0.2s;
+  }
+  .stagger-5 {
+    animation-delay: 0.25s;
+  }
+  .stagger-6 {
+    animation-delay: 0.3s;
+  }
 }
 
 /* ============================================
@@ -502,19 +521,37 @@
    ============================================ */
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 0.8; }
-  50% { transform: scale(1.2); opacity: 0; }
-  100% { transform: scale(0.8); opacity: 0; }
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 /* ============================================
@@ -537,8 +574,90 @@
     background: white !important;
     color: black !important;
   }
-  
+
   .no-print {
     display: none !important;
   }
+}
+
+/* ============================================
+   TIPTAP EDITOR STYLES
+   ============================================ */
+
+.ProseMirror {
+  @apply outline-none min-h-[200px];
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  @apply text-ink-muted dark:text-ink-inverse-muted;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Heading styles */
+.ProseMirror h1 {
+  @apply text-display-lg font-semibold text-ink dark:text-ink-inverse mb-4;
+}
+.ProseMirror h2 {
+  @apply text-display-md font-semibold text-ink dark:text-ink-inverse mb-3;
+}
+.ProseMirror h3 {
+  @apply text-display-sm font-semibold text-ink dark:text-ink-inverse mb-2;
+}
+
+/* Task list */
+.ProseMirror ul[data-type="taskList"] {
+  @apply list-none p-0;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  @apply flex items-start gap-2 mb-2;
+}
+.ProseMirror ul[data-type="taskList"] li label {
+  @apply pt-1 select-none mr-2;
+}
+.ProseMirror ul[data-type="taskList"] li input[type="checkbox"] {
+  @apply w-5 h-5 rounded-md border-2 border-surface-300 dark:border-surface-600 cursor-pointer appearance-none relative;
+  @apply transition-all duration-200;
+}
+.ProseMirror ul[data-type="taskList"] li input[type="checkbox"]:checked {
+  @apply bg-success border-success;
+}
+.ProseMirror ul[data-type="taskList"] li input[type="checkbox"]:checked::after {
+  content: "";
+  @apply absolute inset-0 m-auto w-2.5 h-1.5 border-l-2 border-b-2 border-white rotate-[-45deg] -translate-y-0.5;
+}
+.ProseMirror ul[data-type="taskList"] li div {
+  @apply flex-1;
+}
+
+/* Table styling */
+.ProseMirror table {
+  @apply w-full border-collapse rounded-lg overflow-hidden my-4 table-fixed;
+}
+.ProseMirror th {
+  @apply glass-bold p-3 text-left text-label uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted font-bold border border-surface-200/30 dark:border-surface-700/30;
+}
+.ProseMirror td {
+  @apply glass-subtle p-3 text-body-sm text-ink dark:text-ink-inverse border border-surface-200/30 dark:border-surface-700/30;
+}
+
+/* Mention */
+.ProseMirror .mention {
+  @apply glass-subtle px-1.5 py-0.5 rounded-md text-accent dark:text-accent-light font-medium box-decoration-clone;
+}
+
+/* Link */
+.ProseMirror a {
+  @apply text-accent dark:text-accent-light underline underline-offset-2 hover:opacity-80 cursor-pointer;
+}
+
+/* Code block */
+.ProseMirror pre {
+  @apply bg-surface-900 text-surface-50 p-4 rounded-lg my-4 overflow-x-auto;
+  font-family: "JetBrains Mono", monospace;
+}
+.ProseMirror code {
+  @apply font-mono text-sm;
 }

@@ -7,17 +7,25 @@
  * - SMS/Messages
  * - Video calls with recordings
  * - Faxes
- * 
- * Features:
- * - Timeline view of all interactions
- * - Quick action buttons for initiating new communications
- * - AI-powered summaries and sentiment analysis
- * - Filter and search capabilities
  */
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Task, TaskCommunication, CommunicationType } from '@/types/task'
+import { 
+    LayoutGrid as GridIcon,
+    Mail as MailIcon,
+    Phone as PhoneIcon,
+    Video as VideoIcon,
+    MessageSquare as MessageIcon,
+    Printer as PrinterIcon,
+    Calendar as CalendarIcon,
+    Search as SearchIcon,
+    ArrowDownLeft as InboundIcon,
+    ArrowUpRight as OutboundIcon,
+    Paperclip as AttachmentIcon,
+    Plus as PlusIcon
+} from 'lucide-react'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
@@ -29,11 +37,11 @@ interface CommsTabProps {
 type FilterType = 'all' | CommunicationType
 
 const COMMUNICATION_TYPES: { type: FilterType; label: string; icon: React.ReactNode }[] = [
-  { type: 'all', label: 'All', icon: <GridIcon /> },
-  { type: 'email', label: 'Email', icon: <MailIcon /> },
-  { type: 'phone', label: 'Phone', icon: <PhoneIcon /> },
-  { type: 'video', label: 'Video', icon: <VideoIcon /> },
-  { type: 'message', label: 'Message', icon: <MessageIcon /> },
+  { type: 'all', label: 'All', icon: <GridIcon size={16} /> },
+  { type: 'email', label: 'Email', icon: <MailIcon size={16} /> },
+  { type: 'phone', label: 'Phone', icon: <PhoneIcon size={16} /> },
+  { type: 'video', label: 'Video', icon: <VideoIcon size={16} /> },
+  { type: 'message', label: 'Message', icon: <MessageIcon size={16} /> },
 ]
 
 export function CommsTab({ task }: CommsTabProps) {
@@ -55,7 +63,7 @@ export function CommsTab({ task }: CommsTabProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header with Quick Actions */}
-      <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-surface-200 dark:border-surface-700">
+      <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-surface-200/50 dark:border-surface-700/50 glass-subtle z-10">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-body-lg font-semibold text-ink dark:text-ink-inverse">
             Communications
@@ -85,11 +93,10 @@ export function CommsTab({ task }: CommsTabProps) {
       <div className="flex-shrink-0 px-6 py-3">
         <div className="
           relative
-          bg-surface-50 dark:bg-surface-800
-          border border-surface-200 dark:border-surface-700
-          rounded-xl
+          glass-subtle rounded-xl
           focus-within:border-accent dark:focus-within:border-accent-light
-          transition-colors duration-200
+          focus-within:ring-1 focus-within:ring-accent/20
+          transition-all duration-200
         ">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted dark:text-ink-inverse-muted" />
           <input
@@ -136,9 +143,9 @@ export function CommsTab({ task }: CommsTabProps) {
 
 function QuickActions() {
   const actions = [
-    { icon: <PhoneIcon />, label: 'Call', color: 'bg-success' },
-    { icon: <MailIcon />, label: 'Email', color: 'bg-info' },
-    { icon: <VideoIcon />, label: 'Meet', color: 'bg-accent dark:bg-accent-light' },
+    { icon: <PhoneIcon size={14} />, label: 'Call', color: 'bg-success' },
+    { icon: <MailIcon size={14} />, label: 'Email', color: 'bg-info' },
+    { icon: <VideoIcon size={14} />, label: 'Meet', color: 'bg-accent dark:bg-accent-light' },
   ]
 
   return (
@@ -153,11 +160,11 @@ function QuickActions() {
             px-3 py-1.5 rounded-lg
             ${color} text-white
             text-body-xs font-medium
-            hover:shadow-soft
+            hover:shadow-glow-accent
             transition-shadow duration-200
           `}
         >
-          <span className="w-3.5 h-3.5">{icon}</span>
+          <span className="w-3.5 h-3.5 flex items-center justify-center">{icon}</span>
           <span>{label}</span>
         </motion.button>
       ))}
@@ -184,24 +191,24 @@ function FilterPill({ active, onClick, icon, label, count }: FilterPillProps) {
       onClick={onClick}
       className={`
         flex items-center gap-2
-        px-3 py-1.5 rounded-lg
+        px-3 py-1.5 rounded-full
         text-body-xs font-medium
         whitespace-nowrap
         transition-all duration-200
         ${active 
-          ? 'bg-accent dark:bg-accent-light text-white' 
-          : 'bg-surface-100 dark:bg-surface-800 text-ink-secondary dark:text-ink-inverse-secondary hover:bg-surface-200 dark:hover:bg-surface-700'
+          ? 'glass-bold bg-accent/10 border-accent/20 text-accent dark:text-accent-light' 
+          : 'glass-subtle text-ink-secondary dark:text-ink-inverse-secondary hover:bg-surface-100/50'
         }
       `}
     >
-      <span className="w-3.5 h-3.5">{icon}</span>
+      <span className="w-3.5 h-3.5 flex items-center justify-center">{icon}</span>
       <span>{label}</span>
       {count > 0 && (
         <span className={`
           px-1.5 py-0.5 rounded
-          text-[10px]
+          text-[9px] font-bold
           ${active 
-            ? 'bg-white/20' 
+            ? 'bg-accent text-white dark:bg-accent-light dark:text-black' 
             : 'bg-surface-200 dark:bg-surface-700'
           }
         `}>
@@ -225,17 +232,17 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const typeConfig = {
-    email: { icon: <MailIcon />, color: 'bg-info/10 text-info' },
-    phone: { icon: <PhoneIcon />, color: 'bg-success/10 text-success' },
-    video: { icon: <VideoIcon />, color: 'bg-accent/10 text-accent dark:text-accent-light' },
-    message: { icon: <MessageIcon />, color: 'bg-violet-500/10 text-violet-500' },
-    sms: { icon: <MessageIcon />, color: 'bg-emerald-500/10 text-emerald-500' },
-    fax: { icon: <PrinterIcon />, color: 'bg-surface-300/50 text-ink-secondary dark:text-ink-inverse-secondary' },
-    meeting: { icon: <CalendarIcon />, color: 'bg-warning/10 text-warning' },
+    email: { icon: <MailIcon size={20} />, color: 'bg-info/10 text-info' },
+    phone: { icon: <PhoneIcon size={20} />, color: 'bg-success/10 text-success' },
+    video: { icon: <VideoIcon size={20} />, color: 'bg-accent/10 text-accent dark:text-accent-light' },
+    message: { icon: <MessageIcon size={20} />, color: 'bg-violet-500/10 text-violet-500' },
+    sms: { icon: <MessageIcon size={20} />, color: 'bg-emerald-500/10 text-emerald-500' },
+    fax: { icon: <PrinterIcon size={20} />, color: 'bg-surface-300/50 text-ink-secondary dark:text-ink-inverse-secondary' },
+    meeting: { icon: <CalendarIcon size={20} />, color: 'bg-warning/10 text-warning' },
   }
 
   const config = typeConfig[communication.type] || typeConfig.message
-  const directionIcon = communication.direction === 'inbound' ? <InboundIcon /> : <OutboundIcon />
+  const directionIcon = communication.direction === 'inbound' ? <InboundIcon size={12} /> : <OutboundIcon size={12} />
 
   return (
     <motion.div
@@ -244,12 +251,11 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3, delay: index * 0.03, ease: EASE }}
       className="
-        relative
+        relative group
         p-4 rounded-xl
-        bg-surface-0 dark:bg-surface-800
-        border border-surface-200 dark:border-surface-700
-        hover:border-surface-300 dark:hover:border-surface-600
-        transition-colors duration-200
+        glass-card
+        hover:elevated
+        transition-all duration-300
         cursor-pointer
       "
       onClick={() => setIsExpanded(!isExpanded)}
@@ -260,6 +266,7 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
         <div className={`
           w-10 h-10 rounded-xl
           flex items-center justify-center
+          glass-subtle
           ${config.color}
         `}>
           {config.icon}
@@ -270,14 +277,14 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
           <div className="flex items-center gap-2 mb-1">
             {/* Direction */}
             <span className={`
-              w-4 h-4
+              w-4 h-4 flex items-center justify-center rounded-full bg-surface-100 dark:bg-surface-800
               ${communication.direction === 'inbound' ? 'text-success' : 'text-accent dark:text-accent-light'}
             `}>
               {directionIcon}
             </span>
             
             {/* Subject/Title */}
-            <h4 className="text-body-sm font-medium text-ink dark:text-ink-inverse truncate">
+            <h4 className="text-body-sm font-semibold text-ink dark:text-ink-inverse truncate">
               {communication.subject || `${communication.type} communication`}
             </h4>
 
@@ -288,13 +295,13 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
 
             {/* Unread indicator */}
             {!communication.isRead && (
-              <span className="w-2 h-2 rounded-full bg-accent dark:bg-accent-light" />
+              <span className="w-2 h-2 rounded-full bg-accent dark:bg-accent-light shadow-glow-accent" />
             )}
           </div>
 
           {/* Participants */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+            <span className="text-body-xs font-medium text-ink-muted dark:text-ink-inverse-muted">
               {communication.participants.map(p => p.name).join(', ')}
             </span>
             {communication.duration && (
@@ -306,7 +313,7 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
 
           {/* Summary */}
           {communication.summary && (
-            <p className="text-body-xs text-ink-secondary dark:text-ink-inverse-secondary line-clamp-2">
+            <p className="text-body-xs text-ink-secondary dark:text-ink-inverse-secondary line-clamp-2 leading-relaxed">
               {communication.summary}
             </p>
           )}
@@ -314,7 +321,7 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
 
         {/* Timestamp */}
         <div className="flex-shrink-0 text-right">
-          <span className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+          <span className="text-body-xs font-medium text-ink-muted dark:text-ink-inverse-muted">
             {formatTimestamp(new Date(communication.timestamp))}
           </span>
         </div>
@@ -327,12 +334,12 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-700"
+            className="mt-4 pt-4 border-t border-surface-200/50 dark:border-surface-700/50"
           >
             {/* Full content or transcript */}
             {communication.content && (
               <div className="mb-3">
-                <h5 className="text-label uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
+                <h5 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
                   Content
                 </h5>
                 <p className="text-body-sm text-ink dark:text-ink-inverse whitespace-pre-wrap">
@@ -343,8 +350,8 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
 
             {/* Transcript for calls */}
             {communication.transcript && (
-              <div className="mb-3">
-                <h5 className="text-label uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
+              <div className="mb-3 glass-subtle p-3 rounded-lg">
+                <h5 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
                   Transcript
                 </h5>
                 <p className="text-body-sm text-ink-secondary dark:text-ink-inverse-secondary whitespace-pre-wrap italic">
@@ -356,12 +363,12 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
             {/* Action Items */}
             {communication.actionItems && communication.actionItems.length > 0 && (
               <div className="mb-3">
-                <h5 className="text-label uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
+                <h5 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
                   Action Items
                 </h5>
                 <ul className="space-y-1">
                   {communication.actionItems.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-body-xs text-ink dark:text-ink-inverse">
+                    <li key={i} className="flex items-start gap-2 text-body-xs text-ink dark:text-ink-inverse bg-surface-100/50 dark:bg-surface-800/50 p-1.5 rounded-md">
                       <span className="text-success mt-0.5">→</span>
                       {item}
                     </li>
@@ -373,7 +380,7 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
             {/* Attachments */}
             {communication.attachments && communication.attachments.length > 0 && (
               <div>
-                <h5 className="text-label uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
+                <h5 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted mb-2">
                   Attachments
                 </h5>
                 <div className="flex flex-wrap gap-2">
@@ -383,11 +390,12 @@ function CommunicationCard({ communication, index }: CommunicationCardProps) {
                       className="
                         inline-flex items-center gap-1.5
                         px-2 py-1 rounded-md
-                        bg-surface-100 dark:bg-surface-700
+                        glass-subtle
                         text-body-xs text-ink dark:text-ink-inverse
+                        border border-surface-200 dark:border-surface-700
                       "
                     >
-                      <AttachmentIcon className="w-3 h-3" />
+                      <AttachmentIcon size={12} />
                       {att.name}
                     </span>
                   ))}
@@ -417,8 +425,8 @@ function SentimentBadge({ sentiment }: { sentiment: TaskCommunication['sentiment
 
   return (
     <span className={`
-      px-1.5 py-0.5 rounded
-      text-[10px] font-medium uppercase
+      px-1.5 py-0.5 rounded-sm
+      text-[9px] font-bold uppercase tracking-wide
       ${color}
     `}>
       {label}
@@ -442,10 +450,10 @@ function EmptyCommsState({ filter }: { filter: FilterType }) {
     >
       <div className="
         w-16 h-16 mb-4 rounded-2xl
-        bg-surface-100 dark:bg-surface-800
+        glass-subtle
         flex items-center justify-center
       ">
-        <MessageIcon className="w-8 h-8 text-ink-muted dark:text-ink-inverse-muted" />
+        <MessageIcon size={32} className="text-ink-muted dark:text-ink-inverse-muted opacity-50" />
       </div>
       
       <h3 className="
@@ -480,7 +488,7 @@ function EmptyCommsState({ filter }: { filter: FilterType }) {
           transition-shadow duration-200
         "
       >
-        <PlusIcon className="w-4 h-4" />
+        <PlusIcon size={16} />
         Log communication
       </motion.button>
     </motion.div>
@@ -513,118 +521,3 @@ function formatDuration(seconds: number): string {
   if (mins === 0) return `${secs}s`
   return `${mins}m ${secs}s`
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ICONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-function GridIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-    </svg>
-  )
-}
-
-function MailIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-      <polyline points="22,6 12,13 2,6" />
-    </svg>
-  )
-}
-
-function PhoneIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-    </svg>
-  )
-}
-
-function VideoIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="23 7 16 12 23 17 23 7" />
-      <rect x="1" y="5" width="15" height="14" rx="2" />
-    </svg>
-  )
-}
-
-function MessageIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
-function PrinterIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 6 2 18 2 18 9" />
-      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-      <rect x="6" y="14" width="12" height="8" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-}
-
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  )
-}
-
-function InboundIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="19 12 12 19 5 12" />
-      <line x1="12" y1="19" x2="12" y2="5" />
-    </svg>
-  )
-}
-
-function OutboundIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="5 12 12 5 19 12" />
-      <line x1="12" y1="5" x2="12" y2="19" />
-    </svg>
-  )
-}
-
-function AttachmentIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-    </svg>
-  )
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-

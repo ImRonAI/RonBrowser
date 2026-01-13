@@ -381,6 +381,44 @@ const config: Config = {
         },
         },
         
+        // New Glassomorphic Bold Minimalism
+        '.glass-bold': {
+          'background': 'rgba(255, 255, 255, 0.04)',
+          'backdrop-filter': 'blur(40px) saturate(200%)',
+          '-webkit-backdrop-filter': 'blur(40px) saturate(200%)',
+          'border': '1px solid rgba(255, 255, 255, 0.08)',
+          'box-shadow': 'inset 0 1px 1px rgba(255, 255, 255, 0.1), 0 4px 24px rgba(0, 0, 0, 0.15)',
+        },
+        '.dark .glass-bold': {
+          'background': 'rgba(0, 0, 0, 0.3)',
+          'border': '1px solid rgba(255, 255, 255, 0.06)',
+          'box-shadow': 'inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.4)',
+        },
+
+        '.glass-card': {
+          'background': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)',
+          'backdrop-filter': 'blur(24px) saturate(180%)',
+          '-webkit-backdrop-filter': 'blur(24px) saturate(180%)',
+          'border': '1px solid rgba(255, 255, 255, 0.15)',
+          'border-radius': '20px',
+        },
+        '.dark .glass-card': {
+          'background': 'linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
+          'border': '1px solid rgba(255, 255, 255, 0.08)',
+        },
+
+        '.glass-subtle': {
+          'background': 'rgba(255, 255, 255, 0.03)',
+          'backdrop-filter': 'blur(12px)',
+          '-webkit-backdrop-filter': 'blur(12px)',
+          'border': '1px solid rgba(255, 255, 255, 0.05)',
+        },
+
+        '.elevated': {
+          'transform': 'translateY(-2px)',
+          'box-shadow': '0 12px 40px -8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        },
+
         // Glass effects (legacy support)
         '.glass-ultra': {
           'background': 'rgba(255, 255, 255, 0.85)',

@@ -8,6 +8,7 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
+import { Image } from './image'
 import { Loader } from './loader'
 import { InlineCitation } from './sources'
 
@@ -225,13 +226,13 @@ function SearchResultCard({
           {/* Favicon/Thumbnail */}
           <div className="flex-shrink-0">
             {result.thumbnail ? (
-              <img
+              <Image
                 src={result.thumbnail}
                 alt=""
                 className="w-16 h-12 rounded object-cover"
               />
             ) : result.favicon ? (
-              <img
+              <Image
                 src={result.favicon}
                 alt=""
                 className="w-5 h-5 rounded"
@@ -396,7 +397,7 @@ export function ChainOfThoughtSearchImages({
           className="relative group cursor-pointer rounded-lg overflow-hidden bg-surface-100 dark:bg-surface-800"
           onClick={() => onImageClick?.(image)}
         >
-          <img
+          <Image
             src={image.thumbnail || image.url}
             alt={image.title || ''}
             className="w-full h-24 object-cover"

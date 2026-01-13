@@ -1,6 +1,14 @@
 import { motion } from 'framer-motion'
 import type { Task, TaskPriority, TaskStatus, TaskLabel } from '@/types/task'
 import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG } from '@/types/task'
+import {
+    Plus as PlusIcon,
+    Calendar as CalendarIcon,
+    FileText as DocumentIcon,
+    Mail as MailIcon,
+    Video as VideoIcon,
+    ExternalLink as ExternalLinkIcon
+} from 'lucide-react'
 
 interface TaskMetadataSidebarProps {
   task: Task
@@ -11,7 +19,8 @@ export function TaskMetadataSidebar({ task }: TaskMetadataSidebarProps) {
   return (
     <div className="
       w-80 flex-shrink-0
-      bg-surface-50/50 dark:bg-surface-800/30
+      bg-surface-50/30 dark:bg-surface-800/20 backdrop-blur-md
+      border-l border-white/10 dark:border-white/5
       overflow-y-auto scrollbar-thin
     ">
       <div className="p-5 space-y-6">
@@ -107,8 +116,9 @@ function MetadataSection({ title, children }: MetadataSectionProps) {
   return (
     <div className="space-y-2">
       <h4 className="
-        text-label uppercase tracking-wider
+        text-[10px] font-bold uppercase tracking-wider
         text-ink-muted dark:text-ink-inverse-muted
+        opacity-70
       ">
         {title}
       </h4>
@@ -131,13 +141,15 @@ function StatusSelect({ value }: { value: TaskStatus }) {
       className={`
         w-full
         flex items-center gap-2
-        px-3 py-2 rounded-lg
+        px-3 py-2.5 rounded-xl
+        glass-card
+        hover:elevated
+        border transition-all duration-200
         ${config.bgColor}
-        hover:ring-2 hover:ring-accent/20 dark:hover:ring-accent-light/20
-        transition-all duration-200
+        border-surface-200/50 dark:border-surface-700/50
       `}
     >
-      <span className={`w-2 h-2 rounded-full ${config.color.replace('text-', 'bg-')}`} />
+      <span className={`w-2 h-2 rounded-full shadow-glow-sm ${config.color.replace('text-', 'bg-')}`} />
       <span className={`text-body-sm font-medium ${config.color}`}>
         {config.label}
       </span>
@@ -152,7 +164,7 @@ function StatusSelect({ value }: { value: TaskStatus }) {
 function PrioritySelect({ value }: { value?: TaskPriority }) {
   if (!value) {
     return (
-      <span className="text-body-sm text-ink-muted dark:text-ink-inverse-muted">
+      <span className="text-body-sm text-ink-muted dark:text-ink-inverse-muted italic">
         Not set
       </span>
     )
@@ -167,10 +179,11 @@ function PrioritySelect({ value }: { value?: TaskPriority }) {
       className={`
         w-full
         flex items-center gap-2
-        px-3 py-2 rounded-lg
+        px-3 py-2.5 rounded-xl
+        glass-card
+        hover:elevated
+        border transition-all duration-200
         ${config.bgColor}
-        hover:ring-2 hover:ring-accent/20 dark:hover:ring-accent-light/20
-        transition-all duration-200
       `}
     >
       <PriorityIcon priority={value} />
@@ -251,9 +264,9 @@ function AssigneeList({ assignees }: { assignees: Task['assignees'] }) {
           className="
             flex items-center gap-3
             px-3 py-2 rounded-lg
-            bg-surface-100/50 dark:bg-surface-700/30
+            glass-subtle
             cursor-pointer
-            hover:bg-surface-100 dark:hover:bg-surface-700/50
+            hover:bg-surface-100/50 dark:hover:bg-surface-700/50
             transition-colors duration-200
           "
         >
@@ -262,10 +275,11 @@ function AssigneeList({ assignees }: { assignees: Task['assignees'] }) {
             bg-accent dark:bg-accent-light
             flex items-center justify-center
             text-[10px] font-bold text-white
+            shadow-glow-sm
           ">
             {assignee.initials}
           </div>
-          <span className="text-body-sm text-ink dark:text-ink-inverse">
+          <span className="text-body-sm text-ink dark:text-ink-inverse font-medium">
             {assignee.name}
           </span>
         </motion.div>
@@ -313,13 +327,14 @@ function DateDisplay({ date }: { date?: number | null }) {
         w-full
         flex items-center gap-2
         px-3 py-2 rounded-lg
+        glass-subtle border
         ${isOverdue 
-          ? 'bg-danger/10 text-danger' 
+          ? 'bg-danger/10 text-danger border-danger/20' 
           : isDueSoon 
-            ? 'bg-warning/10 text-warning'
-            : 'bg-surface-100 dark:bg-surface-700 text-ink dark:text-ink-inverse'
+            ? 'bg-warning/10 text-warning border-warning/20'
+            : 'text-ink dark:text-ink-inverse border-surface-200/50'
         }
-        hover:ring-2 hover:ring-accent/20 dark:hover:ring-accent-light/20
+        hover:shadow-sm
         transition-all duration-200
       `}
     >
@@ -328,7 +343,7 @@ function DateDisplay({ date }: { date?: number | null }) {
         {formatDate(dateObj)}
       </span>
       {isOverdue && (
-        <span className="text-label ml-auto">OVERDUE</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider ml-auto">OVERDUE</span>
       )}
     </motion.button>
   )
@@ -347,8 +362,9 @@ function LabelList({ labels }: { labels: TaskLabel[] }) {
           className={`
             inline-flex items-center
             px-2.5 py-1 rounded-md
-            text-label uppercase tracking-wider
-            ${label.color}
+            text-[10px] font-bold uppercase tracking-wider
+            ${label.color} bg-opacity-10 dark:bg-opacity-20
+            border border-current border-opacity-20
           `}
         >
           {label.label}
@@ -368,16 +384,16 @@ function ProgressIndicator({ completed, total }: { completed: number; total: num
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-body-sm text-ink dark:text-ink-inverse">
+        <span className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
           {completed} of {total} completed
         </span>
-        <span className="text-body-sm font-medium text-ink dark:text-ink-inverse">
+        <span className="text-body-xs font-bold text-ink dark:text-ink-inverse">
           {percentage}%
         </span>
       </div>
-      <div className="h-2 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden">
+      <div className="h-2 rounded-full bg-surface-200/50 dark:bg-surface-700/50 overflow-hidden box-border border border-surface-200/20">
         <motion.div
-          className={`h-full rounded-full ${percentage === 100 ? 'bg-success' : 'bg-accent dark:bg-accent-light'}`}
+          className={`h-full rounded-full shadow-glow-sm ${percentage === 100 ? 'bg-success' : 'bg-accent dark:bg-accent-light'}`}
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -400,7 +416,7 @@ function EffortBadge({ effort }: { effort: Task['estimatedEffort'] }) {
     <span className="
       inline-flex items-center
       px-3 py-1.5 rounded-lg
-      bg-surface-100 dark:bg-surface-700
+      glass-subtle
       text-body-sm font-medium
       text-ink dark:text-ink-inverse
     ">
@@ -419,8 +435,9 @@ function TimeDisplay({ minutes }: { minutes: number }) {
   
   return (
     <span className="
-      text-body-sm
+      text-body-sm font-mono
       text-ink dark:text-ink-inverse
+      glass-subtle px-2 py-1 rounded-md
     ">
       {hours > 0 ? `${hours}h ` : ''}{mins}m
     </span>
@@ -433,7 +450,7 @@ function TimeDisplay({ minutes }: { minutes: number }) {
 
 function AIInsights({ task }: { task: Task }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-3 rounded-xl glass-subtle border border-accent/10">
       {task.complexityScore && (
         <InsightRow 
           label="Complexity" 
@@ -481,16 +498,16 @@ function InsightRow({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+        <span className="text-[10px] font-medium text-ink-muted dark:text-ink-inverse-muted uppercase">
           {label}
         </span>
-        <span className="text-body-xs font-medium text-ink dark:text-ink-inverse">
+        <span className="text-[10px] font-bold text-ink dark:text-ink-inverse">
           {value}{suffix}
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden">
+      <div className="h-1.5 rounded-full bg-surface-200/50 dark:bg-surface-700/50 overflow-hidden">
         <motion.div
-          className={`h-full rounded-full ${color}`}
+          className={`h-full rounded-full shadow-sm ${color}`}
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -515,12 +532,13 @@ function DependencyList({ dependencies }: { dependencies: Task['dependencies'] }
           className="
             flex items-center gap-2
             px-3 py-2 rounded-lg
-            bg-surface-100/50 dark:bg-surface-700/30
+            glass-subtle
           "
         >
           <span className={`
-            text-body-xs uppercase
-            ${dep.type === 'blocks' ? 'text-danger' : dep.type === 'blocked-by' ? 'text-warning' : 'text-ink-muted dark:text-ink-inverse-muted'}
+            text-[9px] font-bold uppercase
+            px-1.5 py-0.5 rounded
+            ${dep.type === 'blocks' ? 'bg-danger/10 text-danger' : dep.type === 'blocked-by' ? 'bg-warning/10 text-warning' : 'bg-surface-200 text-ink-muted'}
           `}>
             {dep.type}
           </span>
@@ -542,7 +560,7 @@ function LinksList({ task }: { task: Task }) {
   
   if (!hasLinks) {
     return (
-      <span className="text-body-sm text-ink-muted dark:text-ink-inverse-muted">
+      <span className="text-body-sm text-ink-muted dark:text-ink-inverse-muted italic px-2">
         No links attached
       </span>
     )
@@ -579,18 +597,19 @@ function LinkItem({ type, label, url }: { type: 'email' | 'meeting' | 'document'
       className="
         flex items-center gap-2
         px-3 py-2 rounded-lg
-        bg-surface-100/50 dark:bg-surface-700/30
+        glass-subtle
         text-ink dark:text-ink-inverse
-        hover:bg-surface-100 dark:hover:bg-surface-700/50
+        hover:bg-surface-100/50 dark:hover:bg-surface-700/50
         transition-colors duration-200
         cursor-pointer
+        group
       "
     >
-      <span className="text-ink-muted dark:text-ink-inverse-muted">
+      <span className="text-ink-muted dark:text-ink-inverse-muted group-hover:text-accent dark:group-hover:text-accent-light transition-colors">
         {icons[type]}
       </span>
       <span className="text-body-sm truncate">{label}</span>
-      <ExternalLinkIcon className="w-3 h-3 ml-auto text-ink-muted dark:text-ink-inverse-muted" />
+      <ExternalLinkIcon className="w-3 h-3 ml-auto text-ink-muted dark:text-ink-inverse-muted opacity-0 group-hover:opacity-100 transition-opacity" />
     </motion.a>
   )
 }
@@ -601,19 +620,19 @@ function LinkItem({ type, label, url }: { type: 'email' | 'meeting' | 'document'
 
 function TimestampsList({ task }: { task: Task }) {
   return (
-    <div className="space-y-2 text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+    <div className="space-y-2 text-[10px] text-ink-muted dark:text-ink-inverse-muted glass-subtle p-3 rounded-lg">
       <div className="flex justify-between">
         <span>Created</span>
-        <span>{formatFullDate(new Date(task.createdAt))}</span>
+        <span className="font-mono">{formatFullDate(new Date(task.createdAt))}</span>
       </div>
       <div className="flex justify-between">
         <span>Updated</span>
-        <span>{formatFullDate(new Date(task.updatedAt))}</span>
+        <span className="font-mono">{formatFullDate(new Date(task.updatedAt))}</span>
       </div>
       {task.completedAt && (
         <div className="flex justify-between">
           <span>Completed</span>
-          <span>{formatFullDate(new Date(task.completedAt))}</span>
+          <span className="font-mono">{formatFullDate(new Date(task.completedAt))}</span>
         </div>
       )}
     </div>
@@ -645,65 +664,3 @@ function formatFullDate(date: Date): string {
     minute: '2-digit'
   })
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ICONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-}
-
-function DocumentIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  )
-}
-
-function MailIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-      <polyline points="22,6 12,13 2,6" />
-    </svg>
-  )
-}
-
-function VideoIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="23 7 16 12 23 17 23 7" />
-      <rect x="1" y="5" width="15" height="14" rx="2" />
-    </svg>
-  )
-}
-
-function ExternalLinkIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  )
-}
-

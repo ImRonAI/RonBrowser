@@ -124,17 +124,18 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
 
-  // Calculate position when opening
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
+  // Calculate position and open - done synchronously to avoid render flash
+  const handleOpen = () => {
+    if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
-      // Position above the button by default
+      // Position so menu opens UPWARD from button
       setCoords({
-        top: rect.top - 10, // 10px buffer
+        top: rect.top, // Top of button - menu will translateY(-100%) to go above
         left: rect.left
       })
     }
-  }, [isOpen])
+    setIsOpen(true)
+  }
 
   // Load real active tab and all tabs when the picker opens
   useEffect(() => {
@@ -256,7 +257,7 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
       {/* Trigger Button */}
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => isOpen ? handleClose() : handleOpen()}
         aria-label="Add Context"
         className={cn(
           "flex items-center justify-center",
@@ -271,41 +272,42 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
         <LinkIcon className="w-5 h-5" />
       </button>
 
-      {/* Portal Dropdown */}
-      <AnimatePresence>
-        {isOpen && typeof document !== 'undefined' && createPortal(
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9998]"
-              onClick={handleClose}
-            />
+      {/* Portal Dropdown - Portal wraps AnimatePresence for proper exit animations */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[9998]"
+                onClick={handleClose}
+              />
 
-            {/* Menu */}
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              transition={{ duration: 0.15 }}
-              style={{
-                position: 'fixed',
-                top: coords.top, // We calculate this - height of list
-                left: coords.left,
-                transform: 'translateY(-100%)', // Anchor to bottom left of button, grow up
-                marginTop: '-8px'
-              }}
-              className={cn(
-                "z-[9999]", // High z-index in Portal
-                "w-72 py-2",
-                "bg-surface-0 dark:bg-surface-800",
-                "rounded-xl border border-surface-200 dark:border-surface-700",
-                "shadow-bold dark:shadow-dark-bold",
-                "overflow-hidden"
-              )}
-            >
+              {/* Menu */}
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  position: 'fixed',
+                  top: coords.top, // We calculate this - height of list
+                  left: coords.left,
+                  transform: 'translateY(-100%)', // Anchor to bottom left of button, grow up
+                  marginTop: '-8px'
+                }}
+                className={cn(
+                  "z-[9999]", // High z-index in Portal
+                  "w-72 py-2",
+                  "bg-surface-0 dark:bg-surface-800",
+                  "rounded-xl border border-surface-200 dark:border-surface-700",
+                  "shadow-bold dark:shadow-dark-bold",
+                  "overflow-hidden"
+                )}
+              >
               {/* Header */}
               <div className="px-3 py-2 border-b border-surface-100 dark:border-surface-700 flex items-center gap-2">
                 {activeCategory ? (
@@ -531,11 +533,12 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
                   )}
                 </AnimatePresence>
               </div>
-            </motion.div>
-          </>,
-          document.body
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   )
 }

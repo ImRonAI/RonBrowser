@@ -6,6 +6,7 @@ import { AgentPanel } from '@/components/agent-panel/AgentPanel'
 import { ScreenVisionOverlay } from '@/components/agent-panel/ScreenVisionOverlay'
 import { InterestsWidget } from '@/components/interests/InterestsWidget'
 import { ContextMenu } from '@/components/shared/ContextMenu'
+import { BrowserGlowBorder } from '@/components/shared/BrowserGlowBorder'
 import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
 
@@ -68,8 +69,11 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
   return (
     <div className={cn(
       "flex flex-col h-screen overflow-hidden",
-      "bg-surface-0 dark:bg-surface-900"
+      "bg-surface-50 dark:bg-surface-950", // Deeper background
+      "selection:bg-accent/20 selection:text-accent dark:selection:bg-accent-light/20 dark:selection:text-accent-light"
     )}>
+      {/* Browser Tool Glow Effect - persists across entire app */}
+      <BrowserGlowBorder />
       {/* Browser Chrome - Elevated Header */}
       <div className={cn(
         "flex-shrink-0 relative z-[100]",
@@ -77,9 +81,9 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
         "bg-surface-0/95 dark:bg-surface-900/95",
         "backdrop-blur-xl",
         // Border
-        "border-b border-surface-200 dark:border-surface-700",
+        "border-b border-surface-200/50 dark:border-surface-700/50",
         // Shadow
-        "shadow-subtle dark:shadow-none"
+        "shadow-sm dark:shadow-none"
       )}>
         {/* Subtle inner glow at top */}
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-surface-200 dark:via-surface-700 to-transparent" />

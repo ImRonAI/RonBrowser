@@ -87,10 +87,10 @@ interface ViewToggleProps {
 
 function ViewToggle({ viewMode, onViewChange }: ViewToggleProps) {
   return (
-    <div className="relative flex items-center p-1.5 rounded-xl bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
+    <div className="relative flex items-center p-1.5 rounded-xl glass-subtle border border-white/10 dark:border-white/5">
       {/* Sliding indicator */}
       <motion.div
-        className="absolute top-1.5 bottom-1.5 rounded-lg bg-surface-0 dark:bg-surface-700 shadow-soft dark:shadow-dark-soft"
+        className="absolute top-1.5 bottom-1.5 rounded-lg bg-white/50 dark:bg-white/10 shadow-sm"
         layoutId="view-indicator"
         initial={false}
         style={{
@@ -134,10 +134,10 @@ function CalendarModeToggle({ mode, onModeChange }: CalendarModeToggleProps) {
   const activeIndex = modes.indexOf(mode)
   
   return (
-    <div className="relative flex items-center p-1 rounded-lg bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
+    <div className="relative flex items-center p-1 rounded-lg glass-subtle border border-white/10 dark:border-white/5">
       {/* Sliding indicator */}
       <motion.div
-        className="absolute top-1 bottom-1 rounded-md bg-surface-0 dark:bg-surface-700 shadow-subtle"
+        className="absolute top-1 bottom-1 rounded-md bg-white/50 dark:bg-white/10 shadow-sm"
         layoutId="calendar-mode-indicator"
         initial={false}
         style={{

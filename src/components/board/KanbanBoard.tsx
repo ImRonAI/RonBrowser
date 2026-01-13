@@ -43,35 +43,46 @@ function convertToFullTask(simpleTask: SimpleTask): Task {
 }
 
 // Column configurations with refined color system
+// Column configurations with refined color system and specific glows
 const columns: {
   id: SimpleTask['status']
   title: string
   accentColor: string
   bgGradient: string
+  glowClass: string
+  borderClass: string
 }[] = [
   { 
     id: 'backlog', 
     title: 'Backlog',
     accentColor: 'bg-surface-300 dark:bg-surface-600',
     bgGradient: 'from-surface-100/50 to-transparent dark:from-surface-800/30',
+    glowClass: 'shadow-[0_0_30px_-5px_rgba(99,102,241,0.15)] dark:shadow-[0_0_30px_-5px_rgba(99,102,241,0.1)]', // Indigo
+    borderClass: 'border-indigo-500/20 dark:border-indigo-400/10'
   },
   { 
     id: 'in-progress', 
     title: 'In Progress',
     accentColor: 'bg-accent dark:bg-accent-light',
     bgGradient: 'from-accent/5 to-transparent dark:from-accent-light/5',
+    glowClass: 'shadow-[0_0_30px_-5px_rgba(168,85,247,0.25)] dark:shadow-[0_0_30px_-5px_rgba(168,85,247,0.15)]', // Purple
+    borderClass: 'border-purple-500/30 dark:border-purple-400/20'
   },
   { 
     id: 'review', 
     title: 'Review',
     accentColor: 'bg-warning',
     bgGradient: 'from-warning/5 to-transparent',
+    glowClass: 'shadow-[0_0_30px_-5px_rgba(236,72,153,0.2)] dark:shadow-[0_0_30px_-5px_rgba(236,72,153,0.1)]', // Pink/Fuchsia
+    borderClass: 'border-pink-500/20 dark:border-pink-400/10'
   },
   { 
     id: 'done', 
     title: 'Done',
     accentColor: 'bg-success',
     bgGradient: 'from-success/5 to-transparent',
+    glowClass: 'shadow-[0_0_30px_-5px_rgba(139,92,246,0.2)] dark:shadow-[0_0_30px_-5px_rgba(139,92,246,0.1)]', // Violet
+    borderClass: 'border-violet-500/20 dark:border-violet-400/10'
   },
 ]
 
@@ -96,11 +107,38 @@ export function KanbanBoard() {
     console.log('Task updated:', updatedTask)
     setSelectedTask(updatedTask)
   }
+  
+  const handleSubtaskClick = (subtaskId: string) => {
+    if (!selectedTask) return
+    
+    // Find subtask data
+    const subtask = selectedTask.subtasks.find(s => s.id === subtaskId)
+    if (!subtask) return
+    
+    // Convert subtask to full task view (mock promotion)
+    const promotedTask: Task = {
+      ...selectedTask,
+      id: subtask.id,
+      title: subtask.title,
+      description: '', // Subtasks often start empty
+      type: 'feature', // Default or inherit
+      // Inherit parent context for navigation back? (Future work: Breadcrumbs)
+      subtasks: [], // Subtask's subtasks?
+      priority: subtask.priority || selectedTask.priority,
+      status: subtask.status || 'in-progress',
+      assignees: subtask.assignee ? [subtask.assignee] : [],
+      // Keep some context
+      projectId: selectedTask.projectId,
+      projectName: selectedTask.projectName,
+    }
+    
+    setSelectedTask(promotedTask)
+  }
 
   return (
     <>
       <div className="h-full overflow-x-auto overflow-y-hidden scrollbar-thin">
-        <div className="h-full flex gap-5 pb-4 pt-1 px-1 min-w-max">
+        <div className="h-full flex gap-6 pb-4 pt-1 px-4 min-w-max">
           {columns.map((column, index) => (
             <KanbanColumn
               key={column.id}
@@ -119,6 +157,7 @@ export function KanbanBoard() {
             task={selectedTask}
             onClose={handleCloseDetail}
             onUpdate={handleUpdateTask}
+            onTaskClick={handleSubtaskClick}
           />
         )}
       </AnimatePresence>
@@ -149,15 +188,15 @@ function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
         delay: index * 0.08,
         ease: EASE,
       }}
-      className="flex-shrink-0 w-80 h-full flex flex-col"
+      className="flex-shrink-0 w-80 h-full flex flex-col group/column"
     >
       {/* Column Header */}
-      <div className="flex-shrink-0 mb-4">
+      <div className="flex-shrink-0 mb-4 px-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Status indicator */}
             <motion.div 
-              className={`w-2 h-2 rounded-full ${column.accentColor}`}
+              className={`w-2 h-2 rounded-full ${column.accentColor} shadow-[0_0_8px_currentColor]`}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: index * 0.08 + 0.3, type: 'spring', stiffness: 400, damping: 15 }}
@@ -185,8 +224,12 @@ function KanbanColumn({ column, index, onTaskClick }: KanbanColumnProps) {
           flex-1 min-h-0 overflow-y-auto overflow-x-hidden
           rounded-xl
           bg-gradient-to-b ${column.bgGradient}
-          border border-surface-200/50 dark:border-surface-700/50
+          border ${column.borderClass}
+          ${column.glowClass}
           scrollbar-thin
+          transition-all duration-500
+          hover:shadow-lg
+          group-hover/column:border-opacity-100
         `}
       >
         <div className="p-3 space-y-3">

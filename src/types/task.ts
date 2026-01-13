@@ -57,6 +57,9 @@ export interface Subtask {
   completedAt?: number
   completedBy?: string
   order: number
+  priority?: TaskPriority
+  assignee?: TaskContact
+  status?: TaskStatus
 }
 
 // ============================================

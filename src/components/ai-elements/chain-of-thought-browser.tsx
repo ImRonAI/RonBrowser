@@ -7,6 +7,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
+import { Image } from './image'
 import { Loader } from './loader'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,11 +83,26 @@ export function ChainOfThoughtBrowserPreview({
             title={title || 'Browser preview'}
           />
         ) : screenshot ? (
-          <img 
-            src={screenshot} 
-            alt={title || 'Page screenshot'}
-            className="w-full h-full object-cover object-top"
-          />
+          (() => {
+            const match = screenshot.match(/^data:([^;]+);base64,(.+)$/)
+            if (match) {
+              return (
+                <Image
+                  base64={match[2]}
+                  mediaType={match[1]}
+                  alt={title || 'Page screenshot'}
+                  className="w-full h-full object-cover object-top"
+                />
+              )
+            }
+            return (
+              <img 
+                src={screenshot} 
+                alt={title || 'Page screenshot'}
+                className="w-full h-full object-cover object-top"
+              />
+            )
+          })()
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-surface-50 dark:bg-surface-850">
             <span className="text-body-sm text-ink-muted dark:text-ink-inverse-muted">

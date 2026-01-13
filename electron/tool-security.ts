@@ -29,22 +29,7 @@ function getAuditLogPath(): string {
 // ============================================
 
 // Default whitelist - can be extended via configuration
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const DEFAULT_TRUSTED_TOOLS = [
-  // Core strands tools that are trusted
-  'file_read',
-  'file_write',
-  'editor',
-  'shell',
-  'http_request',
-  'current_time',
-  'sleep',
-  'calculator',
-  'python_repl',
-  'think',
-  'stop',
-  'speak'
-]
+
 
 // Whitelist can be loaded from config
 let activeWhitelist: Set<string> | null = null // null means no whitelist (allow all)

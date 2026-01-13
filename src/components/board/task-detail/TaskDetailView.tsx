@@ -32,9 +32,10 @@ interface TaskDetailViewProps {
   task: Task
   onClose: () => void
   onUpdate?: (task: Task) => void
+  onTaskClick?: (taskId: string) => void
 }
 
-export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps) {
+export function TaskDetailView({ task, onClose, onUpdate, onTaskClick }: TaskDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('description')
   const [viewMode, setViewMode] = useState<ViewMode>('normal')
 
@@ -67,14 +68,14 @@ export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps)
         transition={{ duration: 0.4, ease: EASE }}
         className={cn(
           "relative z-10",
-          "bg-surface-0 dark:bg-surface-850",
+          "glass-bold", // Replaced solid bg with glass-bold
           "rounded-2xl",
-          "border border-surface-200 dark:border-surface-700",
-          "shadow-dramatic dark:shadow-dark-bold",
+          "border border-white/20 dark:border-white/10", // Lighter, crisper border
+          "shadow-2xl shadow-indigo-500/10 dark:shadow-black/50", // Colored shadow
           "overflow-hidden",
           "flex flex-col",
           viewMode === 'fullscreen'
-            ? "w-full h-full max-w-none max-h-none"
+            ? "w-full h-full max-w-none max-h-none rounded-none border-0"
             : "w-full max-w-5xl h-full max-h-[800px]"
         )}
       >
@@ -88,7 +89,7 @@ export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps)
         {/* Main Content - Two Column Layout */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - Tabbed Content */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-surface-200 dark:border-surface-700">
+          <div className="flex-1 flex flex-col min-w-0 border-r border-white/10 dark:border-white/5">
             {/* Tab Navigation */}
             <TabNavigation 
               tabs={TABS} 
@@ -101,7 +102,11 @@ export function TaskDetailView({ task, onClose, onUpdate }: TaskDetailViewProps)
               <AnimatePresence mode="wait">
                 {activeTab === 'description' && (
                   <TabPanel key="description">
-                    <DescriptionTab task={task} onUpdate={onUpdate} />
+                    <DescriptionTab 
+                      task={task} 
+                      onUpdate={onUpdate}
+                      onTaskClick={onTaskClick}
+                    />
                   </TabPanel>
                 )}
                 {activeTab === 'ron' && (
@@ -146,8 +151,8 @@ function TaskDetailHeader({ task, onClose, onToggleFullscreen }: TaskDetailHeade
     <div className="
       flex-shrink-0
       px-4 py-3
-      border-b border-surface-200 dark:border-surface-700
-      bg-surface-50/50 dark:bg-surface-800/50
+      border-b border-white/10 dark:border-white/5
+      glass-subtle
     ">
       <div className="flex items-center justify-between gap-4">
         {/* Left: Window Controls (macOS style) */}

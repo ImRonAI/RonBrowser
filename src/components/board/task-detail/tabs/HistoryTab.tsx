@@ -3,17 +3,17 @@
  * 
  * A comprehensive changelog view showing all changes throughout a task's lifecycle.
  * Critical for compliance and accountability.
- * 
- * Features:
- * - Chronological display of all events
- * - Grouped by date
- * - AI-generated natural language summary
- * - Filter by event type
  */
 
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Task, TaskHistoryEvent, TaskHistoryEventType } from '@/types/task'
+import { 
+  Sparkles as SparklesIcon,
+  Clock as ClockIcon,
+  Settings as CogIcon,
+  Plus as PlusIcon
+} from 'lucide-react'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
@@ -84,12 +84,12 @@ export function HistoryTab({ task }: HistoryTabProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Summary Header */}
-      <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-surface-200 dark:border-surface-700">
+      <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-surface-200/50 dark:border-surface-700/50 glass-subtle z-10">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-body-lg font-semibold text-ink dark:text-ink-inverse">
             Task History
           </h3>
-          <div className="flex items-center gap-4 text-body-xs text-ink-muted dark:text-ink-inverse-muted">
+          <div className="flex items-center gap-4 text-body-xs font-medium text-ink-muted dark:text-ink-inverse-muted">
             <span>{stats.totalEvents} events</span>
             <span>•</span>
             <span>{stats.daysActive} days active</span>
@@ -102,14 +102,14 @@ export function HistoryTab({ task }: HistoryTabProps) {
           animate={{ opacity: 1, y: 0 }}
           className="
             p-3 rounded-xl mb-4
+            glass-bold
             bg-gradient-to-r from-accent/5 via-accent/10 to-accent/5
-            dark:from-accent-light/5 dark:via-accent-light/10 dark:to-accent-light/5
             border border-accent/10 dark:border-accent-light/10
           "
         >
           <div className="flex items-start gap-2">
-            <SparklesIcon className="w-4 h-4 text-accent dark:text-accent-light mt-0.5" />
-            <p className="text-body-xs text-ink-secondary dark:text-ink-inverse-secondary">
+            <SparklesIcon className="w-4 h-4 text-accent dark:text-accent-light mt-0.5 flex-shrink-0" />
+            <p className="text-body-xs text-ink-secondary dark:text-ink-inverse-secondary leading-relaxed">
               This task was created {stats.daysActive} days ago, has been reassigned {stats.statusChanges} times, 
               and currently has {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks complete.
               {stats.aiInteractions > 0 && ` Ron has assisted ${stats.aiInteractions} times.`}
@@ -125,12 +125,12 @@ export function HistoryTab({ task }: HistoryTabProps) {
               whileTap={{ scale: 0.95 }}
               onClick={() => setFilter(type)}
               className={`
-                px-3 py-1.5 rounded-lg
+                px-3 py-1.5 rounded-full
                 text-body-xs font-medium
                 transition-all duration-200
                 ${filter === type 
-                  ? 'bg-accent dark:bg-accent-light text-white' 
-                  : 'bg-surface-100 dark:bg-surface-800 text-ink-secondary dark:text-ink-inverse-secondary hover:bg-surface-200 dark:hover:bg-surface-700'
+                  ? 'glass-bold bg-accent/10 border-accent/20 text-accent dark:text-accent-light' 
+                  : 'glass-subtle text-ink-secondary dark:text-ink-inverse-secondary hover:bg-surface-100/50'
                 }
               `}
             >
@@ -178,18 +178,19 @@ function DateGroup({ date, events }: DateGroupProps) {
       {/* Date Header */}
       <div className="flex items-center gap-3 mb-3">
         <span className="
-          text-label uppercase tracking-wider
+          text-[10px] font-bold uppercase tracking-wider
           text-ink-muted dark:text-ink-inverse-muted
+          glass-subtle px-2 py-0.5 rounded-md
         ">
           {formatDateHeader(new Date(date))}
         </span>
-        <div className="flex-1 h-px bg-surface-200 dark:bg-surface-700" />
+        <div className="flex-1 h-px bg-gradient-to-r from-surface-200/50 to-transparent dark:from-surface-700/50" />
       </div>
 
       {/* Events */}
       <div className="relative pl-6">
         {/* Timeline line */}
-        <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-surface-200 dark:bg-surface-700" />
+        <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-surface-200/50 dark:bg-surface-700/50" />
 
         <div className="space-y-3">
           {events.map((event, index) => (
@@ -218,14 +219,16 @@ function HistoryEventCard({ event, index }: HistoryEventCardProps) {
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2, delay: index * 0.03, ease: EASE }}
-      className="relative flex items-start gap-3"
+      className="relative flex items-start gap-3 group"
     >
       {/* Timeline dot */}
       <div className={`
         absolute -left-6 top-1
         w-3.5 h-3.5 rounded-full
         ${config.dotColor}
-        ring-4 ring-surface-0 dark:ring-surface-850
+        ring-4 ring-surface-0 dark:ring-surface-850 group-hover:ring-surface-100 dark:group-hover:ring-surface-800
+        transition-all duration-200
+        shadow-sm
       `}>
         <span className="absolute inset-1 flex items-center justify-center">
           {config.dotIcon}
@@ -251,8 +254,9 @@ function HistoryEventCard({ event, index }: HistoryEventCardProps) {
                   <div key={i} className="
                     flex items-center gap-2
                     text-body-xs
+                    glass-subtle p-1.5 rounded-md inline-flex
                   ">
-                    <span className="text-ink-muted dark:text-ink-inverse-muted">
+                    <span className="text-ink-muted dark:text-ink-inverse-muted font-medium">
                       {change.field}:
                     </span>
                     {change.oldValue !== undefined && change.oldValue !== null && (
@@ -260,7 +264,7 @@ function HistoryEventCard({ event, index }: HistoryEventCardProps) {
                         <span className="
                           px-1.5 py-0.5 rounded
                           bg-danger/10 text-danger
-                          line-through
+                          line-through decoration-danger/50
                         ">
                           {String(change.oldValue)}
                         </span>
@@ -270,6 +274,7 @@ function HistoryEventCard({ event, index }: HistoryEventCardProps) {
                     <span className="
                       px-1.5 py-0.5 rounded
                       bg-success/10 text-success
+                      font-medium
                     ">
                       {String(change.newValue)}
                     </span>
@@ -282,7 +287,8 @@ function HistoryEventCard({ event, index }: HistoryEventCardProps) {
           {/* Timestamp */}
           <span className="
             flex-shrink-0
-            text-body-xs text-ink-muted dark:text-ink-inverse-muted
+            text-[10px] font-medium text-ink-muted dark:text-ink-inverse-muted
+            opacity-70 group-hover:opacity-100 transition-opacity
           ">
             {formatTime(new Date(event.timestamp))}
           </span>
@@ -308,18 +314,19 @@ function ActorBadge({ actor }: { actor: TaskHistoryEvent['actor'] }) {
   return (
     <span className="
       inline-flex items-center gap-1.5
-      px-2 py-0.5 rounded-md
-      bg-surface-100 dark:bg-surface-800
+      px-2 py-0.5 rounded-full
+      glass-subtle
     ">
       <span className={`
         w-4 h-4 rounded-full
         ${config.bg}
         flex items-center justify-center
         text-white text-[8px] font-bold
+        shadow-sm
       `}>
         {config.icon || actor.name.charAt(0).toUpperCase()}
       </span>
-      <span className="text-body-xs font-medium text-ink dark:text-ink-inverse">
+      <span className="text-[10px] font-bold text-ink dark:text-ink-inverse">
         {actor.name}
       </span>
     </span>
@@ -342,10 +349,10 @@ function EmptyHistoryState() {
     >
       <div className="
         w-16 h-16 mb-4 rounded-2xl
-        bg-surface-100 dark:bg-surface-800
+        glass-subtle
         flex items-center justify-center
       ">
-        <ClockIcon className="w-8 h-8 text-ink-muted dark:text-ink-inverse-muted" />
+        <ClockIcon className="w-8 h-8 text-ink-muted dark:text-ink-inverse-muted opacity-50" />
       </div>
       
       <h3 className="
@@ -471,43 +478,3 @@ function generateMockHistory(task: Task): TaskHistoryEvent[] {
   // Sort by timestamp descending
   return events.sort((a, b) => b.timestamp - a.timestamp)
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ICONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-function SparklesIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z" />
-    </svg>
-  )
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  )
-}
-
-function CogIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-    </svg>
-  )
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-4 h-4"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-      <line x1="12" y1="6" x2="12" y2="18" />
-      <line x1="6" y1="12" x2="18" y2="12" />
-    </svg>
-  )
-}
-

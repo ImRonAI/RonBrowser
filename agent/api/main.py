@@ -397,8 +397,21 @@ async def perplexity_search(
 async def lifespan(app: FastAPI):
     """Initialize resources on startup"""
     await memory.initialize()
+    
+    # Only initialize Playwright - don't create sessions yet
+    # Sessions are created per-chat in the /superagent/stream endpoint
+    try:
+        if sa._global_browser:
+            logger.info("Initializing Playwright (CDP will connect on first chat)...")
+            await sa._global_browser._start()  # Initialize Playwright only
+            logger.info("Playwright Ready! �")
+    except Exception as e:
+        logger.error(f"Playwright Init Failed: {e}")
+        
     yield
-    # Cleanup if needed
+    # Cleanup: close all browser sessions
+    if sa._global_browser:
+        await sa._global_browser._cleanup()
 
 app = FastAPI(
     title="Ron Browser Search Chat API",
@@ -695,6 +708,10 @@ async def superagent_stream(request: Request):
 
     if not message:
         return JSONResponse(status_code=400, content={"error": "Message cannot be empty"})
+        
+    # Save user message immediately to prevent data loss on crash
+    memory.add_message(session_id, "user", message)
+    logger.info(f"Saved user message to session {session_id}")
 
     queue = asyncio.Queue()
 
@@ -704,7 +721,14 @@ async def superagent_stream(request: Request):
 
     # Load this session's conversation history from LanceDB
     db_messages = memory.get_messages(session_id, limit=1000)
-    session_history = [{"role": msg["role"], "content": msg["content"]} for msg in db_messages]
+    # Strands/Bedrock expects content as list of content blocks, not plain strings
+    session_history = []
+    for msg in db_messages:
+        content = msg["content"]
+        # Convert plain string to content block format
+        if isinstance(content, str):
+            content = [{"text": content}]
+        session_history.append({"role": msg["role"], "content": content})
     logger.info(f"Loaded {len(session_history)} messages for session {session_id}")
 
     # Set up the permanent agent for this request
@@ -717,16 +741,61 @@ async def superagent_stream(request: Request):
     # Ensure this agent is set as the 'current' one for global tool access
     sa._current_agent = agent
 
-    async def generate():
-        loop = asyncio.get_event_loop()
-        task = loop.run_in_executor(None, lambda: agent(message))
+    # Auto-create browser session for this chat (if not exists)
+    # This gives the agent browser access without needing to call init_session
+    browser = sa._global_browser
+    browser_session_name = f"chat-{session_id}"
+    
+    async def ensure_browser_session():
+        """Create browser session for this chat if it doesn't exist."""
+        if browser and browser_session_name not in browser._sessions:
+            try:
+                from strands_tools.browser.models import InitSessionAction
+                action = InitSessionAction(
+                    session_name=browser_session_name,
+                    description=f"Browser session for chat {session_id}"
+                )
+                result = await browser.init_session(action)
+                logger.info(f"Created browser session: {browser_session_name} -> {result}")
+                
+                # Inject browser context into agent's messages so it knows which session to use
+                browser_context_msg = {
+                    "role": "user",
+                    "content": [{"text": f"[SYSTEM] Browser session '{browser_session_name}' is ready. Use this session_name for all browser actions."}]
+                }
+                agent.messages.insert(0, browser_context_msg)
+            except Exception as e:
+                logger.warning(f"Failed to create browser session: {e}")
 
-        while not task.done():
+    async def generate():
+        # Use stream_async for native async tool support (browser, etc.)
+        # This allows proper await of async tool methods without deadlock
+        
+        # Ensure browser session exists for this chat
+        await ensure_browser_session()
+        
+        async def run_agent():
+            async for event in agent.stream_async(message):
+                # stream_async yields events; callback handler also fires
+                # We just need to drive the generator to completion
+                pass
+        
+        # Run agent as async task
+        agent_task = asyncio.create_task(run_agent())
+        
+        while not agent_task.done():
             try:
                 sse_event = await asyncio.wait_for(queue.get(), timeout=0.1)
                 yield sse_event
             except asyncio.TimeoutError:
                 continue
+        
+        # Await to propagate any exceptions
+        await agent_task
+        
+        # Drain any remaining events after agent completes
+        while not queue.empty():
+            yield queue.get_nowait()
 
         # After execution, sync new messages to this session's LanceDB storage
         new_messages = agent.messages[initial_msg_count:]
