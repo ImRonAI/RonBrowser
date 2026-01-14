@@ -4,9 +4,13 @@
  * Maps AI SDK UIMessage parts to AI Elements components.
  * Wraps all process parts (reasoning, tools) in ONE ChainOfThought container.
  * Final text renders OUTSIDE the ChainOfThought.
+ * 
+ * Inspired by ron-ai-web reference implementation.
  */
 
-import { useMemo } from 'react'
+'use client'
+
+import { useMemo, memo } from 'react'
 import {
   isToolUIPart,
   getToolName,
@@ -25,10 +29,10 @@ import {
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
-import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
+import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState } from '@/components/ai-elements/tool'
 import { ResponseMarkdown } from '@/components/ai-elements/response'
 import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
-import type { ToolState } from '@/components/ai-elements/types'
+// ToolState is used by mapToolPartState return type
 
 // Orchestration tool names to render with special visualization
 const ORCHESTRATION_TOOLS = ['workflow', 'swarm', 'graph']
@@ -55,24 +59,10 @@ type AnyToolUIPart = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: Map AI SDK tool state to ToolState
+// Main Component - Memoized
 // ─────────────────────────────────────────────────────────────────────────────
 
-function mapToolPartState(state: AnyToolUIPart['state']): ToolState {
-  switch (state) {
-    case 'input-streaming': return 'pending'
-    case 'input-available': return 'input-available'
-    case 'output-available': return 'success'
-    case 'output-error': return 'error'
-    default: return 'pending'
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Component
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function ChainOfThoughtMessage({
+export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
   parts,
   isStreaming,
   messageId,
@@ -102,30 +92,41 @@ export function ChainOfThoughtMessage({
   }, [parts, lastNonTextIndex])
 
   // Separate process parts from final text
-  const processParts: MessagePart[] = []
-  const finalTextParts: TextUIPart[] = []
+  const { processParts, finalTextParts } = useMemo(() => {
+    const processParts: MessagePart[] = []
+    const finalTextParts: TextUIPart[] = []
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
-    if (i > lastNonTextIndex && part.type === 'text') {
-      finalTextParts.push(part as TextUIPart)
-    } else if (part.type !== 'step-start') {
-      processParts.push(part)
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      if (i > lastNonTextIndex && part.type === 'text') {
+        finalTextParts.push(part as TextUIPart)
+      } else if (part.type !== 'step-start') {
+        processParts.push(part)
+      }
     }
-  }
 
+    return { processParts, finalTextParts }
+  }, [parts, lastNonTextIndex])
+
+  // Calculate step count for header
+  const stepCount = useMemo(() => {
+    return processParts.filter(p => p.type === 'reasoning' || isToolUIPart(p)).length
+  }, [processParts])
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Chain of Thought (wraps all process parts) */}
       {processParts.length > 0 && (
         <ChainOfThought 
-          defaultOpen={false} 
-          isStreaming={isStreaming} 
-          autoCollapseDelay={3000}
+          defaultOpen={!hasFinalTextOutput}
+          isStreaming={isStreaming && !hasFinalTextOutput}
+          autoCollapseDelay={hasFinalTextOutput ? 2000 : 0}
         >
           <ChainOfThoughtHeader>
-            {isStreaming && !hasFinalTextOutput ? 'Processing...' : 'Thought Process'}
+            {isStreaming && !hasFinalTextOutput 
+              ? 'Processing...' 
+              : `Thought Process (${stepCount} step${stepCount !== 1 ? 's' : ''})`
+            }
           </ChainOfThoughtHeader>
           <ChainOfThoughtContent>
             {processParts.map((part, index) => (
@@ -150,10 +151,10 @@ export function ChainOfThoughtMessage({
       ))}
     </div>
   )
-}
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Part Renderer
+// Part Renderer - Memoized
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface PartRendererProps {
@@ -162,7 +163,7 @@ interface PartRendererProps {
   isStreaming?: boolean
 }
 
-function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
+const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
   // Reasoning
   if (part.type === 'reasoning') {
     const reasoningPart = part as ReasoningUIPart
@@ -173,7 +174,7 @@ function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
         label="Reasoning"
         status={isReasoningStreaming ? 'running' : 'complete'}
       >
-        <Reasoning isStreaming={isReasoningStreaming} defaultOpen>
+        <Reasoning isStreaming={isReasoningStreaming} defaultOpen={isReasoningStreaming}>
           <ReasoningTrigger />
           <ReasoningContent>{reasoningPart.text}</ReasoningContent>
         </Reasoning>
@@ -189,7 +190,11 @@ function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
     const stepStatus = toolState === 'success' ? 'complete' : toolState === 'error' ? 'error' : 'running'
 
     // Check if this is an orchestration tool (workflow, swarm, graph)
-    if (ORCHESTRATION_TOOLS.includes(toolName.toLowerCase())) {
+    const isOrchestrationTool = ORCHESTRATION_TOOLS.some(t => 
+      toolName.toLowerCase().includes(t)
+    )
+
+    if (isOrchestrationTool) {
       return (
         <ChainOfThoughtStep
           label={toolName}
@@ -222,7 +227,10 @@ function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
           />
           <ToolContent>
             {toolPart.input != null && (
-              <ToolInput input={toolPart.input as Record<string, unknown>} />
+              <ToolInput 
+                input={toolPart.input as Record<string, unknown>} 
+                isStreaming={toolPart.state === 'input-streaming'}
+              />
             )}
             {toolPart.state === 'output-available' && toolPart.output != null && (
               <ToolOutput output={toolPart.output} />
@@ -252,6 +260,6 @@ function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
   }
 
   return null
-}
+})
 
 export { mapToolPartState }
