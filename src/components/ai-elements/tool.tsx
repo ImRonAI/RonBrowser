@@ -355,11 +355,13 @@ export const ToolOutput = memo(function ToolOutput({ output, errorText, classNam
         <label className="text-label font-medium text-ink-muted dark:text-ink-inverse-muted uppercase tracking-wide">
           Screenshot
         </label>
-        <div className="rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
+        <div className="rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700 bg-surface-100 dark:bg-surface-800">
           <img 
             src={src} 
             alt="Screenshot" 
             className="max-w-full h-auto"
+            loading="lazy"
+            decoding="async"
           />
         </div>
       </div>
