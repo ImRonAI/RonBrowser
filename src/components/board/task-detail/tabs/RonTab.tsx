@@ -5,7 +5,7 @@
  * Sophisticated, minimal, and undeniably beautiful.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import type { FullTask, TaskConversation } from '@/types/task'
@@ -19,8 +19,7 @@ import {
   Plus as PlusIcon, 
   History as HistoryIcon, 
   ChevronDown as ChevronDownIcon,
-  ArrowUp as ArrowUpIcon,
-  MessageSquare as ChatIcon
+  ArrowUp as ArrowUpIcon
 } from 'lucide-react'
 
 // Context Picker
@@ -85,8 +84,10 @@ export function RonTab({ task }: RonTabProps) {
   }, []) // Empty dependency array = absolute safety from render loops.
 
 
-  // 2. CHAT HOOK
-  const { messages, setMessages, sendMessage, status, input, handleInputChange, handleSubmit } = useChat({
+  // 2. CHAT HOOK - AI SDK v6 compatible
+  const [input, setInput] = useState('')
+  
+  const { messages, setMessages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
     }),
@@ -94,11 +95,10 @@ export function RonTab({ task }: RonTabProps) {
     // 3. SAFE PERSISTENCE
     // We only save to the store when the AI generation FINISHES.
     // This happens once per turn, preventing any rapid render cycles.
-    onFinish: (message: any, ...args: any[]) => {
-      const options = args[0]
+    onFinish: () => {
       if (!activeConversationId) return
       
-      const fullHistory = options?.messages || [] // Safely access
+      const fullHistory = messages || []
       const existingConvs = task.conversations || []
       const currentConv = existingConvs.find(c => c.id === activeConversationId)
       
@@ -172,11 +172,27 @@ export function RonTab({ task }: RonTabProps) {
     // Here we append context for clarity.
     const contextPrefix = `[System] Task Context: ID="${task.id}" Title="${task.title}" Status="${task.status}"\n\n`
     
-    // Using standard handleSubmit from useChat if possible, or direct sendMessage
-    sendMessage({ text: contextPrefix + messageText })
+    // AI SDK v6: Convert attachments to FileUIPart format for sendMessage
+    // FileUIPart = { type: 'file', mediaType: string, filename?: string, url: string (data URL) }
+    let files: { type: 'file'; mediaType: string; filename: string; url: string }[] | undefined
     
-    // Reset local state if not handled by hook
-    if (!text) handleInputChange({ target: { value: '' } } as any)
+    if (textAttachments.length > 0) {
+      files = textAttachments.map((item) => ({
+        type: 'file' as const,
+        mediaType: item.file.type || 'text/plain',
+        filename: item.file.name,
+        url: item.dataUrl,  // Already a data URL from handlePaste
+      }))
+    }
+    
+    // Using sendMessage with files array in AI SDK v6 format
+    sendMessage({ 
+      text: contextPrefix + (messageText || 'Sent with attachments'),
+      files,
+    } as any)
+    
+    // Reset local state
+    if (!text) setInput('')
     setSelectedContexts([])
     setTextAttachments([])
   }
@@ -241,7 +257,7 @@ export function RonTab({ task }: RonTabProps) {
           >
             <HistoryIcon size={14} className="text-ink-muted" />
             <span className="truncate max-w-[150px]">
-              {messages[0]?.content.slice(0, 20) + '...' || 'New Chat'}
+              {(messages[0]?.parts?.find((p: any) => p.type === 'text') as any)?.text?.slice(0, 20) + '...' || 'New Chat'}
             </span>
             <ChevronDownIcon size={14} className={cn("text-ink-muted transition-transform", isHistoryOpen && "rotate-180")} />
           </button>
@@ -370,7 +386,7 @@ export function RonTab({ task }: RonTabProps) {
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={handleInputChange}
+                onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder="Ask anything..."

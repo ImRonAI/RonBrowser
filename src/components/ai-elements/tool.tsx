@@ -218,14 +218,62 @@ export function ToolInput({ input, className }: ToolInputProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ToolOutputProps {
-  output?: string
+  output?: string | unknown
   errorText?: string
   className?: string
 }
 
+// Check if output contains image content block
+function extractImageFromOutput(output: unknown): { base64: string; format: string } | null {
+  if (!output) return null
+  
+  // Handle array of content blocks (Bedrock/Strands format)
+  if (Array.isArray(output)) {
+    for (const block of output) {
+      if (block?.image?.source?.bytes) {
+        return { base64: block.image.source.bytes, format: block.image.format || 'png' }
+      }
+    }
+  }
+  
+  // Handle single content block
+  if (typeof output === 'object' && output !== null) {
+    const obj = output as Record<string, any>
+    if (obj.image?.source?.bytes) {
+      return { base64: obj.image.source.bytes, format: obj.image.format || 'png' }
+    }
+  }
+  
+  return null
+}
+
 export function ToolOutput({ output, errorText, className }: ToolOutputProps) {
   const hasError = !!errorText
-  const displayValue = errorText || output
+  
+  // Check for image content
+  const imageData = extractImageFromOutput(output)
+  
+  if (imageData) {
+    // Render image
+    const src = `data:image/${imageData.format};base64,${imageData.base64}`
+    return (
+      <div className={cn('space-y-1', className)}>
+        <label className="text-label font-medium text-ink-muted dark:text-ink-inverse-muted">
+          Screenshot
+        </label>
+        <div className="rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
+          <img 
+            src={src} 
+            alt="Screenshot" 
+            className="max-w-full h-auto"
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback to text output  
+  const displayValue = errorText || (typeof output === 'string' ? output : JSON.stringify(output, null, 2))
 
   if (!displayValue) return null
 

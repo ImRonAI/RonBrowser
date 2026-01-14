@@ -225,7 +225,7 @@ function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
               <ToolInput input={toolPart.input as Record<string, unknown>} />
             )}
             {toolPart.state === 'output-available' && toolPart.output != null && (
-              <ToolOutput output={JSON.stringify(toolPart.output, null, 2)} />
+              <ToolOutput output={toolPart.output} />
             )}
             {toolPart.state === 'output-error' && toolPart.errorText && (
               <ToolOutput errorText={toolPart.errorText} />

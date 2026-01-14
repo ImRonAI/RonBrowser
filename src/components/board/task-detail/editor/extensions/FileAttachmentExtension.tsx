@@ -67,7 +67,7 @@ function FileAttachmentComponent(props: any) {
     deleteNode()
   }
 
-  const handleUpdate = (id: string, next: Partial<TextAttachment>) => {
+  const handleUpdate = (_id: string, next: Partial<TextAttachment>) => {
     // If the card updates the file content (e.g. edit), we need to update attributes
     if (next.dataUrl) updateAttributes({ dataUrl: next.dataUrl })
     if (next.file?.name) updateAttributes({ name: next.file.name })

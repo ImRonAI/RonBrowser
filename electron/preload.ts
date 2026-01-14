@@ -333,6 +333,49 @@ const electronAPI = {
     saveCustomTool: (name: string, code: string) => 
       ipcRenderer.invoke('tools:saveCustomTool', name, code) as Promise<{ success: boolean; path: string }>,
   },
+
+  // ----------------------------------------
+  // Agent Sandbox (Restricted File/Shell Access)
+  // ----------------------------------------
+  sandbox: {
+    // Get sandbox root path
+    getRoot: () => 
+      ipcRenderer.invoke('sandbox:get-root') as Promise<{ success: boolean; root: string }>,
+    
+    // Execute shell command in sandbox (cwd locked to sandbox)
+    shell: (command: string, args: string[] = [], options?: { timeout?: number }) =>
+      ipcRenderer.invoke('sandbox:shell', command, args, options) as Promise<{
+        success: boolean
+        stdout: string
+        stderr: string
+        exitCode: number
+        error?: string
+      }>,
+    
+    // List files in sandbox directory
+    listFiles: (relativePath?: string) =>
+      ipcRenderer.invoke('sandbox:list-files', relativePath) as Promise<{
+        success: boolean
+        files?: Array<{ name: string; type: 'file' | 'dir'; size?: number }>
+        error?: string
+      }>,
+
+    // Read file from sandbox
+    readFile: (filePath: string) =>
+      ipcRenderer.invoke('sandbox:read-file', filePath) as Promise<{
+        success: boolean
+        content?: string
+        error?: string
+      }>,
+
+    // Write file to sandbox
+    writeFile: (filePath: string, content: string) =>
+      ipcRenderer.invoke('sandbox:write-file', filePath, content) as Promise<{
+        success: boolean
+        path?: string
+        error?: string
+      }>,
+  },
 }
 
 // ============================================

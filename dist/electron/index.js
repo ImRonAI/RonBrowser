@@ -1295,3 +1295,152 @@ electron.ipcMain.handle("go-forward", async () => {
 electron.ipcMain.handle("reload", async () => {
   return electron.ipcMain.emit("browser:reload", null);
 });
+function getSandboxRoot() {
+  const userDataPath = electron.app.getPath("userData");
+  return node_path.join(userDataPath, "agent-sandbox");
+}
+function ensureSandboxExists() {
+  const sandboxRoot = getSandboxRoot();
+  const fs = require("fs");
+  if (!fs.existsSync(sandboxRoot)) {
+    fs.mkdirSync(sandboxRoot, { recursive: true });
+    console.log("[Sandbox] Created sandbox directory:", sandboxRoot);
+  }
+  return sandboxRoot;
+}
+function resolveSandboxPath(relativePath) {
+  const sandboxRoot = ensureSandboxExists();
+  const path = require("path");
+  const cleanPath = relativePath.replace(/^[/\\]+/, "");
+  const fullPath = path.normalize(path.join(sandboxRoot, cleanPath));
+  if (!fullPath.startsWith(path.normalize(sandboxRoot))) {
+    return { success: false, error: `Path traversal blocked: '${relativePath}' resolves outside sandbox` };
+  }
+  return { success: true, path: fullPath };
+}
+electron.ipcMain.handle("sandbox:get-root", async () => {
+  return { success: true, root: ensureSandboxExists() };
+});
+electron.ipcMain.handle("sandbox:shell", async (_, command, args = [], options = {}) => {
+  const sandboxRoot = ensureSandboxExists();
+  const { spawn: spawn2 } = require("child_process");
+  const timeout = options.timeout || 3e4;
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    const child = spawn2(command, args, {
+      cwd: sandboxRoot,
+      shell: true,
+      env: {
+        ...process.env,
+        HOME: sandboxRoot,
+        // Restrict HOME to sandbox
+        PWD: sandboxRoot
+      }
+    });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+        }
+      }, 1e3);
+    }, timeout);
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        resolve({
+          success: false,
+          error: `Command timed out after ${timeout}ms`,
+          stdout,
+          stderr,
+          exitCode: -1
+        });
+      } else {
+        resolve({
+          success: code === 0,
+          stdout,
+          stderr,
+          exitCode: code ?? -1,
+          error: code !== 0 ? `Command exited with code ${code}` : void 0
+        });
+      }
+    });
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      resolve({
+        success: false,
+        error: err.message,
+        stdout,
+        stderr,
+        exitCode: -1
+      });
+    });
+  });
+});
+electron.ipcMain.handle("sandbox:read-file", async (_, filePath) => {
+  const resolved = resolveSandboxPath(filePath);
+  if (!resolved.success || !resolved.path) {
+    return { success: false, error: resolved.error };
+  }
+  try {
+    const fs = require("fs");
+    if (!fs.existsSync(resolved.path)) {
+      return { success: false, error: `File not found: ${filePath}` };
+    }
+    const content = fs.readFileSync(resolved.path, "utf-8");
+    return { success: true, content };
+  } catch (error) {
+    return { success: false, error: `Error reading file: ${error}` };
+  }
+});
+electron.ipcMain.handle("sandbox:write-file", async (_, filePath, content) => {
+  const resolved = resolveSandboxPath(filePath);
+  if (!resolved.success || !resolved.path) {
+    return { success: false, error: resolved.error };
+  }
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const dirname = path.dirname(resolved.path);
+    if (!fs.existsSync(dirname)) {
+      if (!dirname.startsWith(ensureSandboxExists())) {
+        return { success: false, error: "Parent directory traversal blocked" };
+      }
+      fs.mkdirSync(dirname, { recursive: true });
+    }
+    fs.writeFileSync(resolved.path, content, "utf-8");
+    return { success: true, path: filePath };
+  } catch (error) {
+    return { success: false, error: `Error writing file: ${error}` };
+  }
+});
+electron.ipcMain.handle("sandbox:list-files", async (_, relativePath = "") => {
+  const resolved = resolveSandboxPath(relativePath || ".");
+  if (!resolved.success) return { success: false, error: resolved.error };
+  const fs = require("fs");
+  const path = require("path");
+  try {
+    if (!fs.existsSync(resolved.path)) {
+      return { success: false, error: "Directory not found" };
+    }
+    const entries = fs.readdirSync(resolved.path, { withFileTypes: true });
+    const files = entries.map((entry) => ({
+      name: entry.name,
+      type: entry.isDirectory() ? "dir" : "file",
+      size: entry.isFile() ? fs.statSync(path.join(resolved.path, entry.name)).size : void 0
+    }));
+    return { success: true, files };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});

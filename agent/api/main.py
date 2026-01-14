@@ -32,6 +32,10 @@ load_dotenv(Path(__file__).parent.parent.parent / ".env")
 # use_computer, file_write, editor all require terminal input otherwise)
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Sandbox Setup - All agent file/shell operations default to this directory
+# ─────────────────────────────────────────────────────────────────────────────
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -674,6 +678,7 @@ import superagent as sa
 _global_agent = create_superagent()
 logger.info("Permanent SuperAgent (ron25) initialized")
 
+
 @app.post("/superagent/stream")
 async def superagent_stream(request: Request):
     """
@@ -691,9 +696,46 @@ async def superagent_stream(request: Request):
         # AI SDK v6 format: messages[].parts[].text
         parts = last_msg.get("parts", [])
         for part in parts:
-            if part.get("type") == "text":
-                message = part.get("text", "").strip()
-                break
+            p_type = part.get("type")
+            if p_type == "text":
+                msg_text = part.get("text", "")
+                if msg_text:
+                    message += f"\n{msg_text}" if message else msg_text
+            elif p_type in ["attachment", "file"]:
+                # Handle file attachments (AI SDK v6 FileUIPart format)
+                # FileUIPart = { type: 'file', mediaType: string, filename?: string, url: string }
+                # The 'url' field contains a data URL (base64 encoded content)
+                
+                # Try direct text fields first (legacy formats)
+                content = part.get("text") or part.get("content") or part.get("data")
+                
+                # If not found, decode from data URL
+                if not content and part.get("url"):
+                    url = part.get("url")
+                    if url.startswith("data:"):
+                        try:
+                            # Parse data URL: data:[<mediatype>][;base64],<data>
+                            import base64
+                            comma_idx = url.find(",")
+                            if comma_idx != -1:
+                                header = url[5:comma_idx]  # Skip "data:"
+                                encoded_data = url[comma_idx + 1:]
+                                
+                                if ";base64" in header:
+                                    # Base64 encoded
+                                    decoded_bytes = base64.b64decode(encoded_data)
+                                    content = decoded_bytes.decode("utf-8", errors="replace")
+                                else:
+                                    # URL encoded
+                                    from urllib.parse import unquote
+                                    content = unquote(encoded_data)
+                        except Exception as e:
+                            logger.error(f"Failed to decode attachment URL: {e}")
+                            content = ""
+                
+                filename = part.get("filename", "attachment")
+                if content:
+                    message += f"\n\n[Attachment: {filename}]\n{content}\n" if message else f"[Attachment: {filename}]\n{content}\n"
         # Fallback to content string (older format)
         if not message and isinstance(last_msg.get("content"), str):
             message = last_msg["content"].strip()
@@ -735,6 +777,32 @@ async def superagent_stream(request: Request):
     _global_agent.messages = session_history  # Load session context
     _global_agent.callback_handler = UICallbackHandler(emit)
     
+    # CRITICAL: Update the singleton's session manager to the current session
+    # This ensures files/memories are stored in the correct session scope
+    if hasattr(_global_agent, "session_manager"):
+        # Check for Session Switch -> Reset Browser
+        current_id = getattr(_global_agent.session_manager, "session_id", None)
+        if current_id and current_id != session_id:
+             logger.info(f"Session Switch ({current_id} -> {session_id}). Resetting Browser State.")
+             try:
+                 if sa._global_browser:
+                     shell = await sa._global_browser._get_shell_page()
+                     if shell:
+                         # Close all tabs and create a fresh one
+                         await shell.evaluate("""
+                             (async () => {
+                                 if (window.electron && window.electron.tabs) {
+                                     const tabs = await window.electron.tabs.list();
+                                     for (const t of tabs) { await window.electron.tabs.close(t.id); }
+                                     await window.electron.tabs.create();
+                                 }
+                             })()
+                         """)
+             except Exception as e:
+                 logger.warning(f"Browser reset failed: {e}")
+
+        _global_agent.session_manager.session_id = session_id
+        
     agent = _global_agent
     initial_msg_count = len(agent.messages)
 
@@ -758,13 +826,7 @@ async def superagent_stream(request: Request):
                 )
                 result = await browser.init_session(action)
                 logger.info(f"Created browser session: {browser_session_name} -> {result}")
-                
-                # Inject browser context into agent's messages so it knows which session to use
-                browser_context_msg = {
-                    "role": "user",
-                    "content": [{"text": f"[SYSTEM] Browser session '{browser_session_name}' is ready. Use this session_name for all browser actions."}]
-                }
-                agent.messages.insert(0, browser_context_msg)
+                # Don't inject messages - the agent resolves session name automatically via defaults
             except Exception as e:
                 logger.warning(f"Failed to create browser session: {e}")
 

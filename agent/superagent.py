@@ -8,19 +8,21 @@ import logging
 # Load .env from project root
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+# Ensure tools/src is in path so we can import strands_tools modules
+# this is critical if the package is not installed in editable mode or if we added new files
+import sys
+sys.path.append(str(Path(__file__).parent / "tools" / "src"))
+
 from strands import Agent, tool
-from strands.models import BedrockModel
+from strands import Agent, tool
+from strands.models.bedrock import BedrockModel
 
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 
 from strands_tools import (
     load_tool,
-    editor,
-    shell,
     http_request,
-    file_read,
-    file_write,
     mcp_client,
     a2a_client,
     mem0_memory,
@@ -34,6 +36,7 @@ from strands_tools import (
     graph,
     image_reader,
 )
+from strands_tools.electron_sandbox_tools import ElectronSandboxTools
 from strands_tools.a2a_client import A2AClientToolProvider
 from strands_tools.browser import LocalChromiumBrowser
 # from strands_tools.code_interpreter.docker_code_interpreter import DockerCodeInterpreter
@@ -196,6 +199,45 @@ You are integrated natively into the Ron Browser App via a direct CDP bridge.
   - To manage tabs (create, switch, close, navigate), use standard browser actions (`new_tab`, `switch_tab`, `navigate`). These trigger the App's native UI handler.
   - To interact with content (click, type, read), use standard browser actions. These automatically target the *Active Tab* content.
 - **Persistence**: You are permanently connected to the Main Window Shell. Do not attempt to launch new browsers or contexts. Use the provided tools.
+
+## BROWSER INTERACTION PROTOCOL (MANDATORY)
+When browsing the web, ALWAYS follow this exact workflow:
+
+### Step 1: Initial Navigation
+- Type the website URL in the address bar OR enter a search query in a search bar
+- Use `browser` with `navigate` action or `type` action to input the URL/search
+
+### Step 2: Capture & Understand
+- Take a screenshot using `browser` with `screenshot` action (saves file to disk)
+- IMMEDIATELY use `image_reader(image_path="<path>")` to send the screenshot to the model
+- NEVER proceed without visually confirming the current state via image_reader
+
+### Step 3: Execute Certain Actions
+- Only perform actions you are CERTAIN about based on the screenshot
+- Execute actions sequentially (one at a time)
+- Actions you can perform without additional screenshots:
+  - Clicking a clearly visible button/link you identified
+  - Typing into a field you confirmed exists
+  - Scrolling in a known direction
+
+### Step 4: Verify & Repeat
+- After any action that changes the page state, IMMEDIATELY take another screenshot
+- Use `image_reader` to understand the new state
+- NEVER GUESS what's on screen - always verify with screenshot + image_reader
+- Repeat Steps 2-4 until task is completed
+
+### CRITICAL RULES
+- **NO GUESSING**: Never assume what's on screen - always verify with screenshot + image_reader
+- **SEQUENTIAL EXECUTION**: One action at a time, verify between uncertain actions
+- **SCREENSHOT FIRST**: Any time you're unsure, take a screenshot and read it
+
+### Data Collection & Context Files
+When performing research or coding tasks from web sources:
+1. For scraping, prefer `browser` tool with `get_text` or `get_html` actions for direct DOM access
+2. For complex pages that need full markdown conversion, use `bright_data` with `scrape_as_markdown`
+3. Create a context file for the project using `file_write` or `editor`
+4. Store EXACTLY what you received from the scrape - do not summarize or modify
+5. Name files descriptively: `{topic}_research_context.md` or `{project}_reference.md`
 
 ## PERSONALITY & TONE
 - **Vibe**: Perky, upbeat, and friendly! 🌟
@@ -632,7 +674,7 @@ def create_file_tracking_wrapper(original_tool: Callable, task_tools_instance: T
 
 def get_or_create_superagent(
     callback_handler: Optional[Callable[..., Any]] = None,
-    session_id: str = "default"
+    session_id: str = None
 ) -> Agent:
     """Get or create the PERMANENT super agent.
 
@@ -641,86 +683,123 @@ def get_or_create_superagent(
 
     Args:
         callback_handler: Optional callback handler for streaming
-        session_id: Session ID for persistence
+        session_id: Session ID for persistence (auto-generated if None)
 
     Returns:
         The permanent Agent instance
     """
     global _SUPER_AGENT, _current_agent, _global_browser
 
-    if _SUPER_AGENT is None:
-        model = create_bedrock_model()
-        a2a_provider = A2AClientToolProvider(known_agent_urls=[])
 
-        # Connect to existing Electron browser on port 9222 (set in main.ts)
-        browser = LocalChromiumBrowser(launch_options={"cdp_url": "http://localhost:9222"})
+def init_global_resources():
+    """Initialize global resources (Browser, Tools) once."""
+    global _global_browser, _sandbox_tools, _task_tools, _code_interpreter, _cached_tools
+    
+    if _global_browser is None:
+        # Connect to existing Electron browser on port 9222
+        _global_browser = LocalChromiumBrowser(launch_options={"cdp_url": "http://localhost:9222"})
         
-        # Initialize Task Tools with browser access
-        task_tools = TaskTools(browser)
-        
-        # Wrap file tools for tracking
-        tracked_file_write = create_file_tracking_wrapper(file_write, task_tools, "file_write")
-        tracked_editor = create_file_tracking_wrapper(editor, task_tools, "editor")
+        # Initialize reusable tool wrappers
+        _task_tools = TaskTools(_global_browser)
+        _sandbox_tools = ElectronSandboxTools(_global_browser)
+        # _code_interpreter = ElectronCodeInterpreter(browser=_global_browser) # Re-enable if needed
 
-        # Use Electron-bridged code interpreter (delegates to UtilityProcess via browser)
-        code_interpreter = ElectronCodeInterpreter(browser=browser)
+        # Define tool list factory or cache checks here if needed
+        # For now, we reconstruct the list in create_superagent to ensure bound methods are correct
 
-        tools = [
-            # Meta-tooling
-            load_tool, tracked_editor, shell,
-            # Multi-agent orchestration
-            use_agent, workflow, swarm, graph, think,
-            # Core utilities
-            http_request, file_read, tracked_file_write, environment,
-            mcp_client, mem0_memory, stop, sleep, image_reader,
-            # Browser execution
-            browser.browser,
-            # Task Management
-            task_tools.create_task, task_tools.update_task, task_tools.add_file_reference,
-            task_tools.search_tasks, task_tools.get_task, task_tools.add_relationship,
-            # MCP server management
-            load_mcp_server, load_openapi_server, unload_mcp_server,
-            # A2A
-            *a2a_provider.tools,
-        ]
+    return _global_browser
 
-        _SUPER_AGENT = Agent(
-            model=model,
-            tools=tools,
-            callback_handler=callback_handler or CLICallbackHandler(),
-            system_prompt=SUPERAGENT_SYSTEM_PROMPT,
-            agent_id="ron-superagent",
-            name="Ron Superagent",
-            description="Powerful orchestration agent with meta-tooling, memory, MCP dynamic loading, and A2A capabilities",
-            session_manager=FileSessionManager(
-                session_id=session_id,
-                storage_dir=str(Path(__file__).parent.parent / ".sessions")
-            )
-        )
-        _current_agent = _SUPER_AGENT
-        _global_browser = browser
 
-    return _SUPER_AGENT
+
+
 
 
 def create_superagent(
+    session_id: Optional[str] = None,
+    history: Optional[List[Dict[str, Any]]] = None,
     callback_handler: Optional[Callable[..., Any]] = None,
-    a2a_urls: Optional[list[str]] = None,
-    additional_tools: Optional[list] = None,
-    history: Optional[List[Dict[str, Any]]] = None
 ) -> Agent:
-    """Create and configure the Ron Superagent.
+    """Create a fresh Agent instance for a specific session."""
+    
+    # ensure globals are ready
+    browser = init_global_resources()
+    
+    # Use re-imported tools from global scope or the cached ones
+    # Note: sandbox_tools is now available globally via init_global_resources pattern, but
+    # imports in this file are at module level.
+    # We use the globals initialized above.
+    
+    global _sandbox_tools, _task_tools
+    sandbox_tools = _sandbox_tools
+    task_tools = _task_tools
+    
+    # Re-construct tools list for this agent instance
+    tools = [
+        # Meta-tooling
+        load_tool, sandbox_tools.shell, sandbox_tools.editor,
+        # Multi-agent orchestration
+        use_agent, workflow, swarm, graph, think,
+        # Core utilities
+        http_request, sandbox_tools.file_read, sandbox_tools.file_write, environment,
+        mcp_client, mem0_memory, stop, sleep, image_reader,
+        # Browser execution
+        browser.browser,
+        # Task Management
+        task_tools.create_task, task_tools.update_task, task_tools.add_file_reference,
+        task_tools.search_tasks, task_tools.get_task, task_tools.add_relationship,
+        # MCP server management
+        load_mcp_server, load_openapi_server, unload_mcp_server,
+        # A2A
+        A2AClientToolProvider(known_agent_urls=[]).tools[0], # simplified access
+    ]
+    # Note: A2A provider .tools returns a list, using * expansion or indexing. 
+    # Original used *a2a_provider.tools. Let's replicate cleanly.
+    a2a_provider = A2AClientToolProvider(known_agent_urls=[])
+    tools.extend(a2a_provider.tools)
 
-    DEPRECATED: This now returns the permanent singleton.
-    Use get_or_create_superagent() for explicit session management.
-    """
-    # Get the permanent agent
-    agent = get_or_create_superagent(callback_handler=callback_handler)
+    # Configured Claude Sonnet 4.5 (1M Context)
+    model = BedrockModel(
+        model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        temperature=1.0,
+        additional_request_fields={
+            "anthropic_beta": [
+                "context-1m-2025-08-07",
+                "interleaved-thinking-2025-05-14",
+                "computer-use-2024-10-22"
+            ],
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 32768
+            }
+        }
+    )
+    
+    if session_id is None:
+        import time
+        session_id = f"ron-{int(time.time())}"
 
-    # Restore history if provided (backward compatibility)
+    logger.info(f"Creating new SuperAgent for session: {session_id}")
+
+    agent = Agent(
+        model=model,
+        tools=tools,
+        callback_handler=callback_handler or CLICallbackHandler(),
+        system_prompt=SUPERAGENT_SYSTEM_PROMPT,
+        agent_id="ron-superagent",
+        name="Ron Superagent",
+        description="Orchestrator",
+        session_manager=FileSessionManager(
+            session_id=session_id,
+            storage_dir=str(Path(__file__).parent.parent / ".sessions")
+        )
+    )
+    
     if history:
         agent.messages = history
-
+        
+    global _current_agent
+    _current_agent = agent
+    
     return agent
 
 

@@ -1037,3 +1037,202 @@ ipcMain.handle('go-forward', async () => {
 ipcMain.handle('reload', async () => {
   return ipcMain.emit('browser:reload', null)
 })
+
+// ============================================
+// IPC Handlers - Agent Sandbox
+// ============================================
+
+/**
+ * Get the sandbox root directory for agent file/shell operations.
+ * All agent operations are restricted to this directory.
+ */
+function getSandboxRoot(): string {
+  const userDataPath = app.getPath('userData')
+  return join(userDataPath, 'agent-sandbox')
+}
+
+/**
+ * Ensure sandbox directory exists.
+ */
+function ensureSandboxExists(): string {
+  const sandboxRoot = getSandboxRoot()
+  const fs = require('fs')
+  if (!fs.existsSync(sandboxRoot)) {
+    fs.mkdirSync(sandboxRoot, { recursive: true })
+    console.log('[Sandbox] Created sandbox directory:', sandboxRoot)
+  }
+  return sandboxRoot
+}
+
+/**
+ * Validate and resolve path within sandbox, preventing traversal attacks.
+ */
+function resolveSandboxPath(relativePath: string): { success: boolean; path?: string; error?: string } {
+  const sandboxRoot = ensureSandboxExists()
+  const path = require('path')
+  
+  // Strip leading slashes to make it relative
+  const cleanPath = relativePath.replace(/^[/\\]+/, '')
+  
+  // Resolve full path
+  const fullPath = path.normalize(path.join(sandboxRoot, cleanPath))
+  
+  // Security check: ensure path is within sandbox
+  if (!fullPath.startsWith(path.normalize(sandboxRoot))) {
+    return { success: false, error: `Path traversal blocked: '${relativePath}' resolves outside sandbox` }
+  }
+  
+  return { success: true, path: fullPath }
+}
+
+// Get sandbox root path
+ipcMain.handle('sandbox:get-root', async () => {
+  return { success: true, root: ensureSandboxExists() }
+})
+
+// Execute shell command in sandbox (with timeout)
+ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], options: { timeout?: number } = {}) => {
+  const sandboxRoot = ensureSandboxExists()
+  const { spawn } = require('child_process')
+  const timeout = options.timeout || 30000 // 30 second default timeout
+  
+  return new Promise((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    
+    const child = spawn(command, args, {
+      cwd: sandboxRoot,
+      shell: true,
+      env: {
+        ...process.env,
+        HOME: sandboxRoot, // Restrict HOME to sandbox
+        PWD: sandboxRoot,
+      }
+    })
+    
+    // Set timeout
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+      setTimeout(() => {
+        try { child.kill('SIGKILL') } catch {}
+      }, 1000)
+    }, timeout)
+    
+    child.stdout?.on('data', (data: Buffer) => {
+      stdout += data.toString()
+    })
+    
+    child.stderr?.on('data', (data: Buffer) => {
+      stderr += data.toString()
+    })
+    
+    child.on('close', (code: number | null) => {
+      clearTimeout(timer)
+      
+      if (timedOut) {
+        resolve({
+          success: false,
+          error: `Command timed out after ${timeout}ms`,
+          stdout,
+          stderr,
+          exitCode: -1
+        })
+      } else {
+        resolve({
+          success: code === 0,
+          stdout,
+          stderr,
+          exitCode: code ?? -1,
+          error: code !== 0 ? `Command exited with code ${code}` : undefined
+        })
+      }
+    })
+    
+    child.on('error', (err: Error) => {
+      clearTimeout(timer)
+      resolve({
+        success: false,
+        error: err.message,
+        stdout,
+        stderr,
+        exitCode: -1
+      })
+    })
+  })
+})
+
+// Read file from sandbox
+ipcMain.handle('sandbox:read-file', async (_, filePath: string) => {
+  const resolved = resolveSandboxPath(filePath)
+  if (!resolved.success || !resolved.path) {
+    return { success: false, error: resolved.error }
+  }
+  
+  try {
+    const fs = require('fs')
+    if (!fs.existsSync(resolved.path)) {
+      return { success: false, error: `File not found: ${filePath}` }
+    }
+    const content = fs.readFileSync(resolved.path, 'utf-8')
+    return { success: true, content }
+  } catch (error) {
+    return { success: false, error: `Error reading file: ${error}` }
+  }
+})
+
+// Write file to sandbox
+ipcMain.handle('sandbox:write-file', async (_, filePath: string, content: string) => {
+  const resolved = resolveSandboxPath(filePath)
+  if (!resolved.success || !resolved.path) {
+    return { success: false, error: resolved.error }
+  }
+  
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    
+    // Ensure parent directory exists
+    const dirname = path.dirname(resolved.path)
+    if (!fs.existsSync(dirname)) {
+      // Security check for parent directory too (redundant but safe)
+      if (!dirname.startsWith(ensureSandboxExists())) {
+         return { success: false, error: "Parent directory traversal blocked" }
+      }
+      fs.mkdirSync(dirname, { recursive: true })
+    }
+    
+    fs.writeFileSync(resolved.path, content, 'utf-8')
+    return { success: true, path: filePath }
+  } catch (error) {
+    return { success: false, error: `Error writing file: ${error}` }
+  }
+})
+
+// List files in sandbox directory
+ipcMain.handle('sandbox:list-files', async (_, relativePath: string = '') => {
+  const resolved = resolveSandboxPath(relativePath || '.')
+  if (!resolved.success) return { success: false, error: resolved.error }
+  
+  const fs = require('fs')
+  const path = require('path')
+  
+  try {
+    if (!fs.existsSync(resolved.path)) {
+      return { success: false, error: 'Directory not found' }
+    }
+    
+    const entries = fs.readdirSync(resolved.path, { withFileTypes: true })
+    const files = entries.map((entry: any) => ({
+      name: entry.name,
+      type: entry.isDirectory() ? 'dir' : 'file',
+      size: entry.isFile() ? fs.statSync(path.join(resolved.path, entry.name)).size : undefined
+    }))
+    
+    return { success: true, files }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+})
+

@@ -206,6 +206,21 @@ const electronAPI = {
     getCustomToolsDir: () => electron.ipcRenderer.invoke("tools:getCustomToolsDir"),
     // Save a custom tool created by the agent
     saveCustomTool: (name, code) => electron.ipcRenderer.invoke("tools:saveCustomTool", name, code)
+  },
+  // ----------------------------------------
+  // Agent Sandbox (Restricted File/Shell Access)
+  // ----------------------------------------
+  sandbox: {
+    // Get sandbox root path
+    getRoot: () => electron.ipcRenderer.invoke("sandbox:get-root"),
+    // Execute shell command in sandbox (cwd locked to sandbox)
+    shell: (command, args = [], options) => electron.ipcRenderer.invoke("sandbox:shell", command, args, options),
+    // List files in sandbox directory
+    listFiles: (relativePath) => electron.ipcRenderer.invoke("sandbox:list-files", relativePath),
+    // Read file from sandbox
+    readFile: (filePath) => electron.ipcRenderer.invoke("sandbox:read-file", filePath),
+    // Write file to sandbox
+    writeFile: (filePath, content) => electron.ipcRenderer.invoke("sandbox:write-file", filePath, content)
   }
 };
 if (process.contextIsolated) {

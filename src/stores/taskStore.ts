@@ -199,6 +199,19 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // Use the comprehensive normalizer
     const normalizedData = normalizeTaskInput(taskOverrides, state.tasks)
 
+    // CHECK FOR DUPLICATES / UPSERT
+    // If the agent provides an ID that already exists, treat this as an UPDATE
+    // This is a safety net for when the agent tries to "re-create" a task to update it
+    if (normalizedData.id) {
+        const existingTask = state.tasks.find(t => t.id === normalizedData.id)
+        if (existingTask) {
+            // Upsert: Update existing task
+            const { id, ...updates } = normalizedData
+            state.updateTask(id, updates)
+            return state.tasks.find(t => t.id === id)!
+        }
+    }
+
     const newTask: Task = {
       id: `task-${Date.now()}`,
       title: 'New Task',

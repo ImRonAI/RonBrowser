@@ -72,12 +72,77 @@ export function SuperAgentInterface() {
     setTimeout(() => inputRef.current?.focus(), 300)
   }, [])
 
+  const convertBlobUrlToDataUrl = async (
+    url: string
+  ): Promise<string | null> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+
+
+
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // 1) If the clipboard contains files (e.g., pasted image), attach them.
+    const items = Array.from(e.clipboardData.items || [])
+    const fileItems = items
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => Boolean(f))
+
+    if (fileItems.length > 0) {
+      e.preventDefault()
+      // Process files
+      const newAttachments = await Promise.all(fileItems.map(async (file) => {
+        const dataUrl = await fileToDataUrl(file)
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+          dataUrl,
+          preview: dataUrl,
+        } as TextAttachment
+      }))
+      setTextAttachments(prev => [...prev, ...newAttachments])
+      return
+    }
+
+    // 2) If the clipboard contains a large text paste, convert to a txt attachment.
+    const text = e.clipboardData.getData('text/plain')
+    if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
+      e.preventDefault()
+      const file = new File([text], makePastedTextFilename(), {
+        type: 'text/plain',
+      })
+      
+      const dataUrl = await fileToDataUrl(file)
+      const newAttachment: TextAttachment = {
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        dataUrl,
+        preview: dataUrl,
+      }
+      setTextAttachments(prev => [...prev, newAttachment])
+    }
+  }
+
+
   const handleSubmit = async (text?: string) => {
     const messageText = text || input.trim()
-    if (!messageText || status !== 'ready') return
+    if ((!messageText && textAttachments.length === 0) || status !== 'ready') return
 
     setInput('')
-
+    
     let finalMessage = messageText
     if (selectedContexts.length > 0) {
       const contextString = selectedContexts.map(c => {
@@ -91,7 +156,37 @@ export function SuperAgentInterface() {
       finalMessage = `[Deep Research Mode]\n${finalMessage}`
     }
 
-    sendMessage({ text: finalMessage })
+    // AI SDK v6: Convert attachments to FileUIPart format for sendMessage
+    // FileUIPart = { type: 'file', mediaType: string, filename?: string, url: string (data URL supported) }
+    let files: { type: 'file'; mediaType: string; filename: string; url: string }[] | undefined
+    
+    if (textAttachments.length > 0) {
+      files = await Promise.all(
+        textAttachments.map(async (item) => {
+          // If blob: URL, convert to Data URL first
+          let dataUrl = item.dataUrl
+          if (dataUrl.startsWith('blob:')) {
+            const converted = await convertBlobUrlToDataUrl(dataUrl)
+            if (converted) dataUrl = converted
+          }
+          
+          return {
+            type: 'file' as const,
+            mediaType: item.file.type || 'text/plain',
+            filename: item.file.name,
+            url: dataUrl,
+          }
+        })
+      )
+    }
+    
+    setTextAttachments([])
+
+    // Send message with files array in AI SDK v6 format
+    sendMessage({ 
+      text: finalMessage || 'Sent with attachments',
+      files,
+    } as any)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -123,22 +218,6 @@ export function SuperAgentInterface() {
     setTextAttachments(prev => prev.map(att =>
       att.id === id ? { ...att, ...next } : att
     ))
-  }
-
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const text = e.clipboardData.getData('text/plain')
-    if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
-      e.preventDefault()
-      const file = new File([text], makePastedTextFilename(), { type: 'text/plain' })
-      const dataUrl = await fileToDataUrl(file)
-      const newAttachment: TextAttachment = {
-        id: Math.random().toString(36).substr(2, 9),
-        file,
-        dataUrl,
-        preview: dataUrl,
-      }
-      setTextAttachments(prev => [...prev, newAttachment])
-    }
   }
 
   return (

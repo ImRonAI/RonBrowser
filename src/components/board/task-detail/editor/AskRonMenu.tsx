@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
 import { 
   Sparkles, ArrowRight, X, Check, Wand2, 
   FileText, MessageSquare, Languages, Code
@@ -43,13 +44,13 @@ const FUNNY_QUOTES = [
 interface AskRonMenuProps {
   node: {
     attrs: {
-      taskId: string
+      taskId?: string
       defaultAction?: 'fix' | 'expand' | null
     }
   }
   deleteNode: () => void
   editor: any
-  getPos: () => number
+  getPos: () => number | undefined
 }
 
 export function AskRonMenu({ node, deleteNode, editor, getPos }: AskRonMenuProps) {
@@ -59,12 +60,13 @@ export function AskRonMenu({ node, deleteNode, editor, getPos }: AskRonMenuProps
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
   const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
 
-  // @ts-ignore - api and body are valid in newer AI SDK versions
   const { sendMessage, status } = useChat({
-    api: SUPERAGENT_API,
-    body: {
+    transport: new DefaultChatTransport({
+      api: SUPERAGENT_API,
+      body: () => ({
         session_id: node.attrs.taskId || 'default-ask-ron'
-    },
+      }),
+    }),
     onFinish: (message: any) => {
         setTimeout(() => {
              let text = ''
@@ -110,7 +112,7 @@ export function AskRonMenu({ node, deleteNode, editor, getPos }: AskRonMenuProps
   const triggerRequest = (prompt: string) => {
     setMode('loading')
     
-    const pos = getPos()
+    const pos = getPos() ?? 0
     const docBefore = editor.state.doc.textBetween(Math.max(0, pos - 1500), pos, '\n')
     
     // Build context from selected items
@@ -118,9 +120,9 @@ export function AskRonMenu({ node, deleteNode, editor, getPos }: AskRonMenuProps
       ? `\n\nAdditional Context:\n${selectedContexts.map(c => `- ${c.type}: ${c.name}${c.description ? ` (${c.description})` : ''}`).join('\n')}`
       : ''
     
-    // Include text attachments
+    // Build attachment info for prompt (for context)
     const attachmentStr = textAttachments.length > 0
-      ? `\n\nAttached Files:\n${textAttachments.map(a => `- ${a.file.name}: [content attached]`).join('\n')}`
+      ? `\n\nAttached Files:\n${textAttachments.map(a => `- ${a.file.name}: [content attached below]`).join('\n')}`
       : ''
     
     const systemContent = `[System] Task ID: "${node.attrs.taskId}".
@@ -132,11 +134,31 @@ Instruction: ${prompt}
 
 Return ONLY the result text. Do not include "Here is the text" or quotes.`
 
-    sendMessage({ text: systemContent })
+    // AI SDK v6: Convert attachments to FileUIPart format for sendMessage
+    // FileUIPart = { type: 'file', mediaType: string, filename?: string, url: string (data URL) }
+    let files: { type: 'file'; mediaType: string; filename: string; url: string }[] | undefined
+    
+    if (textAttachments.length > 0) {
+      files = textAttachments.map((item) => ({
+        type: 'file' as const,
+        mediaType: item.file.type || 'text/plain',
+        filename: item.file.name,
+        url: item.dataUrl,  // Already a data URL from handlePaste
+      }))
+    }
+
+    // Send message with files array in AI SDK v6 format
+    sendMessage({ 
+      text: systemContent,
+      files,
+    } as any)
+    
+    // Clear attachments after sending
+    setTextAttachments([])
   }
 
   const replaceNodeWithResult = (text: string) => {
-    const pos = getPos()
+    const pos = getPos() ?? 0
     editor.chain()
       .focus()
       .deleteRange({ from: pos, to: pos + 1 }) 

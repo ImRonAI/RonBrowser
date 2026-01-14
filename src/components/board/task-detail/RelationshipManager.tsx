@@ -230,7 +230,7 @@ interface AddRelationshipModalProps {
   onClose: () => void
 }
 
-function AddRelationshipModal({
+export function AddRelationshipModal({
   task,
   selectedCategory,
   onCategorySelect,

@@ -102,7 +102,7 @@ function RelationshipHoverCard({
   )
 }
 
-function SubtaskList({ subtasks, onTaskClick }: { subtasks: Subtask[], onTaskClick?: ((id: string) => void) | null }) {
+function SubtaskList({ subtasks, onTaskClick: _onTaskClick }: { subtasks: Subtask[], onTaskClick?: ((id: string) => void) | null }) {
   return (
     <div className="space-y-2">
       <h4 className="text-[10px] font-bold uppercase text-ink-muted dark:text-ink-inverse-muted mb-2 px-1">

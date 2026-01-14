@@ -124,7 +124,7 @@ export function AgentPanel() {
 
   const handleSubmit = async (text?: string) => {
     const messageText = text || input.trim()
-    if (!messageText || status !== 'ready') return
+    if ((!messageText && textAttachments.length === 0) || status !== 'ready') return
 
     setInput('')
     setSelectedContexts([])
@@ -140,8 +140,26 @@ export function AgentPanel() {
       finalMessage = `Context:\n${contextString}\n\n${messageText}`
     }
 
-    // Send message via AI SDK useChat
-    sendMessage({ text: finalMessage })
+    // AI SDK v6: Convert attachments to FileUIPart format for sendMessage
+    // FileUIPart = { type: 'file', mediaType: string, filename?: string, url: string (data URL) }
+    let files: { type: 'file'; mediaType: string; filename: string; url: string }[] | undefined
+    
+    if (textAttachments.length > 0) {
+      files = textAttachments.map((item) => ({
+        type: 'file' as const,
+        mediaType: item.file.type || 'text/plain',
+        filename: item.file.name,
+        url: item.dataUrl,  // Already a data URL from handlePaste
+      }))
+    }
+    
+    setTextAttachments([])
+
+    // Send message with files array in AI SDK v6 format
+    sendMessage({ 
+      text: finalMessage || 'Sent with attachments',
+      files,
+    } as any)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

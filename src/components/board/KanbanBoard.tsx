@@ -67,6 +67,9 @@ export function KanbanBoard() {
   function getTasksForColumn(columnId: Task['status']): Task[] {
     // Map simplified statuses if necessary, but for now exact match works for core columns
     return tasks.filter(task => {
+        // EXCLUDE SUBTASKS - They should never appear as top-level cards
+        if (task.parentTaskId) return false
+        
         if (columnId === 'in-progress' && task.status === 'blocked') return true
         if (columnId === 'review' && task.status === 'testing') return true
         return task.status === columnId
