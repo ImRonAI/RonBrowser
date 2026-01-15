@@ -195,6 +195,7 @@ const config: Config = {
         'slide-in-right': 'slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
         'slide-in-left': 'slideInLeft 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
         'pulse-subtle': 'pulseSubtle 3s ease-in-out infinite',
+        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         'shimmer': 'shimmer 2s linear infinite',
         // Legacy
         'slide-in': 'slideIn 400ms cubic-bezier(0.16, 1, 0.3, 1)',
@@ -229,6 +230,10 @@ const config: Config = {
         pulseSubtle: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.7' },
+        },
+        pulseGlow: {
+          '0%, 100%': { boxShadow: '0 0 32px -4px rgba(139, 92, 246, 0.5)' },
+          '50%': { boxShadow: '0 0 48px -2px rgba(139, 92, 246, 0.7)' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },

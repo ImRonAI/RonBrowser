@@ -95,14 +95,13 @@ export function SourceCard({
     <div
       className={`
         group relative w-full
-        bg-white/5 dark:bg-slate-800/50
-        border border-white/10 dark:border-slate-700/50
+        glass-bold
         rounded-xl overflow-hidden
+        border border-white/20 dark:border-white/10
+        shadow-lg shadow-indigo-500/5 dark:shadow-black/20
         transition-all duration-200 ease-out
-        hover:bg-white/10 dark:hover:bg-slate-700/50
-        hover:border-white/20 dark:hover:border-slate-600/50
-        hover:shadow-lg hover:shadow-black/10
-        hover:-translate-y-0.5
+        hover:scale-[1.02]
+        hover:shadow-xl hover:shadow-indigo-500/10 dark:hover:shadow-black/40
         cursor-pointer
         ${className}
       `}
@@ -110,6 +109,14 @@ export function SourceCard({
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
     >
+      {/* Hover Overlay - Enhanced Glass */}
+      <div 
+        className={`
+          absolute inset-0 z-0
+          bg-gradient-to-br from-white/5 to-white/0 dark:from-white/5 dark:to-transparent
+          opacity-0 group-hover:opacity-100 transition-opacity duration-500
+        `}
+      />
       {/* Citation badge */}
       {citationNumber !== undefined && (
         <div 

@@ -1,9 +1,9 @@
 /**
  * AI Elements Library
- * 
+ *
  * A comprehensive component library for building modern AI chat interfaces.
  * Based on Vercel AI SDK AI Elements patterns and best practices.
- * 
+ *
  * Components:
  * - Conversation: Container for chat messages with auto-scroll
  * - Message: Individual message display with avatar and content
@@ -17,7 +17,8 @@
  * - Loader: Loading and streaming indicators
  * - Artifact: AI-generated content display (charts, tables)
  * - Actions: Message action buttons (copy, retry, etc.)
- * 
+ * - Task: Task execution and progress tracking
+ *
  * Chain of Thought Extensions:
  * - Desktop: Computer use automation visualization
  * - Browser: Web browser automation visualization
@@ -28,6 +29,14 @@
  * - Email: Email actions visualization
  * - Document: Document creation/editing visualization
  * - Agent: Sub-agent orchestration visualization
+ *
+ * Multi-Agent Orchestration:
+ * - AgentGraphCanvas: Deterministic dependency-driven agent execution
+ * - AgentWorkflowCanvas: Sequential linear agent execution
+ * - AgentSwarmCanvas: Dynamic handoff-based agent execution
+ * - GraphOrchestrationTask: CollapsibleTask wrapper for graph orchestration
+ * - WorkflowOrchestrationTask: CollapsibleTask wrapper for workflow orchestration
+ * - SwarmOrchestrationTask: CollapsibleTask wrapper for swarm orchestration
  */
 
 // Core conversation components
@@ -74,6 +83,14 @@ export * from './task'
 
 // Action components
 export * from './actions'
+
+// Orchestration canvas components
+export * from './agent-graph-canvas'
+export * from './agent-workflow-canvas'
+export * from './agent-swarm-canvas'
+
+// Orchestration task wrappers (CollapsibleTask integration)
+export * from './orchestration-tasks'
 
 // Note: types.ts re-exports are handled specifically to avoid conflicts with
 // types already exported from chain-of-thought modules. Import specific types

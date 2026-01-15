@@ -60,7 +60,8 @@ export interface SonarReasoningProOptions {
 // Mock Data Generator (for development)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function generateMockResponse(query: string): SonarStreamEvent[] {
+/* Unused - saved for future development
+function _generateMockResponse(query: string): SonarStreamEvent[] {
   const events: SonarStreamEvent[] = []
 
   // Start reasoning
@@ -157,6 +158,7 @@ function generateMockResponse(query: string): SonarStreamEvent[] {
 
   return events
 }
+*/
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sonar Reasoning Pro Client
@@ -181,21 +183,19 @@ export class SonarReasoningProClient extends EventEmitter {
   /**
    * Stream a query to Sonar Reasoning Pro
    */
+  /**
+   * Stream a query to Sonar Reasoning Pro
+   */
   async stream(query: string): Promise<void> {
     try {
-      // In production, this would make a real API call
-      // For now, we'll use mock data with realistic streaming delays
-      const events = generateMockResponse(query)
-
-      for (const event of events) {
-        // Simulate streaming delay
-        await this.delay(50 + Math.random() * 100)
-        this.emit('data', event)
-      }
+      // Use real API implementation
+      await this.streamReal(query)
     } catch (error) {
+       console.error("Sonar Reasoning Pro stream error:", error)
+       // Fallback to error emission
       this.emit('data', {
         type: 'error',
-        message: error instanceof Error ? error.message : 'An error occurred'
+        message: error instanceof Error ? error.message : 'An error occurred during streaming'
       })
     }
   }
@@ -286,15 +286,52 @@ export class SonarReasoningProClient extends EventEmitter {
     }
   }
 
+  private isReasoning = false
+
   /**
    * Transform Perplexity API response chunks to our format
    */
   private handlePerplexityChunk(chunk: any): void {
     if (chunk.choices?.[0]?.delta?.content) {
-      this.emit('data', {
-        type: 'content',
-        content: chunk.choices[0].delta.content
-      })
+      let content = chunk.choices[0].delta.content
+      
+      // Simple parse for <think> tags
+      // Note: This assumes tags don't get split across chunks too awkwardly
+      // For a robust implementation, we'd need a buffer
+      
+      if (!this.isReasoning) {
+        if (content.includes('<think>')) {
+          this.isReasoning = true
+          this.emit('data', { type: 'reasoning_start' })
+          
+          const parts = content.split('<think>')
+          if (parts[0]) {
+             this.emit('data', { type: 'content', content: parts[0] })
+          }
+          content = parts[1] // Remaining content is reasoning
+        }
+      }
+      
+      if (this.isReasoning) {
+        if (content.includes('</think>')) {
+          this.isReasoning = false
+          const parts = content.split('</think>')
+          
+          if (parts[0]) {
+            this.emit('data', { type: 'reasoning', content: parts[0] })
+          }
+          this.emit('data', { type: 'reasoning_end' })
+          
+          if (parts[1]) {
+            this.emit('data', { type: 'content', content: parts[1] })
+          }
+        } else {
+          this.emit('data', { type: 'reasoning', content: content })
+        }
+      } else {
+        // Normal content
+         this.emit('data', { type: 'content', content: content })
+      }
     }
 
     if (chunk.citations) {
@@ -323,9 +360,11 @@ export class SonarReasoningProClient extends EventEmitter {
     }
   }
 
-  private delay(ms: number): Promise<void> {
+  /* Unused - saved for future development
+  private _delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
+  */
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

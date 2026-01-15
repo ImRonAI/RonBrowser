@@ -67,6 +67,14 @@ export interface GraphNodeData {
   status: AgentStatus;
   result?: AgentResult;
   dependencies: string[];
+  // Streaming data integration
+  isActivelyStreaming?: boolean;
+  streamingData?: {
+    reasoning?: { content: string; duration?: number };
+    chainOfThought?: unknown[]; // AIChainOfThoughtStep[] - avoid circular import
+    tools?: unknown[]; // AIToolExecution[]
+    images?: { base64: string; mediaType: string }[];
+  };
 }
 
 export interface GraphEdgeCondition {
@@ -120,6 +128,14 @@ export interface SwarmNodeData {
   result?: AgentResult;
   isEntryPoint?: boolean;
   canHandoffTo?: string[];
+  // Streaming data integration
+  isActivelyStreaming?: boolean;
+  streamingData?: {
+    reasoning?: { content: string; duration?: number };
+    chainOfThought?: unknown[]; // AIChainOfThoughtStep[]
+    tools?: unknown[]; // AIToolExecution[]
+    images?: { base64: string; mediaType: string }[];
+  };
 }
 
 export interface SwarmEdgeData {
@@ -175,6 +191,14 @@ export interface WorkflowTask {
   timeout?: number;
   status: WorkflowTaskStatus;
   result?: AgentResult;
+  // Streaming data integration
+  isActivelyStreaming?: boolean;
+  streamingData?: {
+    reasoning?: { content: string; duration?: number };
+    chainOfThought?: unknown[]; // AIChainOfThoughtStep[]
+    tools?: unknown[]; // AIToolExecution[]
+    images?: { base64: string; mediaType: string }[];
+  };
 }
 
 export interface WorkflowState {

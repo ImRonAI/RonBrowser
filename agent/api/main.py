@@ -671,11 +671,11 @@ import asyncio
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from superagent import create_superagent, UICallbackHandler
+from superagent import create_superagent, get_or_create_superagent, UICallbackHandler
 import superagent as sa
 
 # PERMANENT SINGLETON AGENT - created once at module load, never recreated
-_global_agent = create_superagent()
+_global_agent = get_or_create_superagent()
 logger.info("Permanent SuperAgent (ron25) initialized")
 
 

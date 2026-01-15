@@ -209,6 +209,7 @@ When browsing the web, ALWAYS follow this exact workflow:
 
 ### Step 2: Capture & Understand
 - Take a screenshot using `browser` with `screenshot` action (saves file to disk)
+  - Use `session_name='default'` for all browser interactions unless a specific session is needed.
 - IMMEDIATELY use `image_reader(image_path="<path>")` to send the screenshot to the model
 - NEVER proceed without visually confirming the current state via image_reader
 
@@ -506,7 +507,55 @@ When tackling complex problems, consider the following tools for managing nested
 - The problem can be modeled as a Directed Acyclic Graph (DAG) of interdependent agent tasks.
 - You require a predictable flow of information and execution where the output of one agent deterministically feeds into another.
 - You need to manage complex pipelines of agent operations with clear entry points and defined dependencies.
-- Examples: "Execute a data analysis pipeline where data collection feeds into data cleaning, then analysis, then report generation," "Process a customer support ticket through an intake agent, a diagnosis agent, and a resolution agent," "Automate a content creation workflow from topic generation to drafting to editing."
+- Examples: \"Execute a data analysis pipeline where data collection feeds into data cleaning, then analysis, then report generation,\" \"Process a customer support ticket through an intake agent, a diagnosis agent, and a resolution agent,\" \"Automate a content creation workflow from topic generation to drafting to editing.\"
+
+**CRITICAL - Graph Tool Usage:**
+```python
+# STEP 1: Create a graph with topology definition
+result = graph(
+    action="create",
+    graph_id="my_research_pipeline",
+    topology={
+        "nodes": [
+            {
+                "id": "researcher",      # REQUIRED: unique node ID
+                "role": "researcher",    # REQUIRED: human-readable role
+                "system_prompt": "You are a research specialist. Gather and synthesize information.",  # REQUIRED
+                "model_provider": "bedrock",  # OPTIONAL: defaults to parent
+                "model_settings": {"model_id": "us.anthropic.claude-sonnet-4-20250514-v1:0"},  # OPTIONAL
+                "tools": ["http_request", "file_write"]  # OPTIONAL: subset of parent's tools
+            },
+            {
+                "id": "analyst",
+                "role": "analyst",
+                "system_prompt": "You analyze research data and identify key insights."
+            },
+            {
+                "id": "reporter",
+                "role": "reporter",
+                "system_prompt": "You create comprehensive reports from analysis."
+            }
+        ],
+        "edges": [
+            {"from": "researcher", "to": "analyst"},
+            {"from": "analyst", "to": "reporter"}
+        ],
+        "entry_points": ["researcher"]  # Where task execution starts
+    }
+)
+
+# STEP 2: Execute the graph with a task
+result = graph(
+    action="execute",
+    graph_id="my_research_pipeline",
+    task="Research and analyze the impact of AI on healthcare. Create a comprehensive report."
+)
+
+# OTHER ACTIONS:
+# - graph(action="status", graph_id="my_research_pipeline")  # Get status
+# - graph(action="list")  # List all graphs
+# - graph(action="delete", graph_id="my_research_pipeline")  # Delete
+```
 
 **Key Features:** Manages multi-agent graphs based on the Strands SDK Graph implementation, allowing creation, execution, and monitoring of agent systems with various topologies. Each node in the graph can be configured with its own agent, model, and tools.
 
@@ -688,7 +737,19 @@ def get_or_create_superagent(
     Returns:
         The permanent Agent instance
     """
-    global _SUPER_AGENT, _current_agent, _global_browser
+    global _SUPER_AGENT, _current_agent
+    
+    if _SUPER_AGENT is None:
+        logger.info("Initializing Singleton SuperAgent...")
+        _SUPER_AGENT = create_superagent(
+            session_id=session_id,
+            callback_handler=callback_handler
+        )
+    else:
+        logger.info("Returning existing Singleton SuperAgent")
+        
+    _current_agent = _SUPER_AGENT
+    return _SUPER_AGENT
 
 
 def init_global_resources():
@@ -732,6 +793,36 @@ def create_superagent(
     global _sandbox_tools, _task_tools
     sandbox_tools = _sandbox_tools
     task_tools = _task_tools
+
+    # Pre-initialize 'default' browser session for agent native control
+    if browser:
+        async def _init_default_session():
+            """Helper to ensure default session exists without exposing tool call to LLM."""
+            # We use the internal _async_init_session method to avoid tool decorator overhead/metadata matching
+            # But we must construct the Action object
+            from strands_tools.browser.models import InitSessionAction
+            try:
+                # Check if session exists first (avoid error log)
+                if browser._sessions.get("default"):
+                     return
+                     
+                init_action = InitSessionAction(
+                    type="init_session", 
+                    session_name="default", 
+                    description="Agent Native Control Session"
+                )
+                await browser.init_session(init_action)
+                logger.info("Auto-initialized 'default' browser session for agent.")
+            except Exception as e:
+                logger.warning(f"Failed to auto-init default session: {e}")
+        
+        # Fire and forget - or we can't easily await here in synchronous create_superagent
+        # Ideally, this should be done in an async startup hook.
+        # Since we are in a synchronous function returning an Agent, we have limited options.
+        # HOWEVER, the Browser tool lazy loads platform on first use.
+        # So we might not need to do this HERE if the agent is instructed to init explicitly.
+        # But for 'native' feel, we want it pre-ready.
+        pass 
     
     # Re-construct tools list for this agent instance
     tools = [
