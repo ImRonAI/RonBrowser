@@ -108,28 +108,6 @@ export function SearchBar() {
           />
         </motion.div>
 
-        {/* Command hint */}
-        {!isFocused && !query && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.4, ease: EASE }}
-            className="mt-4 text-center"
-          >
-            <p className="text-body-sm text-ink-muted dark:text-ink-inverse-muted">
-              Press{' '}
-              <kbd className="
-                px-2 py-1 rounded-md
-                bg-surface-100 dark:bg-surface-800
-                border border-surface-200 dark:border-surface-700
-                text-label font-mono
-              ">
-                /
-              </kbd>
-              {' '}for commands
-            </p>
-          </motion.div>
-        )}
       </form>
     </motion.div>
   )

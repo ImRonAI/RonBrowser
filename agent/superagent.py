@@ -8,6 +8,10 @@ import logging
 # Load .env from project root
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+# Set non-interactive mode for shell tool to prevent hangs
+os.environ["BYPASS_TOOL_CONSENT"] = "true"
+os.environ["STRANDS_NON_INTERACTIVE"] = "true"
+
 # Ensure tools/src is in path so we can import strands_tools modules
 # this is critical if the package is not installed in editable mode or if we added new files
 import sys

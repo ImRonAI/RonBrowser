@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import { SearchBar } from '@/components/home/SearchBar'
 import { useAuthStore } from '@/stores/authStore'
@@ -7,6 +7,18 @@ import { KanbanBoard, CalendarView } from '@/components/board'
 import { SuperAgentInterface } from '@/components/superagent'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
+// Import Brave Search JSON data
+import billsData from '../../data/bills.json'
+import rollercoastData from '../../data/rollercoast.json'
+import travelData from '../../data/travel.json'
+import recipesData from '../../data/recipes.json'
+import videoData from '../../data/video.json'
+import umData from '../../data/um.json'
+import localData from '../../data/local.json'
+
+import { InterestsPreviewModal } from '@/components/interests/InterestInteraction'
+
+
 type HomeTab = 'discover' | 'tasks' | 'calendar' | 'superagent' | 'vibe'
 type CalendarMode = 'day' | 'week' | 'month'
 
@@ -14,13 +26,13 @@ type CalendarMode = 'day' | 'week' | 'month'
 const EASE = [0.16, 1, 0.3, 1] as const
 
 export function HomePage() {
-  const { user } = useAuthStore()
-  const { answers } = useOnboardingStore()
+  useAuthStore() // Auth state available if needed
+  const { answers } = useOnboardingStore() || { answers: [] }
   const [activeTab, setActiveTab] = useState<HomeTab>('discover')
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('week')
 
   // Derive interests from onboarding answers
-  const interests = answers.find(a => a.question.includes('topics'))?.answer || 'Technology, AI, Design'
+  const interests = answers?.find(a => a.question.includes('topics'))?.answer || 'Technology, AI, Design'
   const topics = interests.split(',').map(t => t.trim()).slice(0, 4)
 
   return (
@@ -30,27 +42,14 @@ export function HomePage() {
         {/* Light mode - subtle geometric accents */}
         <div className="dark:hidden">
           <div 
-            className="absolute top-0 right-0 w-[600px] h-[600px]"
-            style={{
-              background: 'radial-gradient(circle at top right, rgba(99, 102, 241, 0.04) 0%, transparent 50%)',
-            }}
+            className="absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.04)_0%,transparent_50%)]"
           />
           <div 
-            className="absolute bottom-0 left-0 w-[500px] h-[500px]"
-            style={{
-              background: 'radial-gradient(circle at bottom left, rgba(55, 48, 163, 0.03) 0%, transparent 50%)',
-            }}
+            className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_bottom_left,rgba(55,48,163,0.03)_0%,transparent_50%)]"
           />
           {/* Subtle grid */}
           <div 
-            className="absolute inset-0 opacity-[0.02]"
-            style={{
-              backgroundImage: `
-                linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)
-              `,
-              backgroundSize: '48px 48px',
-            }}
+            className="absolute inset-0 opacity-[0.02] bg-[linear-gradient(rgba(0,0,0,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.1)_1px,transparent_1px)] bg-[length:48px_48px]"
           />
         </div>
         
@@ -91,55 +90,28 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Hero Section - Centered Navigation */}
-      <div className="flex-shrink-0 px-8 pt-8 pb-6 z-10 relative">
-        <div className="max-w-7xl mx-auto">
-          {/* Centered Tab Navigation - The Soul of Ron */}
+      {/* Header Section - Search Bar + Minimal Tabs */}
+      <div className="flex-shrink-0 px-8 pt-6 pb-4 z-10 relative">
+        <div className="max-w-5xl mx-auto space-y-5">
+          {/* Search Bar - Always on top */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: EASE }}
-            className="flex justify-center mb-8"
+            transition={{ duration: 0.5, ease: EASE }}
+            className="max-w-2xl mx-auto"
+          >
+            <SearchBar />
+          </motion.div>
+
+          {/* Minimal Tab Navigation */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: EASE }}
+            className="flex justify-center"
           >
             <HomeTabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
           </motion.div>
-
-          {/* Dynamic Title */}
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.5, ease: EASE }}
-            className="text-center mb-8"
-          >
-            {user && activeTab === 'discover' && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-label uppercase tracking-[0.25em] text-accent dark:text-accent-light mb-2"
-              >
-                Welcome back, {user.name}
-              </motion.p>
-            )}
-          </motion.div>
-
-          {/* Search Bar - Only on discover */}
-          <AnimatePresence mode="wait">
-            {activeTab === 'discover' && (
-              <motion.div
-                key="searchbar"
-                initial={{ opacity: 0, y: 24, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -16, scale: 0.98 }}
-                transition={{ duration: 0.5, ease: EASE }}
-                className="max-w-3xl mx-auto overflow-hidden"
-              >
-                <SearchBar />
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
 
@@ -218,7 +190,7 @@ export function HomePage() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB NAVIGATION - Premium Centered Navigation
-// The Soul of Ron Browser
+// The Soul of Ron Browser - Ultra-Premium Edition
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface HomeTabNavigationProps {
@@ -226,117 +198,61 @@ interface HomeTabNavigationProps {
   onTabChange: (tab: HomeTab) => void
 }
 
+
 const TAB_CONFIG: { id: HomeTab; label: string; icon: (isActive: boolean) => React.ReactNode }[] = [
   {
     id: 'discover',
     label: 'Discover',
-    icon: (isActive) => (
-      <motion.svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-5 h-5"
-        animate={{ rotate: isActive ? 360 : 0 }}
-        transition={{ duration: 0.8, ease: EASE }}
-      >
+    icon: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
         <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-      </motion.svg>
+      </svg>
     ),
   },
   {
     id: 'tasks',
     label: 'Tasks',
-    icon: (isActive) => (
-      <motion.svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-5 h-5"
-        animate={{ y: isActive ? [0, -2, 0] : 0 }}
-        transition={{ duration: 0.4, ease: EASE }}
-      >
-        <rect x="3" y="3" width="5" height="18" rx="1.5" />
-        <rect x="9.5" y="6" width="5" height="15" rx="1.5" />
-        <rect x="16" y="9" width="5" height="12" rx="1.5" />
-      </motion.svg>
+    icon: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="5" height="18" rx="1" />
+        <rect x="9.5" y="6" width="5" height="15" rx="1" />
+        <rect x="16" y="9" width="5" height="12" rx="1" />
+      </svg>
     ),
   },
   {
     id: 'calendar',
     label: 'Calendar',
-    icon: (isActive) => (
-      <motion.svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-5 h-5"
-        animate={{ scale: isActive ? [1, 1.1, 1] : 1 }}
-        transition={{ duration: 0.3, ease: EASE }}
-      >
+    icon: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" />
         <line x1="16" y1="2" x2="16" y2="6" />
         <line x1="8" y1="2" x2="8" y2="6" />
         <line x1="3" y1="10" x2="21" y2="10" />
-        <circle cx="12" cy="15" r="2" className={isActive ? 'fill-current' : ''} />
-      </motion.svg>
+      </svg>
     ),
   },
   {
     id: 'superagent',
     label: 'SuperAgent',
-    icon: (isActive) => (
-      <motion.svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-5 h-5"
-        animate={{
-          rotate: isActive ? [0, 10, -10, 0] : 0,
-          scale: isActive ? 1.05 : 1
-        }}
-        transition={{ duration: 0.5, ease: EASE }}
-      >
+    icon: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2L2 7l10 5 10-5-10-5z" />
         <path d="M2 17l10 5 10-5" />
         <path d="M2 12l10 5 10-5" />
-      </motion.svg>
+      </svg>
     ),
   },
   {
     id: 'vibe',
     label: 'Vibe',
-    icon: (isActive) => (
-      <motion.svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-5 h-5"
-        animate={{
-          y: isActive ? [0, -3, 0] : 0,
-          rotate: isActive ? [0, -5, 5, 0] : 0
-        }}
-        transition={{ duration: 0.6, ease: EASE, repeat: isActive ? Infinity : 0, repeatDelay: 2 }}
-      >
+    icon: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 18V5l12-2v13" />
         <circle cx="6" cy="18" r="3" />
         <circle cx="18" cy="16" r="3" />
-      </motion.svg>
+      </svg>
     ),
   },
 ]
@@ -346,31 +262,22 @@ function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
 
   return (
     <div className="relative">
-      {/* Outer glow effect */}
-      <motion.div
-        className="absolute -inset-1 rounded-2xl opacity-50 blur-xl"
-        style={{
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.15) 50%, rgba(99, 102, 241, 0.2) 100%)',
-        }}
-        animate={{
-          opacity: [0.3, 0.5, 0.3],
-        }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-      />
-
-      {/* Main container */}
+      {/* Clean glass container */}
       <div className="
-        relative flex items-center justify-center gap-4 p-2
-        rounded-2xl
-        bg-surface-0/60 dark:bg-surface-850/60
-        backdrop-blur-2xl
+        relative flex items-center gap-1 p-1.5
+        rounded-full
+        bg-surface-100/80 dark:bg-surface-800/60
+        backdrop-blur-xl
         border border-surface-200/50 dark:border-surface-700/50
-        shadow-glow-accent dark:shadow-glow-accent-lg
+        shadow-soft dark:shadow-dark-soft
       ">
         {/* Animated pill indicator */}
         <motion.div
-          className="absolute top-1.5 bottom-1.5 rounded-xl bg-gradient-to-r from-accent to-accent-light shadow-glow-accent"
-          layoutId="nav-pill"
+          className="absolute top-1.5 bottom-1.5 rounded-full bg-accent dark:bg-accent-light"
+          style={{
+            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+          }}
+          layoutId="tab-pill"
           initial={false}
           animate={{
             left: `calc(${activeIndex * 20}% + 6px)`,
@@ -378,49 +285,32 @@ function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
           }}
           transition={{
             type: 'spring',
-            stiffness: 350,
+            stiffness: 400,
             damping: 30,
           }}
         />
 
-        {TAB_CONFIG.map((tab, _index) => {
+        {/* Tab buttons */}
+        {TAB_CONFIG.map((tab) => {
           const isActive = activeTab === tab.id
           return (
-            <motion.button
+            <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              whileHover={{ scale: isActive ? 1 : 1.02 }}
-              whileTap={{ scale: 0.98 }}
               className={`
                 relative z-10 flex items-center justify-center gap-2
-                px-5 py-3 min-w-[100px]
-                rounded-xl
-                text-body-sm font-medium tracking-wide
-                transition-all duration-300
+                px-6 py-2.5 rounded-full
+                text-body-sm font-medium
+                transition-colors duration-200
                 ${isActive
                   ? 'text-white'
-                  : 'text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse'
+                  : 'text-ink-secondary dark:text-ink-inverse-secondary hover:text-ink dark:hover:text-ink-inverse'
                 }
               `}
             >
-              <motion.span
-                animate={{
-                  scale: isActive ? 1.1 : 1,
-                  opacity: isActive ? 1 : 0.7,
-                }}
-                transition={{ duration: 0.2, ease: EASE }}
-              >
-                {tab.icon(isActive)}
-              </motion.span>
-              <motion.span
-                animate={{
-                  fontWeight: isActive ? 600 : 500,
-                }}
-                className="hidden sm:inline"
-              >
-                {tab.label}
-              </motion.span>
-            </motion.button>
+              <span className="w-4 h-4">{tab.icon(isActive)}</span>
+              <span>{tab.label}</span>
+            </button>
           )
         })}
       </div>
@@ -466,21 +356,204 @@ function VibePlaceholder() {
 // ─────────────────────────────────────────────────────────────────────────────
 // DISCOVER CONTENT - Curated content cards
 // ─────────────────────────────────────────────────────────────────────────────
+// INTERESTS DASHBOARD - Stories from Brave Search JSON files
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Story {
+  title: string
+  url: string
+  description: string
+  age: string
+  topic: string
+  hostname: string
+  thumbnail: string
+}
+
+// Build stories grouped by topic - each card shows ONE topic
+function buildTopicGroups(): Story[][] {
+  const datasets = [
+    { data: videoData, topic: 'AI Video' }, // Slot 0: Video (Vertical)
+    { data: billsData, topic: (billsData as any).query?.original || 'Bills' }, // Slot 1
+    { data: rollercoastData, topic: (rollercoastData as any).query?.original || 'Rollercoasters' }, // Slot 2
+    { data: recipesData, topic: (recipesData as any).query?.original || 'Recipes' }, // Slot 3
+    { data: travelData, topic: (travelData as any).query?.original || 'Travel' }, // Slot 4
+    { data: localData, topic: (localData as any).query?.original || 'Local' }, // Slot 5: Local (Wide)
+    { data: umData, topic: (umData as any).query?.original || 'Health' }, // Slot 6: UM (Vertical) - NEW
+  ]
+
+  return datasets.map(({ data, topic }) => {
+    const stories: Story[] = []
+    // Handle nested results or web.results structure
+    let results = (data as any).results || (data as any).web?.results || []
+    
+    // Quick normalize for different json shapes
+    if (!Array.isArray(results) && (data as any).web?.results) {
+        results = (data as any).web.results
+    }
+    
+    for (const r of results) {
+      if (r.thumbnail?.src) {
+        stories.push({
+          title: r.title || '',
+          url: r.url || '',
+          description: r.description || '',
+          age: r.age || '',
+          topic,
+          hostname: r.meta_url?.hostname || '',
+          thumbnail: r.thumbnail.src,
+        })
+      }
+    }
+    return stories
+  })
+}
+
+const TOPIC_GROUPS = buildTopicGroups()
+const ALL_STORIES = TOPIC_GROUPS.flat()
+
+function StoryCard({ story, index, onCycle, onRead }: { story: Story; index: number; onCycle: () => void; onRead: (s: Story) => void }) {
+
+  return (
+    <motion.div
+      key={story.url}
+      initial={{ opacity: 0, y: -300, scale: 0.7, rotateX: -15 }}
+      animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+      exit={{ opacity: 0, y: 400, scale: 0.6, rotateX: 15 }}
+      transition={{
+        type: "spring",
+        stiffness: 35,
+        damping: 10,
+        mass: 2,
+        delay: index * 0.5,
+      }}
+      className="relative w-full h-full cursor-pointer overflow-hidden rounded-2xl group"
+      onClick={onCycle}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+    >
+      {/* Background gradient fallback */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black" />
+
+      {/* Image with smooth fade-in and hover zoom */}
+      <motion.img
+        key={story.thumbnail}
+        src={story.thumbnail}
+        alt={story.title}
+        loading="eager"
+        initial={{ opacity: 0, scale: 1.1 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8 }}
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        onError={(e) => { e.currentTarget.style.opacity = '0' }}
+      />
+
+      {/* Rich dark overlay for text readability */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/30" />
+
+      {/* Content */}
+      <div className="absolute inset-0 p-5 flex flex-col justify-between">
+        <div className="flex items-start justify-between">
+          <motion.span
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 + index * 0.08 }}
+            className="px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-white/15 backdrop-blur-sm text-white border border-white/10"
+          >
+            {story.topic}
+          </motion.span>
+          <motion.span
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 + index * 0.08 }}
+            className="px-2.5 py-1 rounded-full text-[9px] font-medium bg-black/40 backdrop-blur-sm text-white/90"
+          >
+            {story.age}
+          </motion.span>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 + index * 0.08, duration: 0.5 }}
+          className="space-y-3"
+        >
+          <h3 className="text-white font-semibold leading-tight text-body-lg line-clamp-2 drop-shadow-lg">
+            {story.title}
+          </h3>
+          <p className="text-white/75 text-body-sm leading-relaxed line-clamp-2">
+            {story.description}
+          </p>
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-[10px] text-white/50 font-medium">{story.hostname}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onRead(story) }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-all duration-300 border border-white/10 hover:border-white/20"
+            >
+              Read
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
+  )
+}
 
 function DiscoverContent({ topics }: { topics: string[] }) {
+  // Each card tracks which story index it's showing within its topic
+  const [indices, setIndices] = useState<number[]>(() => TOPIC_GROUPS.map(() => 0))
+
+  // Interaction State
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [selectedStory, setSelectedStory] = useState<Story | null>(null)
+
+  const handleRead = (story: Story) => {
+    setSelectedStory(story)
+    setPreviewOpen(true)
+  }
+
+  // Cycle a single card to next story in its topic
+  const cycleCard = useCallback((cardIndex: number) => {
+    setIndices(prev => {
+      const next = [...prev]
+      if (cardIndex >= TOPIC_GROUPS.length) return next // Safety check
+      const topicStories = TOPIC_GROUPS[cardIndex]
+      if (topicStories.length === 0) return next
+      next[cardIndex] = (next[cardIndex] + 1) % topicStories.length
+      return next
+    })
+  }, [])
+
+  // Staggered timers - each card cycles 12+ seconds apart from others
+  useEffect(() => {
+    const baseInterval = 15000 // 15 seconds between any card changing
+    const timers = TOPIC_GROUPS.map((_, i) => {
+      const initialDelay = i * baseInterval // Card 0 at 0s, Card 1 at 15s, Card 2 at 30s, etc.
+      const timeout = setTimeout(() => {
+        cycleCard(i)
+        // Then repeat every 90 seconds (6 cards * 15s = 90s full cycle)
+        const interval = setInterval(() => cycleCard(i), 90000)
+        return () => clearInterval(interval)
+      }, initialDelay)
+      return timeout
+    })
+    return () => timers.forEach(clearTimeout)
+  }, [cycleCard])
+
   return (
-    <div className="max-w-7xl mx-auto space-y-10 pt-8">
-      {/* Section Header */}
-      <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto pt-8 pb-24 overflow-visible">
+      <div className="flex items-center justify-between mb-10 px-4">
         <div>
           <h2 className="text-display-sm font-display text-ink dark:text-ink-inverse">
-          Curated for you
-        </h2>
+            Your Interests
+          </h2>
           <p className="mt-1 text-body-sm text-ink-muted dark:text-ink-inverse-muted">
-            Personalized content based on your interests
+            {ALL_STORIES.length} stories • Click to cycle
           </p>
         </div>
-        
         {topics.length > 0 && (
           <div className="flex gap-2">
             {topics.map((topic, i) => (
@@ -498,105 +571,46 @@ function DiscoverContent({ topics }: { topics: string[] }) {
         )}
       </div>
 
-      {/* Content Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[
-          {
-            title: "The Future of Agentic Interfaces",
-            description: "How multi-agent systems are revolutionizing the way we interact with the web.",
-            category: "Technology",
-            gradient: "from-accent/10 to-accent-light/5",
-          },
-          {
-            title: "Minimal Design in Modern UI",
-            description: "Exploring the power of restraint in contemporary interface design.",
-            category: "Design",
-            gradient: "from-purple-500/10 to-violet-500/5",
-          },
-          {
-            title: "AI-Powered Browsing",
-            description: "Understanding how artificial intelligence is reshaping web navigation and discovery.",
-            category: "AI",
-            gradient: "from-emerald-500/10 to-teal-500/5",
-          },
-          {
-            title: "Voice Interface Evolution",
-            description: "The transformation of voice-based interactions in browser applications.",
-            category: "Technology",
-            gradient: "from-sky-500/10 to-blue-500/5",
-          },
-          {
-            title: "Bold Typography Systems",
-            description: "How type choices define the character of digital experiences.",
-            category: "Design",
-            gradient: "from-rose-500/10 to-pink-500/5",
-          },
-          {
-            title: "Personalization Algorithms",
-            description: "Deep dive into content curation and recommendation systems.",
-            category: "AI",
-            gradient: "from-amber-500/10 to-orange-500/5",
-          }
-        ].map((item, i) => (
-          <motion.article
-            key={i}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: 0.05 * i,
-              duration: 0.5,
-              ease: EASE
-            }}
-            whileHover={{ y: -4 }}
-            className="group relative card-interactive overflow-hidden"
-          >
-            {/* Gradient accent on hover */}
-            <motion.div 
-              className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
-            />
-            
-            {/* Content */}
-            <div className="relative p-7 space-y-4">
-              {/* Category badge */}
-              <span className="badge-accent">
-                {item.category}
-              </span>
-              
-              {/* Title */}
-              <h3 className="text-body-xl font-semibold text-ink dark:text-ink-inverse leading-snug group-hover:text-accent dark:group-hover:text-accent-light transition-colors">
-                {item.title}
-              </h3>
-              
-              {/* Description */}
-              <p className="text-body-sm text-ink-secondary dark:text-ink-inverse-secondary leading-relaxed">
-                {item.description}
-              </p>
-              
-              {/* Read more link */}
-              <div className="pt-2">
-                <span className="text-body-sm font-medium text-accent dark:text-accent-light flex items-center gap-1 group-hover:gap-2 transition-all">
-                  Read more
-                  <motion.span 
-                    className="inline-block"
-                    initial={{ x: 0 }}
-                    whileHover={{ x: 4 }}
-                  >
-                    →
-                  </motion.span>
-                </span>
-              </div>
+      <LayoutGroup>
+        <div
+          className="px-4 overflow-visible grid grid-cols-4 grid-rows-[210px_210px_210px] gap-[10px] [perspective:1000px]"
+        >
+          <AnimatePresence mode="popLayout">
+            {/* Card 0: Left Vertical (Was Huge) */}
+            <div key={`card-0-${indices[0]}`} className="overflow-visible col-[1/2] row-[1/4]">
+              <StoryCard story={TOPIC_GROUPS[0][indices[0]] || TOPIC_GROUPS[0][0]} index={0} onCycle={() => cycleCard(0)} onRead={handleRead} />
+            </div>
+             {/* Card 6: Right Vertical (New Split) */}
+            <div key={`card-6-${indices[6]}`} className="overflow-visible col-[2/3] row-[1/4]">
+              <StoryCard story={TOPIC_GROUPS[6][indices[6]] || TOPIC_GROUPS[6][0]} index={6} onCycle={() => cycleCard(6)} onRead={handleRead} />
             </div>
 
-            {/* Bottom accent line on hover */}
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent dark:via-accent-light to-transparent"
-              initial={{ scaleX: 0, opacity: 0 }}
-              whileHover={{ scaleX: 1, opacity: 1 }}
-              transition={{ duration: 0.4, ease: EASE }}
-            />
-          </motion.article>
-        ))}
-      </div>
+            <div key={`card-1-${indices[1]}`} className="overflow-visible col-[3/4] row-[1/2]">
+              <StoryCard story={TOPIC_GROUPS[1][indices[1]] || TOPIC_GROUPS[1][0]} index={1} onCycle={() => cycleCard(1)} onRead={handleRead} />
+            </div>
+            <div key={`card-2-${indices[2]}`} className="overflow-visible col-[4/5] row-[1/2]">
+              <StoryCard story={TOPIC_GROUPS[2][indices[2]] || TOPIC_GROUPS[2][0]} index={2} onCycle={() => cycleCard(2)} onRead={handleRead} />
+            </div>
+            {/* Middle Row */}
+            <div key={`card-3-${indices[3]}`} className="overflow-visible col-[3/4] row-[2/3]">
+              <StoryCard story={TOPIC_GROUPS[3][indices[3]] || TOPIC_GROUPS[3][0]} index={3} onCycle={() => cycleCard(3)} onRead={handleRead} />
+            </div>
+            <div key={`card-4-${indices[4]}`} className="overflow-visible col-[4/5] row-[2/3]">
+              <StoryCard story={TOPIC_GROUPS[4][indices[4]] || TOPIC_GROUPS[4][0]} index={4} onCycle={() => cycleCard(4)} onRead={handleRead} />
+            </div>
+            {/* Bottom Row - Wide */}
+            <div key={`card-5-${indices[5]}`} className="overflow-visible col-[3/5] row-[3/4]">
+              <StoryCard story={TOPIC_GROUPS[5][indices[5]] || TOPIC_GROUPS[5][0]} index={5} onCycle={() => cycleCard(5)} onRead={handleRead} />
+            </div>
+          </AnimatePresence>
+        </div>
+      </LayoutGroup>
+
+      <InterestsPreviewModal 
+        isOpen={previewOpen} 
+        onClose={() => setPreviewOpen(false)} 
+        story={selectedStory} 
+      />
     </div>
   )
 }

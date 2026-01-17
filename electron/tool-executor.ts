@@ -62,30 +62,39 @@ let workerPool: UtilityProcess[] = []
 const pendingExecutions = new Map<string, PendingExecution>()
 
 // ============================================
-// Worker Management
+// Lazy-evaluated paths (to avoid calling app.* before ready)
 // ============================================
 
+let _utilityRunnerPath: string | null = null
+let _pythonPath: string | null = null
+
 function getUtilityRunnerPath(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'utility-runner.js')
-    : join(__dirname, 'utility-runner.js')
+  if (_utilityRunnerPath === null) {
+    _utilityRunnerPath = app.isPackaged
+      ? join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'utility-runner.js')
+      : join(__dirname, 'utility-runner.js')
+  }
+  return _utilityRunnerPath
 }
 
 function getPythonPath(): string {
-  const venvPython = app.isPackaged
-    ? join(process.resourcesPath, 'bundled_python', 'python')
-    : join(__dirname, '..', '..', 'venv', 'bin', 'python')
-  
-  if (!app.isPackaged) {
-    try {
-      require('fs').accessSync(venvPython)
-      return venvPython
-    } catch {
-      return process.platform === 'win32' ? 'python' : 'python3'
+  if (_pythonPath === null) {
+    const venvPython = app.isPackaged
+      ? join(process.resourcesPath, 'bundled_python', 'python')
+      : join(__dirname, '..', '..', 'venv', 'bin', 'python')
+    
+    if (!app.isPackaged) {
+      try {
+        require('fs').accessSync(venvPython)
+        _pythonPath = venvPython
+      } catch {
+        _pythonPath = process.platform === 'win32' ? 'python' : 'python3'
+      }
+    } else {
+      _pythonPath = venvPython
     }
   }
-  
-  return venvPython
+  return _pythonPath
 }
 
 /**

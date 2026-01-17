@@ -15,57 +15,79 @@ import { readFile, access, mkdir } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import chokidar from 'chokidar'
 
-// ============================================
-// Configuration
-// ============================================
-
 const FEATURE_FLAG = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true'
 
-// Directory paths
+// ============================================
+// Lazy-evaluated directory paths (to avoid calling app.* before ready)
+// ============================================
+
+let _projectRoot: string | null = null
+let _toolsDir: string | null = null
+let _userCustomToolsDir: string | null = null
+let _manifestsDir: string | null = null
+let _pythonScriptsDir: string | null = null
+let _pythonPath: string | null = null
+
 function getProjectRoot(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'app.asar.unpacked')
-    : join(__dirname, '..', '..')
+  if (_projectRoot === null) {
+    _projectRoot = app.isPackaged
+      ? join(process.resourcesPath, 'app.asar.unpacked')
+      : join(__dirname, '..', '..')
+  }
+  return _projectRoot
 }
 
 function getToolsDir(): string {
-  // Point directly to the strands_tools directory where the actual tools live
-  return app.isPackaged
-    ? join(process.resourcesPath, 'app.asar.unpacked', 'agent', 'tools', 'src', 'strands_tools')
-    : join(__dirname, '..', '..', 'agent', 'tools', 'src', 'strands_tools')
+  if (_toolsDir === null) {
+    _toolsDir = app.isPackaged
+      ? join(process.resourcesPath, 'app.asar.unpacked', 'agent', 'tools', 'src', 'strands_tools')
+      : join(__dirname, '..', '..', 'agent', 'tools', 'src', 'strands_tools')
+  }
+  return _toolsDir
 }
 
 function getUserCustomToolsDir(): string {
-  // User-created tools go here - watched by chokidar for hot-reload
-  return join(app.getPath('userData'), 'custom_tools')
+  if (_userCustomToolsDir === null) {
+    _userCustomToolsDir = join(app.getPath('userData'), 'custom_tools')
+  }
+  return _userCustomToolsDir
 }
 
 function getManifestsDir(): string {
-  return join(app.getPath('userData'), 'tool_manifests')
+  if (_manifestsDir === null) {
+    _manifestsDir = join(app.getPath('userData'), 'tool_manifests')
+  }
+  return _manifestsDir
 }
 
 function getPythonScriptsDir(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'app.asar.unpacked', 'python_scripts')
-    : join(__dirname, '..', '..', 'python_scripts')
+  if (_pythonScriptsDir === null) {
+    _pythonScriptsDir = app.isPackaged
+      ? join(process.resourcesPath, 'app.asar.unpacked', 'python_scripts')
+      : join(__dirname, '..', '..', 'python_scripts')
+  }
+  return _pythonScriptsDir
 }
 
 function getPythonPath(): string {
-  const venvPython = app.isPackaged
-    ? join(process.resourcesPath, 'bundled_python', 'python')
-    : join(__dirname, '..', '..', 'venv', 'bin', 'python')
-  
-  // Fall back to system Python in dev mode only
-  if (!app.isPackaged) {
-    try {
-      require('fs').accessSync(venvPython, constants.X_OK)
-      return venvPython
-    } catch {
-      return process.platform === 'win32' ? 'python' : 'python3'
+  if (_pythonPath === null) {
+    const venvPython = app.isPackaged
+      ? join(process.resourcesPath, 'bundled_python', 'python')
+      : join(__dirname, '..', '..', 'venv', 'bin', 'python')
+    
+    // Fall back to system Python in dev mode only
+    if (!app.isPackaged) {
+      try {
+        require('fs').accessSync(venvPython, constants.X_OK)
+        _pythonPath = venvPython
+      } catch {
+        _pythonPath = process.platform === 'win32' ? 'python' : 'python3'
+      }
+    } else {
+      _pythonPath = venvPython
     }
   }
-  
-  return venvPython
+  return _pythonPath
 }
 
 // ============================================

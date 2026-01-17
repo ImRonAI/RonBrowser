@@ -22,6 +22,7 @@ const AGENT_PANEL_WIDTH = 420 // Width of the agent panel
 // Enable CDP (Chrome DevTools Protocol) for Playwright/browser-use connection
 // This allows the Python agent to connect to this Electron instance
 app.commandLine.appendSwitch('remote-debugging-port', String(CDP_PORT))
+app.commandLine.appendSwitch('remote-allow-origins', '*')
 
 // Disable GPU Acceleration for Windows 7
 if (process.platform === 'win32') app.disableHardwareAcceleration()
@@ -77,6 +78,23 @@ async function createWindow() {
       contextIsolation: true,
       sandbox: false
     }
+  })
+
+  // Allow external images (Unsplash, etc.) by setting permissive CSP for images
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          "img-src 'self' data: https: blob: *; " +
+          "connect-src 'self' https: wss: ws:; " +
+          "font-src 'self' data: https:; " +
+          "style-src 'self' 'unsafe-inline' https:; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+        ]
+      }
+    })
   })
 
   mainWindow.on('ready-to-show', () => {

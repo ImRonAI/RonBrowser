@@ -757,8 +757,13 @@ async def superagent_stream(request: Request):
 
     queue = asyncio.Queue()
 
+    emit_count = 0  # Track number of events emitted for debugging
+
     def emit(sse_event: str):
         """Receive complete SSE strings from AISDKCallbackHandler."""
+        nonlocal emit_count
+        emit_count += 1
+        logger.debug(f"[Session {session_id}] Emit #{emit_count}: {sse_event[:80]}...")
         queue.put_nowait(sse_event)
 
     # Load this session's conversation history from LanceDB
@@ -833,32 +838,65 @@ async def superagent_stream(request: Request):
     async def generate():
         # Use stream_async for native async tool support (browser, etc.)
         # This allows proper await of async tool methods without deadlock
-        
+
         # Ensure browser session exists for this chat
         await ensure_browser_session()
-        
+
+        logger.info(f"[Session {session_id}] Starting agent stream for message: {message[:100]}...")
+
         async def run_agent():
-            async for event in agent.stream_async(message):
-                # stream_async yields events; callback handler also fires
-                # We just need to drive the generator to completion
-                pass
-        
+            """Run agent and drive stream_async generator to completion."""
+            try:
+                event_count = 0
+                async for event in agent.stream_async(message):
+                    # stream_async yields events; callback handler also fires
+                    # We just need to drive the generator to completion
+                    event_count += 1
+                    logger.debug(f"[Session {session_id}] Agent stream event #{event_count}: {str(event)[:80]}")
+                logger.info(f"[Session {session_id}] Agent stream completed. Total events: {event_count}")
+            except Exception as e:
+                logger.error(f"[Session {session_id}] Agent stream error: {e}", exc_info=True)
+                # Emit error event to frontend
+                error_event = f'data: {json.dumps({"type": "error", "errorText": str(e)})}\n\n'
+                queue.put_nowait(error_event)
+                raise
+
         # Run agent as async task
         agent_task = asyncio.create_task(run_agent())
-        
+
+        yield_count = 0
+        # Stream events as they arrive
         while not agent_task.done():
             try:
-                sse_event = await asyncio.wait_for(queue.get(), timeout=0.1)
+                # Increased timeout from 0.1s to 0.5s to handle LLM latency
+                sse_event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                yield_count += 1
+                logger.debug(f"[Session {session_id}] Yielding SSE event #{yield_count}")
                 yield sse_event
             except asyncio.TimeoutError:
+                # Keep waiting - agent may still be processing or thinking
+                logger.debug(f"[Session {session_id}] Timeout waiting for event, agent still running...")
                 continue
-        
+            except Exception as e:
+                logger.error(f"[Session {session_id}] Error yielding event: {e}")
+                break
+
         # Await to propagate any exceptions
-        await agent_task
-        
+        try:
+            await agent_task
+            logger.info(f"[Session {session_id}] Agent task completed successfully")
+        except Exception as e:
+            logger.error(f"[Session {session_id}] Agent task failed: {e}", exc_info=True)
+
         # Drain any remaining events after agent completes
+        drain_count = queue.qsize()
+        if drain_count > 0:
+            logger.info(f"[Session {session_id}] Draining {drain_count} remaining events from queue")
         while not queue.empty():
+            yield_count += 1
             yield queue.get_nowait()
+
+        logger.info(f"[Session {session_id}] Stream complete. Emitted: {emit_count}, Yielded: {yield_count}")
 
         # After execution, sync new messages to this session's LanceDB storage
         new_messages = agent.messages[initial_msg_count:]

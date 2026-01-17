@@ -1,30 +1,42 @@
 /**
- * SuperAgent Interface
+ * SuperAgent Interface - Revolutionary Redesign
  * 
- * A refined, premium AI agent interface with:
- * - Elegant centered input that drops on first message
- * - "The Collaborative Agent Browser OS..." tagline in Raleway light
- * - Subtle dark purple glow aesthetic
- * - Deep Research toggle
- * - ContextPicker for tab/context selection
- * - 2000+ char paste-to-attachment feature
- * - Auto-opening preview panel for code/documents
+ * A next-generation AI command interface featuring:
+ * - AI Elements library integration (PromptInput, Suggestions, Reasoning)
+ * - Orchestration visualization (Graph/Workflow/Swarm task wrappers)
+ * - Neural grid ambient background with breathing glow
+ * - Holographic tagline with shimmer effect
+ * - Orchestration mode selector
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import { ContextPicker, type ContextItem } from '@/components/agent-panel/ContextPicker'
-import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
+
+// AI Elements
+import { Suggestions, Suggestion } from '@/components/ai-elements/suggestion'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
-import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
+import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
 import type { TextAttachment } from '@/components/ai-elements/types'
+
+// Orchestration Tasks
+import {
+  GraphOrchestrationTask,
+  WorkflowOrchestrationTask,
+  SwarmOrchestrationTask,
+} from '@/components/ai-elements/orchestration-tasks'
+import { useOrchestrationStore } from '@/stores/orchestrationStore'
+
+// Context
+import { ContextPicker, type ContextItem } from '@/components/agent-panel/ContextPicker'
+import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
 
 // AI SDK v6
 import { useChat, type UIMessage } from '@ai-sdk/react'
 import { DefaultChatTransport, type TextUIPart } from 'ai'
 
 type MessagePart = UIMessage['parts'][number]
+type OrchestrationMode = 'workflow' | 'swarm' | 'graph'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
@@ -48,20 +60,25 @@ export function SuperAgentInterface() {
     }),
   })
 
+  // State
   const [input, setInput] = useState('')
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
   const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
   const [isDeepResearch, setIsDeepResearch] = useState(false)
+  const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('workflow')
   const [previewContent, setPreviewContent] = useState<{
     type: 'code' | 'document' | 'browser'
     content: string
     title?: string
   } | null>(null)
 
+  // Orchestration store
+  const { graphNodes, workflowTasks, swarmNodes } = useOrchestrationStore()
+  const hasOrchestration = graphNodes.length > 0 || workflowTasks.length > 0 || swarmNodes.length > 0
+
   const isTyping = status === 'streaming' || status === 'submitted'
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
   const isEmpty = messages.length === 0
 
   useEffect(() => {
@@ -72,29 +89,26 @@ export function SuperAgentInterface() {
     setTimeout(() => inputRef.current?.focus(), 300)
   }, [])
 
-  const convertBlobUrlToDataUrl = async (
-    url: string
-  ): Promise<string | null> => {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Handlers
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
+      const response = await fetch(url)
+      const blob = await response.blob()
       return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+      })
     } catch {
-      return null;
+      return null
     }
-  };
-
-
-
-
+  }
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    // 1) If the clipboard contains files (e.g., pasted image), attach them.
     const items = Array.from(e.clipboardData.items || [])
     const fileItems = items
       .filter((item) => item.kind === 'file')
@@ -103,7 +117,6 @@ export function SuperAgentInterface() {
 
     if (fileItems.length > 0) {
       e.preventDefault()
-      // Process files
       const newAttachments = await Promise.all(fileItems.map(async (file) => {
         const dataUrl = await fileToDataUrl(file)
         return {
@@ -117,14 +130,10 @@ export function SuperAgentInterface() {
       return
     }
 
-    // 2) If the clipboard contains a large text paste, convert to a txt attachment.
     const text = e.clipboardData.getData('text/plain')
     if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
       e.preventDefault()
-      const file = new File([text], makePastedTextFilename(), {
-        type: 'text/plain',
-      })
-      
+      const file = new File([text], makePastedTextFilename(), { type: 'text/plain' })
       const dataUrl = await fileToDataUrl(file)
       const newAttachment: TextAttachment = {
         id: Math.random().toString(36).substr(2, 9),
@@ -135,7 +144,6 @@ export function SuperAgentInterface() {
       setTextAttachments(prev => [...prev, newAttachment])
     }
   }
-
 
   const handleSubmit = async (text?: string) => {
     const messageText = text || input.trim()
@@ -156,20 +164,19 @@ export function SuperAgentInterface() {
       finalMessage = `[Deep Research Mode]\n${finalMessage}`
     }
 
-    // AI SDK v6: Convert attachments to FileUIPart format for sendMessage
-    // FileUIPart = { type: 'file', mediaType: string, filename?: string, url: string (data URL supported) }
+    // Add orchestration mode context
+    finalMessage = `[Orchestration Mode: ${orchestrationMode}]\n${finalMessage}`
+
     let files: { type: 'file'; mediaType: string; filename: string; url: string }[] | undefined
     
     if (textAttachments.length > 0) {
       files = await Promise.all(
         textAttachments.map(async (item) => {
-          // If blob: URL, convert to Data URL first
           let dataUrl = item.dataUrl
           if (dataUrl.startsWith('blob:')) {
             const converted = await convertBlobUrlToDataUrl(dataUrl)
             if (converted) dataUrl = converted
           }
-          
           return {
             type: 'file' as const,
             mediaType: item.file.type || 'text/plain',
@@ -181,12 +188,7 @@ export function SuperAgentInterface() {
     }
     
     setTextAttachments([])
-
-    // Send message with files array in AI SDK v6 format
-    sendMessage({ 
-      text: finalMessage || 'Sent with attachments',
-      files,
-    } as any)
+    sendMessage({ text: finalMessage || 'Sent with attachments', files } as any)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -204,6 +206,7 @@ export function SuperAgentInterface() {
     setSelectedContexts([])
     setTextAttachments([])
     setPreviewContent(null)
+    useOrchestrationStore.getState().reset()
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
@@ -220,20 +223,17 @@ export function SuperAgentInterface() {
     ))
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────────
+
   return (
     <div className="h-full flex flex-col relative overflow-hidden bg-surface-0 dark:bg-surface-900">
-      {/* Subtle ambient glow */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px]"
-          style={{
-            background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.06) 0%, transparent 60%)',
-            filter: 'blur(100px)',
-          }}
-        />
-      </div>
+      {/* Ambient Layer */}
+      <NeuralGridBackground isActive={isTyping} />
+      <AmbientBreathingGlow />
 
-      {/* Header - Minimal */}
+      {/* Header */}
       <motion.header
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -267,11 +267,15 @@ export function SuperAgentInterface() {
 
       {/* Main Content */}
       <div className="relative z-10 flex-1 min-h-0 flex">
-        {/* Chat Area */}
         <div className="flex-1 flex flex-col min-h-0">
           <AnimatePresence mode="wait">
             {isEmpty ? (
-              <EmptyState key="empty" onSuggestionClick={handleSubmit} />
+              <EmptyState 
+                key="empty" 
+                onSuggestionClick={handleSubmit}
+                orchestrationMode={orchestrationMode}
+                onModeChange={setOrchestrationMode}
+              />
             ) : (
               <motion.div
                 key="messages"
@@ -280,14 +284,24 @@ export function SuperAgentInterface() {
                 className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-6 py-4 space-y-4"
               >
                 {messages.map((message) => (
-                  <MessageBubble 
-                    key={message.id} 
-                    message={message}
-                  />
+                  <MessageBubble key={message.id} message={message} />
                 ))}
                 
                 {isTyping && messages[messages.length - 1]?.role === 'user' && (
                   <TypingIndicator />
+                )}
+
+                {/* Orchestration visualization */}
+                {hasOrchestration && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    {orchestrationMode === 'graph' && <GraphOrchestrationTask defaultExpanded={true} />}
+                    {orchestrationMode === 'workflow' && <WorkflowOrchestrationTask defaultExpanded={true} />}
+                    {orchestrationMode === 'swarm' && <SwarmOrchestrationTask defaultExpanded={true} />}
+                  </motion.div>
                 )}
                 
                 <div ref={messagesEndRef} />
@@ -328,10 +342,10 @@ export function SuperAgentInterface() {
                 </div>
               )}
 
-              {/* Input */}
+              {/* Command Nexus Input */}
               <div 
                 className={cn(
-                  "relative rounded-2xl transition-all duration-300",
+                  "command-nexus relative rounded-2xl transition-all duration-300",
                   "bg-surface-50/80 dark:bg-surface-800/80 backdrop-blur-sm",
                   "border",
                   input 
@@ -340,8 +354,8 @@ export function SuperAgentInterface() {
                 )}
                 style={{
                   boxShadow: input 
-                    ? '0 0 40px rgba(139, 92, 246, 0.12)' 
-                    : '0 2px 12px rgba(0, 0, 0, 0.04)',
+                    ? '0 0 60px rgba(139, 92, 246, 0.15)' 
+                    : '0 0 40px rgba(139, 92, 246, 0.08)',
                 }}
               >
                 <div className="flex items-center gap-2 px-4 py-3">
@@ -399,7 +413,7 @@ export function SuperAgentInterface() {
           </div>
         </div>
 
-        {/* Preview Panel - Auto opens for code/documents */}
+        {/* Preview Panel */}
         <AnimatePresence>
           {previewContent && (
             <motion.aside
@@ -442,17 +456,86 @@ export function SuperAgentInterface() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Empty State - Clean & Elegant
+// Neural Grid Background
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) => void }) {
-  const suggestions = [
-    'Research a topic in depth',
-    'Analyze and summarize documents',
-    'Build a workflow automation',
-    'Help me code something',
-  ]
+const NeuralGridBackground = memo(function NeuralGridBackground({ isActive }: { isActive: boolean }) {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <svg className="w-full h-full opacity-[0.07]">
+        {Array.from({ length: 100 }).map((_, i) => (
+          <circle
+            key={i}
+            cx={`${(i % 10) * 10 + 5}%`}
+            cy={`${Math.floor(i / 10) * 10 + 5}%`}
+            r={isActive ? 2 : 1.5}
+            className={cn(
+              "fill-violet-400 dark:fill-violet-500",
+              isActive && "animate-pulse"
+            )}
+            style={{ 
+              animationDelay: `${i * 0.02}s`,
+              opacity: isActive ? 0.6 : 0.3,
+            }}
+          />
+        ))}
+      </svg>
+    </div>
+  )
+})
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Ambient Breathing Glow
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AmbientBreathingGlow = memo(function AmbientBreathingGlow() {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* Core glow */}
+      <motion.div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px]"
+        animate={{ scale: [1, 1.05, 1], opacity: [0.06, 0.08, 0.06] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        style={{ 
+          background: 'radial-gradient(ellipse, rgba(139,92,246,0.12), transparent 70%)', 
+          filter: 'blur(80px)' 
+        }}
+      />
+      {/* Middle ring */}
+      <motion.div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px]"
+        animate={{ scale: [1, 1.03, 1], opacity: [0.04, 0.06, 0.04] }}
+        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+        style={{ 
+          background: 'radial-gradient(ellipse, rgba(124,58,237,0.08), transparent 70%)', 
+          filter: 'blur(100px)' 
+        }}
+      />
+      {/* Outer haze */}
+      <motion.div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px]"
+        animate={{ scale: [1, 1.02, 1], opacity: [0.02, 0.04, 0.02] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        style={{ 
+          background: 'radial-gradient(ellipse, rgba(99,102,241,0.06), transparent 70%)', 
+          filter: 'blur(120px)' 
+        }}
+      />
+    </div>
+  )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty State with Mode Selector
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface EmptyStateProps {
+  onSuggestionClick: (text: string) => void
+  orchestrationMode: OrchestrationMode
+  onModeChange: (mode: OrchestrationMode) => void
+}
+
+function EmptyState({ onSuggestionClick, orchestrationMode, onModeChange }: EmptyStateProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -460,57 +543,107 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) =
       exit={{ opacity: 0 }}
       className="flex-1 flex flex-col items-center justify-center px-6 pb-32"
     >
-      {/* Tagline */}
-      <motion.p
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="mb-12"
-        style={{
-          fontFamily: "'Raleway', sans-serif",
-          fontWeight: 300,
-          fontSize: '1.25rem',
-          letterSpacing: '0.15em',
-          color: 'rgba(139, 92, 246, 0.55)',
-        }}
-      >
-        The Collaborative Agent Browser OS...
-      </motion.p>
+      {/* Holographic Tagline */}
+      <HolographicTagline />
 
-      {/* Suggestions */}
+      {/* Orchestration Mode Selector */}
+      <OrchestrationModeSelector mode={orchestrationMode} onModeChange={onModeChange} />
+
+      {/* Suggestions using AI Elements */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
-        className="flex flex-wrap justify-center gap-2 max-w-xl"
+        transition={{ delay: 0.35 }}
       >
-        {suggestions.map((text, i) => (
-          <motion.button
-            key={i}
-            onClick={() => onSuggestionClick(text)}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 + i * 0.05 }}
-            whileHover={{ scale: 1.02, y: -1 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "px-4 py-2 rounded-full",
-              "text-body-sm text-ink-muted dark:text-ink-inverse-muted",
-              "bg-surface-100/80 dark:bg-surface-800/80",
-              "border border-surface-200/60 dark:border-surface-700/60",
-              "hover:text-ink dark:hover:text-ink-inverse",
-              "hover:border-violet-300/50 dark:hover:border-violet-500/30",
-              "hover:bg-violet-50/50 dark:hover:bg-violet-900/20",
-              "transition-all duration-200",
-            )}
-          >
-            {text}
-          </motion.button>
-        ))}
+        <Suggestions layout="wrap" className="max-w-xl justify-center">
+          <Suggestion suggestion="Research a topic in depth" onClick={onSuggestionClick} icon="🔬" />
+          <Suggestion suggestion="Analyze and summarize documents" onClick={onSuggestionClick} icon="📄" />
+          <Suggestion suggestion="Build a workflow automation" onClick={onSuggestionClick} icon="⚡" />
+          <Suggestion suggestion="Help me code something" onClick={onSuggestionClick} icon="💻" />
+        </Suggestions>
       </motion.div>
     </motion.div>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Holographic Tagline
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HolographicTagline = memo(function HolographicTagline() {
+  return (
+    <motion.p
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15 }}
+      className="mb-8 holographic-text"
+      style={{
+        fontFamily: "'Raleway', sans-serif",
+        fontWeight: 300,
+        fontSize: '1.25rem',
+        letterSpacing: '0.15em',
+        background: 'linear-gradient(90deg, rgba(139,92,246,0.7) 0%, rgba(168,85,247,0.7) 25%, rgba(99,102,241,0.7) 50%, rgba(139,92,246,0.7) 75%, rgba(168,85,247,0.7) 100%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 4s linear infinite',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+      }}
+    >
+      The Collaborative Agent Browser OS...
+    </motion.p>
+  )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Orchestration Mode Selector
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface OrchestrationModeSelectorProps {
+  mode: OrchestrationMode
+  onModeChange: (mode: OrchestrationMode) => void
+}
+
+const OrchestrationModeSelector = memo(function OrchestrationModeSelector({ 
+  mode, 
+  onModeChange 
+}: OrchestrationModeSelectorProps) {
+  const modes = [
+    { id: 'workflow' as const, label: 'Workflow', icon: <SequenceIcon className="w-4 h-4" />, desc: 'Sequential' },
+    { id: 'swarm' as const, label: 'Swarm', icon: <SwarmIcon className="w-4 h-4" />, desc: 'Dynamic' },
+    { id: 'graph' as const, label: 'Graph', icon: <GraphIcon className="w-4 h-4" />, desc: 'Parallel' },
+  ]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25 }}
+      className="flex items-center gap-2 mb-8"
+    >
+      {modes.map((m) => (
+        <motion.button
+          key={m.id}
+          onClick={() => onModeChange(m.id)}
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.98 }}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300",
+            mode === m.id
+              ? "bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-300/40 dark:border-violet-500/30"
+              : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
+          )}
+          style={{
+            boxShadow: mode === m.id ? '0 0 20px rgba(139, 92, 246, 0.2)' : 'none'
+          }}
+        >
+          {m.icon}
+          <span className="text-body-sm font-medium">{m.label}</span>
+        </motion.button>
+      ))}
+    </motion.div>
+  )
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deep Research Toggle
@@ -703,6 +836,43 @@ function BrowserIcon({ className }: { className?: string }) {
       <line x1="3" y1="9" x2="21" y2="9" />
       <circle cx="7" cy="6" r="1" fill="currentColor" />
       <circle cx="10" cy="6" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
+function SequenceIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  )
+}
+
+function SwarmIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="18" cy="18" r="2" />
+      <line x1="9" y1="9" x2="7" y2="7" />
+      <line x1="15" y1="9" x2="17" y2="7" />
+      <line x1="9" y1="15" x2="7" y2="17" />
+      <line x1="15" y1="15" x2="17" y2="17" />
+    </svg>
+  )
+}
+
+function GraphIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="12" cy="18" r="3" />
+      <line x1="8" y1="8" x2="10" y2="15" />
+      <line x1="16" y1="8" x2="14" y2="15" />
     </svg>
   )
 }

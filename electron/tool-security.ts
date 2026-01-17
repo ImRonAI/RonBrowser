@@ -20,8 +20,14 @@ import { ToolInfo } from './tool-manager'
 
 const FEATURE_FLAG = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true'
 
+// Lazy-evaluated path (to avoid calling app.* before ready)
+let _auditLogPath: string | null = null
+
 function getAuditLogPath(): string {
-  return join(app.getPath('userData'), 'tool-audit.jsonl')
+  if (_auditLogPath === null) {
+    _auditLogPath = join(app.getPath('userData'), 'tool-audit.jsonl')
+  }
+  return _auditLogPath
 }
 
 // ============================================
@@ -179,8 +185,9 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
   const logPath = getAuditLogPath()
   
   try {
-    // Ensure directory exists
-    await mkdir(join(app.getPath('userData')), { recursive: true })
+    // Ensure directory exists (use dirname of getAuditLogPath which is already lazy)
+    const { dirname } = await import('node:path')
+    await mkdir(dirname(logPath), { recursive: true })
     
     const logLine = JSON.stringify({
       ...entry,
