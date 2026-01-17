@@ -30,32 +30,57 @@ const node_fs = require("node:fs");
 const chokidar = require("chokidar");
 const node_crypto = require("node:crypto");
 const FEATURE_FLAG$2 = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
+let _projectRoot = null;
+let _toolsDir = null;
+let _userCustomToolsDir = null;
+let _manifestsDir = null;
+let _pythonScriptsDir = null;
+let _pythonPath$1 = null;
 function getProjectRoot() {
-  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked") : node_path.join(__dirname, "..", "..");
+  if (_projectRoot === null) {
+    _projectRoot = electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked") : node_path.join(__dirname, "..", "..");
+  }
+  return _projectRoot;
 }
 function getToolsDir() {
-  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "agent", "tools", "src", "strands_tools") : node_path.join(__dirname, "..", "..", "agent", "tools", "src", "strands_tools");
+  if (_toolsDir === null) {
+    _toolsDir = electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "agent", "tools", "src", "strands_tools") : node_path.join(__dirname, "..", "..", "agent", "tools", "src", "strands_tools");
+  }
+  return _toolsDir;
 }
 function getUserCustomToolsDir() {
-  return node_path.join(electron.app.getPath("userData"), "custom_tools");
+  if (_userCustomToolsDir === null) {
+    _userCustomToolsDir = node_path.join(electron.app.getPath("userData"), "custom_tools");
+  }
+  return _userCustomToolsDir;
 }
 function getManifestsDir() {
-  return node_path.join(electron.app.getPath("userData"), "tool_manifests");
+  if (_manifestsDir === null) {
+    _manifestsDir = node_path.join(electron.app.getPath("userData"), "tool_manifests");
+  }
+  return _manifestsDir;
 }
 function getPythonScriptsDir() {
-  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "python_scripts") : node_path.join(__dirname, "..", "..", "python_scripts");
+  if (_pythonScriptsDir === null) {
+    _pythonScriptsDir = electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "python_scripts") : node_path.join(__dirname, "..", "..", "python_scripts");
+  }
+  return _pythonScriptsDir;
 }
 function getPythonPath$1() {
-  const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "bundled_python", "python") : node_path.join(__dirname, "..", "..", "venv", "bin", "python");
-  if (!electron.app.isPackaged) {
-    try {
-      require("fs").accessSync(venvPython, node_fs.constants.X_OK);
-      return venvPython;
-    } catch {
-      return process.platform === "win32" ? "python" : "python3";
+  if (_pythonPath$1 === null) {
+    const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "bundled_python", "python") : node_path.join(__dirname, "..", "..", "venv", "bin", "python");
+    if (!electron.app.isPackaged) {
+      try {
+        require("fs").accessSync(venvPython, node_fs.constants.X_OK);
+        _pythonPath$1 = venvPython;
+      } catch {
+        _pythonPath$1 = process.platform === "win32" ? "python" : "python3";
+      }
+    } else {
+      _pythonPath$1 = venvPython;
     }
   }
-  return venvPython;
+  return _pythonPath$1;
 }
 let discoveredTools = [];
 let watcher = null;
@@ -276,20 +301,29 @@ const FEATURE_FLAG$1 = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
 const DEFAULT_TIMEOUT = 3e5;
 let workerPool = [];
 const pendingExecutions = /* @__PURE__ */ new Map();
+let _utilityRunnerPath = null;
+let _pythonPath = null;
 function getUtilityRunnerPath() {
-  return electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "electron", "utility-runner.js") : node_path.join(__dirname, "utility-runner.js");
+  if (_utilityRunnerPath === null) {
+    _utilityRunnerPath = electron.app.isPackaged ? node_path.join(process.resourcesPath, "app.asar.unpacked", "electron", "utility-runner.js") : node_path.join(__dirname, "utility-runner.js");
+  }
+  return _utilityRunnerPath;
 }
 function getPythonPath() {
-  const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "bundled_python", "python") : node_path.join(__dirname, "..", "..", "venv", "bin", "python");
-  if (!electron.app.isPackaged) {
-    try {
-      require("fs").accessSync(venvPython);
-      return venvPython;
-    } catch {
-      return process.platform === "win32" ? "python" : "python3";
+  if (_pythonPath === null) {
+    const venvPython = electron.app.isPackaged ? node_path.join(process.resourcesPath, "bundled_python", "python") : node_path.join(__dirname, "..", "..", "venv", "bin", "python");
+    if (!electron.app.isPackaged) {
+      try {
+        require("fs").accessSync(venvPython);
+        _pythonPath = venvPython;
+      } catch {
+        _pythonPath = process.platform === "win32" ? "python" : "python3";
+      }
+    } else {
+      _pythonPath = venvPython;
     }
   }
-  return venvPython;
+  return _pythonPath;
 }
 function createWorker() {
   const utilityRunnerPath = getUtilityRunnerPath();
@@ -451,8 +485,12 @@ function terminateAllWorkers() {
   pendingExecutions.clear();
 }
 const FEATURE_FLAG = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
+let _auditLogPath = null;
 function getAuditLogPath() {
-  return node_path.join(electron.app.getPath("userData"), "tool-audit.jsonl");
+  if (_auditLogPath === null) {
+    _auditLogPath = node_path.join(electron.app.getPath("userData"), "tool-audit.jsonl");
+  }
+  return _auditLogPath;
 }
 function isToolAllowed(toolName) {
   {
@@ -494,7 +532,8 @@ async function logAuditEvent(entry) {
   if (!FEATURE_FLAG) return;
   const logPath = getAuditLogPath();
   try {
-    await promises.mkdir(node_path.join(electron.app.getPath("userData")), { recursive: true });
+    const { dirname } = await import("node:path");
+    await promises.mkdir(dirname(logPath), { recursive: true });
     const logLine = JSON.stringify({
       ...entry,
       timestamp: entry.timestamp || (/* @__PURE__ */ new Date()).toISOString()
@@ -567,6 +606,7 @@ const CDP_PORT = 9222;
 const CHROME_HEIGHT = 108;
 const AGENT_PANEL_WIDTH = 420;
 electron.app.commandLine.appendSwitch("remote-debugging-port", String(CDP_PORT));
+electron.app.commandLine.appendSwitch("remote-allow-origins", "*");
 if (process.platform === "win32") electron.app.disableHardwareAcceleration();
 if (process.platform === "win32") electron.app.setAppUserModelId(electron.app.getName());
 if (!electron.app.requestSingleInstanceLock()) {
@@ -599,6 +639,16 @@ async function createWindow() {
       contextIsolation: true,
       sandbox: false
     }
+  });
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob: *; connect-src 'self' https: wss: ws:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+        ]
+      }
+    });
   });
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
