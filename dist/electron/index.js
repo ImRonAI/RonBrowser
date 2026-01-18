@@ -645,7 +645,7 @@ async function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob: *; connect-src 'self' https: wss: ws:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob: *; connect-src 'self' http://localhost:8765 https: wss: ws:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
         ]
       }
     });
