@@ -83,6 +83,11 @@ export function AgentPanel() {
           session_id: sessionIdRef.current,
         }
       },
+      onError: (error) => {
+        console.error('[AgentPanel] API Error:', error)
+        console.error('[AgentPanel] Failed to connect to backend at:', SUPERAGENT_API)
+        console.error('[AgentPanel] Make sure backend is running: npm run dev:backend')
+      },
     }),
   })
 
