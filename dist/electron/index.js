@@ -815,13 +815,18 @@ class TabsManager {
     })()`, true);
     const cookies = await wc.session.cookies.get({ url }).catch(() => []);
     const image = await wc.capturePage().catch(() => null);
-    const screenshot = image ? image.toPNG().toString("base64") : void 0;
+    let screenshot;
+    if (image && !image.isEmpty()) {
+      screenshot = image.toPNG().toString("base64");
+    } else {
+      console.warn(`[TabsManager] Captured empty screenshot for tab ${id}`);
+    }
     return { id: tab.id, url, title, favicon: tab.favicon, isExternal: true, dom, cookies, screenshot };
   }
   // Internal helpers
   ensureView(tab) {
     if (tab.view) return;
-    tab.view = new electron.WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    tab.view = new electron.WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     this.updateViewBounds(tab.view);
     tab.view.webContents.on("did-navigate", (_e, url) => this.onUrlChanged(tab, url));
     tab.view.webContents.on("did-navigate-in-page", (_e, url) => this.onUrlChanged(tab, url));

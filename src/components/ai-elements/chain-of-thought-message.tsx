@@ -31,6 +31,7 @@ import {
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState } from '@/components/ai-elements/tool'
 import { ResponseMarkdown } from '@/components/ai-elements/response'
+import { ResponseWithCitations, type Citation } from '@/components/ai-elements/response-with-citations'
 import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
 // ToolState is used by mapToolPartState return type
 
@@ -142,8 +143,10 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
       )}
 
       {/* Final Text Output (renders outside chain of thought) */}
+      {/* NOTE: Citations will be parsed from [1], [2], [3] markers in the text.
+          Full citation metadata extraction from tool outputs is not yet implemented. */}
       {finalTextParts.map((part, index) => (
-        <ResponseMarkdown
+        <ResponseWithCitations
           key={`${messageId}-text-${index}`}
           content={part.text}
           isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}

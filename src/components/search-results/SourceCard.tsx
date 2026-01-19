@@ -95,13 +95,10 @@ export function SourceCard({
     <div
       className={`
         group relative w-full
-        glass-bold
+        glass-card
         rounded-xl overflow-hidden
-        border border-white/20 dark:border-white/10
-        shadow-lg shadow-indigo-500/5 dark:shadow-black/20
-        transition-all duration-200 ease-out
-        hover:scale-[1.02]
-        hover:shadow-xl hover:shadow-indigo-500/10 dark:hover:shadow-black/40
+        transition-all duration-500 ease-out
+        hover:elevated
         cursor-pointer
         ${className}
       `}
@@ -109,17 +106,11 @@ export function SourceCard({
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
     >
-      {/* Hover Overlay - Enhanced Glass */}
-      <div 
-        className={`
-          absolute inset-0 z-0
-          bg-gradient-to-br from-white/5 to-white/0 dark:from-white/5 dark:to-transparent
-          opacity-0 group-hover:opacity-100 transition-opacity duration-500
-        `}
-      />
+      {/* Ambient Glow Overlay */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 bg-gradient-to-tr from-accent/5 via-transparent to-accent-light/5 pointer-events-none" />
       {/* Citation badge */}
       {citationNumber !== undefined && (
-        <div 
+        <div
           className="
             absolute -top-1 -right-1 z-10
             w-5 h-5 flex items-center justify-center
@@ -134,11 +125,11 @@ export function SourceCard({
       )}
 
       {/* Main content */}
-      <div className="p-3">
+      <div className="relative z-10 p-3">
         {/* Header: favicon + domain */}
         <div className="flex items-center gap-2 mb-2">
           {/* Favicon */}
-          <div className="w-5 h-5 rounded flex items-center justify-center bg-slate-700/50 overflow-hidden">
+          <div className="w-5 h-5 rounded flex items-center justify-center glass-subtle overflow-hidden">
             {!faviconError ? (
               <img 
                 src={source.favicon || getFaviconUrl(source.domain)}
@@ -158,7 +149,7 @@ export function SourceCard({
             <span className={`text-xs font-medium truncate ${getTypeAccent(source.type)}`}>
               {source.domain}
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/50 rounded text-slate-400">
+            <span className="text-[10px] px-1.5 py-0.5 glass-subtle rounded text-slate-400">
               {source.type}
             </span>
           </div>
@@ -176,10 +167,10 @@ export function SourceCard({
       </div>
 
       {/* Hover actions */}
-      <div 
+      <div
         className={`
-          absolute inset-0 flex items-center justify-center gap-1.5
-          bg-slate-900/90 backdrop-blur-sm
+          absolute inset-0 z-20 flex items-center justify-center gap-1.5
+          glass-bold backdrop-blur-glass
           transition-opacity duration-200
           ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}
         `}
@@ -190,7 +181,7 @@ export function SourceCard({
             e.stopPropagation()
             window.open(source.url, '_blank', 'noopener,noreferrer')
           }}
-          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+          className="p-2 rounded-lg glass-subtle hover:bg-white/20 transition-colors"
           title="Visit Site"
         >
           <ArrowTopRightOnSquareIcon className="w-4 h-4 text-white/80" />
@@ -203,7 +194,7 @@ export function SourceCard({
               e.stopPropagation()
               onSendToRon()
             }}
-            className="p-2 rounded-lg bg-teal-500/20 hover:bg-teal-500/30 transition-colors"
+            className="p-2 rounded-lg glass-subtle hover:bg-teal-500/30 transition-colors"
             title="Send to Ron"
           >
             <ChatBubbleLeftRightIcon className="w-4 h-4 text-teal-400" />
@@ -217,7 +208,7 @@ export function SourceCard({
               e.stopPropagation()
               onSendToCoding()
             }}
-            className="p-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 transition-colors"
+            className="p-2 rounded-lg glass-subtle hover:bg-blue-500/30 transition-colors"
             title="Send to Coding Agent"
           >
             <CodeBracketIcon className="w-4 h-4 text-blue-400" />
@@ -231,7 +222,7 @@ export function SourceCard({
               e.stopPropagation()
               onAttachToTask()
             }}
-            className="p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 transition-colors"
+            className="p-2 rounded-lg glass-subtle hover:bg-amber-500/30 transition-colors"
             title="Attach to Task"
           >
             <PaperClipIcon className="w-4 h-4 text-amber-400" />
@@ -245,7 +236,7 @@ export function SourceCard({
               e.stopPropagation()
               onStartTask()
             }}
-            className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors"
+            className="p-2 rounded-lg glass-subtle hover:bg-purple-500/30 transition-colors"
             title="Start Task"
           >
             <PlayIcon className="w-4 h-4 text-purple-400" />

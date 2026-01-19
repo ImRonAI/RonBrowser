@@ -1,0 +1,6 @@
+$8e663d69-d0d9-4a6e-af70-528f4242ec56²»#
+session_id ÿÿÿÿÿÿÿÿÿ*string08%
+created_at ÿÿÿÿÿÿÿÿÿ*string08%
+updated_at ÿÿÿÿÿÿÿÿÿ*string08'search_query ÿÿÿÿÿÿÿÿÿ*string08(search_answer ÿÿÿÿÿÿÿÿÿ*string08'sources_json ÿÿÿÿÿÿÿÿÿ*string08"'
+lance.auto_cleanup.older_than14days"!
+lance.auto_cleanup.interval20

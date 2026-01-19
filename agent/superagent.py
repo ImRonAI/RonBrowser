@@ -67,6 +67,7 @@ AVAILABLE_MCP_SERVERS = {
     "playwright": ("node", [str(MCP_SERVERS_DIR / "playwright-electron-mcp" / "dist" / "index.js")]),
     "pophive": ("node", [str(MCP_SERVERS_DIR / "pophive-mcp-server" / "server" / "index.js")]),
     "healthcare": ("node", [str(MCP_SERVERS_DIR / "healthcare-mcp-public" / "server" / "index.js")]),
+    "agent-sops": (str(VENV_PYTHON), [str(MCP_SERVERS_DIR / "agent-sop-mcp-server" / "server.py")]),
     "mcp-installer": ("node", [str(MCP_SERVERS_DIR / "mcp-installer" / "lib" / "index.mjs")]),
     "gateway": ("docker", ["mcp", "gateway", "run"]),
 }
@@ -76,7 +77,7 @@ async def load_mcp_server(server_id: str) -> str:
     """Load an MCP server's tools into your registry. After loading, call MCP tools directly by name.
 
     Args:
-        server_id: Server: cms-coverage, datacommons, playwright, pophive, healthcare, mcp-installer, gateway, or telnyx
+        server_id: Server: agent-sops, cms-coverage, datacommons, playwright, pophive, healthcare, mcp-installer, gateway, or telnyx
     """
     global _current_agent
 
@@ -249,7 +250,21 @@ When performing research or coding tasks from web sources:
 - **Brevity**: Keep general chat concise. Save detailed explanations for complex tasks.
 - **Style**: Be helpful and high-energy. Avoid long-winded intro/outro text.
 
-Use all available tools implicitly as needed without being explicitly told. Always use tools instead of suggesting code 
+## CITATION PROTOCOL (MANDATORY)
+When providing information from web sources, research, or search results:
+1. **Always cite your sources** using inline APA-style citations with author/organization and year
+2. Place citations **inline** immediately after the relevant claim or information
+3. Format citations as: (Author, Year) or (Organization, Year) if no author
+4. **Example formats**:
+   - "Recent studies show AI usage increased 40% in 2024 (Smith et al., 2024)."
+   - "The technology sector leads adoption (Tech Research Institute, 2024)."
+   - "Healthcare follows closely with implementation rates rising (Johnson & Chen, 2024)."
+5. When using `perplexity_search_api` or other search tools, extract author/organization names from the search results and cite them
+6. If no author is available, use the website/organization name from the domain
+
+This enables the UI to show interactive citation previews with source details when users hover over the citations.
+
+Use all available tools implicitly as needed without being explicitly told. Always use tools instead of suggesting code
 that would perform the same operations. Proactively identify when tasks can be completed using available tools.
 
 ## Capabilities:
@@ -300,7 +315,7 @@ Resources available for dynamic loading:
 
 ### 5. MCP SERVERS
 - **Preset**: Use `load_mcp_server(id)` for configured servers (playwright, telnyx, etc).
-- **Custom**: Use `mcp_client` to connect to new servers.
+- **Custom**: Use `mcp_client` to connect to new servers and access tools/prompts.
 
 ---
 
@@ -432,7 +447,7 @@ send_sms(to="+1...", message="Hello!")
 make_call(to="+1...")
 ```
 
-Available MCP servers: cms-coverage, datacommons, playwright, pophive, telnyx, healthcare, mcp-installer, gateway
+Available MCP servers: agent-sops, cms-coverage, datacommons, playwright, pophive, telnyx, healthcare, mcp-installer, gateway
 
 ---
 
@@ -444,9 +459,15 @@ Available MCP servers: cms-coverage, datacommons, playwright, pophive, telnyx, h
 - shell: Run shell commands
 
 ### MCP Servers:
-- load_mcp_server: Load preset MCP servers (cms-coverage, datacommons, playwright, pophive, telnyx, healthcare)
+- load_mcp_server: Load preset MCP servers (agent-sops, cms-coverage, datacommons, playwright, pophive, telnyx, healthcare)
 - load_openapi_server: Load any OpenAPI spec as MCP tools
 - unload_mcp_server: Unload by server ID
+- mcp_client: Connect to MCP servers (stdio/sse/http) and use list_tools, call_tool, load_tools, list_prompts, get_prompt
+
+### MCP Prompt Schema (mcp_client)
+- list_prompts: action="list_prompts", connection_id (required), pagination_token (optional)
+- get_prompt: action="get_prompt", connection_id (required), prompt_name (required), prompt_args (optional, dict[str, str])
+- connection_id comes from mcp_client connect: action="connect", connection_id="your_id" (reuse the same value)
 
 ### Memory:
 - retrieve, mem0_memory

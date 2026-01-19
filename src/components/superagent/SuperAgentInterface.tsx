@@ -152,12 +152,77 @@ export function SuperAgentInterface() {
     setInput('')
     
     let finalMessage = messageText
+    let tempFiles: { type: 'file'; mediaType: string; filename: string; url: string }[] = []
+
     if (selectedContexts.length > 0) {
-      const contextString = selectedContexts.map(c => {
-        if (c.type === 'tab') return `[Context: Tab] ${c.title || c.name} (${c.url || c.description})`
-        return `[Context: ${c.type}] ${c.name} - ${c.description || ''}`
-      }).join('\n')
-      finalMessage = `Context:\n${contextString}\n\n${messageText}`
+      // 1. Fetch full data for any 'tab' contexts
+      const enrichedContexts = await Promise.all(
+        selectedContexts.map(async (c) => {
+          if (c.type === 'tab' && typeof window !== 'undefined' && (window as any).electron?.tabs?.getContext) {
+            try {
+              // Fetch complete context from Electron (DOM, Screenshot, etc.)
+              const fullData = await (window as any).electron.tabs.getContext(c.id)
+              return { ...c, fullData }
+            } catch (err) {
+              console.error(`Failed to fetch context for tab ${c.id}:`, err)
+              return c
+            }
+          }
+          return c
+        })
+      )
+
+      // 2. Process contexts into file attachments
+      const contextSummaries: string[] = []
+
+      enrichedContexts.forEach(c => {
+        if (c.type === 'tab') {
+          contextSummaries.push(`[Context: Tab] ${c.title || c.name} (${c.url})`)
+          
+          const data = (c as any).fullData
+          if (data) {
+            // Create .txt attachment for page content
+            const textContent = [
+              `Title: ${data.title}`,
+              `URL: ${data.url}`,
+              `\n--- PAGE TEXT CONTENT ---\n${data.dom?.text || ''}`,
+              `\n--- PAGE HTML SOURCE ---\n${data.dom?.html?.slice(0, 50000) || ''}` // Cap HTML to 50k
+            ].join('\n')
+
+            try {
+              // Unicode-safe base64 encoding for data URL
+              const base64Content = window.btoa(unescape(encodeURIComponent(textContent)))
+              
+              tempFiles.push({
+                type: 'file',
+                mediaType: 'text/plain',
+                filename: `[Tab] ${c.title || 'Page'}.txt`,
+                url: `data:text/plain;base64,${base64Content}`
+              })
+            } catch (e) {
+              console.error('Failed to create text attachment for tab', e)
+            }
+
+            // Create .png attachment for screenshot
+            if (data.screenshot) {
+              tempFiles.push({
+                type: 'file',
+                mediaType: 'image/png',
+                filename: `[Tab] ${c.title || 'Page'}.png`,
+                url: `data:image/png;base64,${data.screenshot}`
+              })
+            }
+          }
+        } else {
+          contextSummaries.push(`[Context: ${c.type}] ${c.name} - ${c.description || ''}`)
+        }
+      })
+
+      if (contextSummaries.length > 0) {
+        finalMessage = `Context:\n${contextSummaries.join('\n')}\n\n${messageText}`
+      } else {
+        finalMessage = messageText
+      }
     }
 
     if (isDeepResearch) {
@@ -185,6 +250,10 @@ export function SuperAgentInterface() {
           }
         })
       )
+    }
+
+    if (tempFiles.length > 0) {
+      files = files ? [...files, ...tempFiles] : tempFiles
     }
     
     setTextAttachments([])

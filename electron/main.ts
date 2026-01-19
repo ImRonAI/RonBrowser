@@ -305,7 +305,12 @@ class TabsManager {
 
     // Optional screenshot
     const image = await wc.capturePage().catch(() => null)
-    const screenshot = image ? image.toPNG().toString('base64') : undefined
+    let screenshot: string | undefined
+    if (image && !image.isEmpty()) {
+      screenshot = image.toPNG().toString('base64')
+    } else {
+      console.warn(`[TabsManager] Captured empty screenshot for tab ${id}`)
+    }
 
     return { id: tab.id, url, title, favicon: tab.favicon, isExternal: true, dom, cookies, screenshot }
   }
@@ -313,7 +318,7 @@ class TabsManager {
   // Internal helpers
   private ensureView(tab: TabRecord) {
     if (tab.view) return
-    tab.view = new WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } })
+    tab.view = new WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false } })
 
     // Bounds and events
     this.updateViewBounds(tab.view)

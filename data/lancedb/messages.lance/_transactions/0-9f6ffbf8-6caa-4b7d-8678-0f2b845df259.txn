@@ -1,0 +1,5 @@
+$9f6ffbf8-6caa-4b7d-8678-0f2b845df259²§id ÿÿÿÿÿÿÿÿÿ*string08%
+session_id ÿÿÿÿÿÿÿÿÿ*string08role ÿÿÿÿÿÿÿÿÿ*string08"content ÿÿÿÿÿÿÿÿÿ*string08)citations_json ÿÿÿÿÿÿÿÿÿ*string08%
+created_at ÿÿÿÿÿÿÿÿÿ*string08"!
+lance.auto_cleanup.interval20"'
+lance.auto_cleanup.older_than14days

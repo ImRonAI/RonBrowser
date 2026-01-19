@@ -124,12 +124,12 @@ export function App() {
     }
   }, [isDark])
 
-  // Simulate search results for demo (in production, this would come from API)
+  // Stream search results from Sonar Reasoning Pro API
   useEffect(() => {
     if (searchPhase === 'reasoning' && quickResult) {
-      simulateSearchStream()
+      streamSonarReasoningPro(quickResult.query)
     }
-  }, [searchPhase])
+  }, [searchPhase, quickResult])
 
   // DEV: Show AI Elements Showcase (accessible from any state via Cmd/Ctrl + Shift + S)
   if (showShowcase) {
@@ -223,70 +223,130 @@ export function App() {
 // DEMO: Simulate search streaming
 // In production, this would be replaced with actual API calls
 // ============================================
-function simulateSearchStream() {
+async function streamSonarReasoningPro(query: string) {
   const store = useSearchStore.getState()
-  
-  // Add reasoning steps
-  const steps = [
-    { id: 'step-1', label: 'Analyzing query', description: 'Understanding search intent and key concepts', status: 'running' as const },
-    { id: 'step-2', label: 'Searching sources', description: 'Querying multiple data providers', status: 'pending' as const },
-    { id: 'step-3', label: 'Synthesizing results', description: 'Combining and ranking findings', status: 'pending' as const },
-  ]
-  
-  // Add first step
-  store.addReasoningStep(steps[0])
-  
-  // Simulate progression
-  setTimeout(() => {
-    store.updateReasoningStep('step-1', { status: 'complete', reasoning: 'Identified key topics: AI, machine learning, neural networks' })
-    store.addReasoningStep({ ...steps[1], status: 'running' })
-  }, 1500)
-  
-  setTimeout(() => {
-    store.updateReasoningStep('step-2', { status: 'complete', reasoning: 'Found 15 relevant sources across web, academic, and video content' })
-    store.addReasoningStep({ ...steps[2], status: 'running' })
-    
-    // Add sources
-    const mockSources: SourceData[] = [
-      { id: '1', url: 'https://arxiv.org/abs/1706.03762', title: 'Attention Is All You Need', snippet: 'The dominant sequence transduction models...', domain: 'arxiv.org', type: 'academic' },
-      { id: '2', url: 'https://youtube.com/watch?v=aircAruvnKk', title: 'But what is a neural network?', snippet: 'Deep learning explained visually...', domain: 'youtube.com', type: 'video' },
-      { id: '3', url: 'https://www.technologyreview.com/deep-learning', title: 'Deep Learning Explained', snippet: 'A comprehensive guide to deep learning...', domain: 'technologyreview.com', type: 'web' },
-      { id: '4', url: 'https://github.com/tensorflow/tensorflow', title: 'TensorFlow - Machine Learning Framework', snippet: 'An open source ML framework...', domain: 'github.com', type: 'code' as any },
-      { id: '5', url: 'https://pytorch.org/tutorials', title: 'PyTorch Tutorials', snippet: 'Learn deep learning with PyTorch...', domain: 'pytorch.org', type: 'web' },
-    ]
-    store.setSources(mockSources)
-  }, 3000)
-  
-  // Start answer streaming
-  setTimeout(() => {
-    store.updateReasoningStep('step-3', { status: 'complete' })
-    
-    const fullAnswer = `Artificial intelligence and machine learning are transforming how we interact with technology. At its core, machine learning enables computers to learn patterns from data without being explicitly programmed for each task.
 
-Neural networks, inspired by the human brain, form the foundation of modern deep learning. These networks consist of layers of interconnected nodes that process and transform data, enabling remarkable capabilities in image recognition, natural language processing, and decision-making.
+  // Reset state for new search
+  store.setIsStreaming(true)
 
-The field has seen explosive growth with the introduction of transformer architectures in 2017, which power today's large language models. Key frameworks like TensorFlow and PyTorch have democratized access to these technologies, enabling researchers and developers worldwide to build sophisticated AI applications.`
-    
-    // Stream answer character by character (simulated)
-    let currentIndex = 0
-    const streamInterval = setInterval(() => {
-      if (currentIndex < fullAnswer.length) {
-        const chunkSize = Math.floor(Math.random() * 5) + 3 // 3-7 chars at a time
-        const chunk = fullAnswer.slice(currentIndex, currentIndex + chunkSize)
-        store.appendAnswer(chunk)
-        currentIndex += chunkSize
-      } else {
-        clearInterval(streamInterval)
-        store.setIsStreaming(false)
-        store.updateQuickResult({
-          relatedQueries: [
-            'deep learning fundamentals',
-            'neural network architecture',
-            'transformer models explained',
-            'AI applications in healthcare',
-          ],
-        })
+  // Create reasoning step for displaying progress
+  const reasoningStepId = 'reasoning-1'
+  store.addReasoningStep({
+    id: reasoningStepId,
+    label: 'Deep Reasoning',
+    description: 'Analyzing your query with advanced reasoning',
+    status: 'running'
+  })
+
+  try {
+    const response = await fetch('http://localhost:8765/api/sonar-reasoning-pro/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a sophisticated search assistant. Show your step-by-step reasoning in <think> tags, then provide a comprehensive answer with inline citations [1], [2], [3].`
+          },
+          {
+            role: 'user',
+            content: query
+          }
+        ],
+        reasoning_effort: 'high',
+        temperature: 0.2
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.statusText}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('No response body available')
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]' || !data) continue
+
+          try {
+            const event = JSON.parse(data)
+
+            switch (event.type) {
+              case 'reasoning_start':
+                store.updateReasoningStep(reasoningStepId, {
+                  status: 'running',
+                  reasoning: ''
+                })
+                break
+
+              case 'reasoning':
+                const currentStep = store.getState().quickResult?.reasoning.find(r => r.id === reasoningStepId)
+                store.updateReasoningStep(reasoningStepId, {
+                  reasoning: (currentStep?.reasoning || '') + event.content
+                })
+                break
+
+              case 'reasoning_end':
+                store.updateReasoningStep(reasoningStepId, { status: 'complete' })
+                break
+
+              case 'content':
+                store.appendAnswer(event.content)
+                break
+
+              case 'metadata':
+                if (event.citations) {
+                  const sources = event.citations.map((c: any) => ({
+                    id: c.id,
+                    url: c.url,
+                    title: c.title,
+                    snippet: c.snippet,
+                    domain: c.domain,
+                    type: 'web' as const
+                  }))
+                  store.setSources(sources)
+                }
+                if (event.finish_reason === 'stop') {
+                  store.setIsStreaming(false)
+                }
+                break
+
+              case 'error':
+                console.error('Streaming error:', event.error)
+                store.updateReasoningStep(reasoningStepId, {
+                  status: 'complete',
+                  reasoning: `Error: ${event.error}`
+                })
+                store.setIsStreaming(false)
+                break
+            }
+          } catch (e) {
+            console.error('Failed to parse SSE event:', e)
+          }
+        }
       }
-    }, 50)
-  }, 4500)
+    }
+  } catch (error) {
+    console.error('Sonar Reasoning Pro streaming error:', error)
+    store.updateReasoningStep(reasoningStepId, {
+      status: 'complete',
+      reasoning: `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    })
+    store.setIsStreaming(false)
+  }
 }

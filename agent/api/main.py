@@ -48,7 +48,14 @@ PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 LANCEDB_URI = os.getenv("LANCEDB_URI", "db://default-jxjth2")
 LANCEDB_API_KEY = os.getenv("LANCEDB_API_KEY")
 LANCEDB_REGION = os.getenv("LANCEDB_REGION", "us-east-1")
+LANCEDB_FALLBACK_URI = os.getenv(
+    "LANCEDB_FALLBACK_URI",
+    str(Path(__file__).parent.parent.parent / "data" / "lancedb")
+)
 EMBEDDING_MODEL = "text-embedding-3-small"  # For semantic search
+SUPERAGENT_SESSION_ID = os.getenv("SUPERAGENT_SESSION_ID", "ron-permanent")
+SUPERAGENT_LOCK_SESSION = os.getenv("SUPERAGENT_LOCK_SESSION", "true").lower() == "true"
+SUPERAGENT_BROWSER_SESSION = os.getenv("SUPERAGENT_BROWSER_SESSION", "ron-superagent")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Models
@@ -90,43 +97,69 @@ class ConversationMemory:
         self.db = None
         self.sessions_table = None
         self.messages_table = None
+        self._mode = "uninitialized"  # cloud | local | memory
+        self._fallback_sessions: Dict[str, Dict[str, Any]] = {}
+        self._fallback_messages: Dict[str, List[Dict[str, Any]]] = {}
 
     async def initialize(self):
         """Initialize LanceDB Cloud connection and tables"""
-        self.db = lancedb.connect(
-            uri=LANCEDB_URI,
-            api_key=LANCEDB_API_KEY,
-            region=LANCEDB_REGION
-        )
-        
-        # Create sessions table if not exists
-        if "sessions" not in self.db.table_names():
-            schema = pa.schema([
-                pa.field("session_id", pa.string()),
-                pa.field("created_at", pa.string()),
-                pa.field("updated_at", pa.string()),
-                pa.field("search_query", pa.string()),
-                pa.field("search_answer", pa.string()),
-                pa.field("sources_json", pa.string()),
-            ])
-            self.db.create_table("sessions", schema=schema)
-        self.sessions_table = self.db.open_table("sessions")
-        
-        # Create messages table if not exists  
-        if "messages" not in self.db.table_names():
-            schema = pa.schema([
-                pa.field("id", pa.string()),
-                pa.field("session_id", pa.string()),
-                pa.field("role", pa.string()),
-                pa.field("content", pa.string()),
-                pa.field("citations_json", pa.string()),
-                pa.field("created_at", pa.string()),
-            ])
-            self.db.create_table("messages", schema=schema)
-        self.messages_table = self.db.open_table("messages")
-        
-        logger.info(f"LanceDB Cloud connected to {LANCEDB_URI}")
-        
+        def ensure_tables():
+            if "sessions" not in self.db.list_tables():
+                schema = pa.schema([
+                    pa.field("session_id", pa.string()),
+                    pa.field("created_at", pa.string()),
+                    pa.field("updated_at", pa.string()),
+                    pa.field("search_query", pa.string()),
+                    pa.field("search_answer", pa.string()),
+                    pa.field("sources_json", pa.string()),
+                ])
+                self.db.create_table("sessions", schema=schema)
+            self.sessions_table = self.db.open_table("sessions")
+
+            if "messages" not in self.db.list_tables():
+                schema = pa.schema([
+                    pa.field("id", pa.string()),
+                    pa.field("session_id", pa.string()),
+                    pa.field("role", pa.string()),
+                    pa.field("content", pa.string()),
+                    pa.field("citations_json", pa.string()),
+                    pa.field("created_at", pa.string()),
+                ])
+                self.db.create_table("messages", schema=schema)
+            self.messages_table = self.db.open_table("messages")
+
+        # Prefer cloud when configured; fall back to local or in-memory on failure.
+        if isinstance(LANCEDB_URI, str) and LANCEDB_URI.startswith("db://"):
+            try:
+                client_config = {
+                    "retry_config": {"retries": 1, "connect_retries": 1, "read_retries": 1},
+                    "timeout_config": {"timeout": 15, "connect_timeout": 5, "read_timeout": 10},
+                }
+                self.db = lancedb.connect(
+                    uri=LANCEDB_URI,
+                    api_key=LANCEDB_API_KEY,
+                    region=LANCEDB_REGION,
+                    client_config=client_config,
+                )
+                ensure_tables()
+                self._mode = "cloud"
+                logger.info(f"LanceDB Cloud connected to {LANCEDB_URI}")
+                return
+            except Exception as e:
+                logger.error(f"LanceDB Cloud init failed, falling back to local: {e}")
+
+        try:
+            self.db = lancedb.connect(LANCEDB_FALLBACK_URI)
+            ensure_tables()
+            self._mode = "local"
+            logger.info(f"LanceDB Local connected to {LANCEDB_FALLBACK_URI}")
+        except Exception as e:
+            self.db = None
+            self.sessions_table = None
+            self.messages_table = None
+            self._mode = "memory"
+            logger.error(f"LanceDB local init failed; using in-memory store: {e}")
+
     def create_session(self, search_context: Optional[SearchContext] = None) -> str:
         """Create a new chat session"""
         session_id = str(uuid.uuid4())
@@ -141,17 +174,22 @@ class ConversationMemory:
             "sources_json": json.dumps(search_context.sources) if search_context else "[]",
         }
         
-        self.sessions_table.add([session_data])
+        if self.sessions_table:
+            self.sessions_table.add([session_data])
+        else:
+            self._fallback_sessions[session_id] = session_data
         logger.info(f"Created session: {session_id}")
         return session_id
     
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session by ID"""
         try:
-            results = self.sessions_table.search().where(
-                f"session_id = '{session_id}'"
-            ).limit(1).to_list()
-            return results[0] if results else None
+            if self.sessions_table:
+                results = self.sessions_table.search().where(
+                    f"session_id = '{session_id}'"
+                ).limit(1).to_list()
+                return results[0] if results else None
+            return self._fallback_sessions.get(session_id)
         except Exception as e:
             logger.error(f"Error getting session: {e}")
             return None
@@ -173,7 +211,10 @@ class ConversationMemory:
             "created_at": datetime.utcnow().isoformat(),
         }
         
-        self.messages_table.add([message_data])
+        if self.messages_table:
+            self.messages_table.add([message_data])
+        else:
+            self._fallback_messages.setdefault(session_id, []).append(message_data)
         
         # Update session timestamp
         # Note: LanceDB doesn't support updates well, so we track via messages
@@ -181,15 +222,31 @@ class ConversationMemory:
     def get_messages(self, session_id: str, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent messages for a session"""
         try:
-            results = self.messages_table.search().where(
-                f"session_id = '{session_id}'"
-            ).limit(limit).to_list()
+            if self.messages_table:
+                results = self.messages_table.search().where(
+                    f"session_id = '{session_id}'"
+                ).limit(limit).to_list()
+            else:
+                results = list(self._fallback_messages.get(session_id, []))[-limit:]
             
             # Sort by created_at
             results.sort(key=lambda x: x.get("created_at", ""))
             return results
         except Exception as e:
             logger.error(f"Error getting messages: {e}")
+            return []
+
+    def list_sessions(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """List recent sessions for UI."""
+        try:
+            if self.sessions_table:
+                results = self.sessions_table.search().limit(limit).to_list()
+            else:
+                results = list(self._fallback_sessions.values())
+            results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+            return results
+        except Exception as e:
+            logger.error(f"Error listing sessions: {e}")
             return []
     
     def build_context(self, session_id: str, max_messages: int = 10) -> List[Dict[str, str]]:
@@ -509,17 +566,7 @@ async def chat_stream(request: ChatRequest):
 async def list_sessions():
     """List all available chat sessions"""
     try:
-        # We need a method in ConversationMemory to list sessions.
-        # Since we haven't implemented that yet, let's assume we will adding it to the class right after this.
-        # For now, let's just define the endpoint interface.
-        
-        # Actually, let's implement the memory method first or inline the logic if simple.
-        # The memory class usage: self.sessions_table.search()...
-        
-        results = memory.sessions_table.search().limit(100).to_list()
-        
-        # Sort by updated_at desc
-        results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+        results = memory.list_sessions(limit=100)
         
         return [
             {
@@ -675,7 +722,7 @@ from superagent import create_superagent, get_or_create_superagent, UICallbackHa
 import superagent as sa
 
 # PERMANENT SINGLETON AGENT - created once at module load, never recreated
-_global_agent = get_or_create_superagent()
+_global_agent = get_or_create_superagent(session_id=SUPERAGENT_SESSION_ID)
 logger.info("Permanent SuperAgent (ron25) initialized")
 
 
@@ -782,31 +829,34 @@ async def superagent_stream(request: Request):
     _global_agent.messages = session_history  # Load session context
     _global_agent.callback_handler = UICallbackHandler(emit)
     
-    # CRITICAL: Update the singleton's session manager to the current session
-    # This ensures files/memories are stored in the correct session scope
+    # CRITICAL: Keep the singleton agent stable across requests.
+    # Only switch session scope when explicitly allowed.
     if hasattr(_global_agent, "session_manager"):
-        # Check for Session Switch -> Reset Browser
-        current_id = getattr(_global_agent.session_manager, "session_id", None)
-        if current_id and current_id != session_id:
-             logger.info(f"Session Switch ({current_id} -> {session_id}). Resetting Browser State.")
-             try:
-                 if sa._global_browser:
-                     shell = await sa._global_browser._get_shell_page()
-                     if shell:
-                         # Close all tabs and create a fresh one
-                         await shell.evaluate("""
-                             (async () => {
-                                 if (window.electron && window.electron.tabs) {
-                                     const tabs = await window.electron.tabs.list();
-                                     for (const t of tabs) { await window.electron.tabs.close(t.id); }
-                                     await window.electron.tabs.create();
-                                 }
-                             })()
-                         """)
-             except Exception as e:
-                 logger.warning(f"Browser reset failed: {e}")
+        if SUPERAGENT_LOCK_SESSION:
+            _global_agent.session_manager.session_id = SUPERAGENT_SESSION_ID
+        else:
+            # Check for Session Switch -> Reset Browser
+            current_id = getattr(_global_agent.session_manager, "session_id", None)
+            if current_id and current_id != session_id:
+                 logger.info(f"Session Switch ({current_id} -> {session_id}). Resetting Browser State.")
+                 try:
+                     if sa._global_browser:
+                         shell = await sa._global_browser._get_shell_page()
+                         if shell:
+                             # Close all tabs and create a fresh one
+                             await shell.evaluate("""
+                                 (async () => {
+                                     if (window.electron && window.electron.tabs) {
+                                         const tabs = await window.electron.tabs.list();
+                                         for (const t of tabs) { await window.electron.tabs.close(t.id); }
+                                         await window.electron.tabs.create();
+                                     }
+                                 })()
+                             """)
+                 except Exception as e:
+                     logger.warning(f"Browser reset failed: {e}")
 
-        _global_agent.session_manager.session_id = session_id
+            _global_agent.session_manager.session_id = session_id
         
     agent = _global_agent
     initial_msg_count = len(agent.messages)
@@ -817,7 +867,9 @@ async def superagent_stream(request: Request):
     # Auto-create browser session for this chat (if not exists)
     # This gives the agent browser access without needing to call init_session
     browser = sa._global_browser
-    browser_session_name = f"chat-{session_id}"
+    browser_session_name = (
+        SUPERAGENT_BROWSER_SESSION if SUPERAGENT_LOCK_SESSION else f"chat-{session_id}"
+    )
     
     async def ensure_browser_session():
         """Create browser session for this chat if it doesn't exist."""
