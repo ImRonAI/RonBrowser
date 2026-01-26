@@ -128,7 +128,7 @@ def create_search_agent(callback_handler=None, session_id="search"):
 
     # Gemini 3 Flash Preview with high reasoning
     model = RonGeminiModel(
-        model_id="gemini-3-flash-preview",
+        model_id="gemini-3-pro-preview",
         client_args={
             "api_key": os.getenv("GOOGLE_API_KEY"),
         },

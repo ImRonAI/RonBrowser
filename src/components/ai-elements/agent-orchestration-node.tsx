@@ -290,7 +290,7 @@ export const AgentOrchestrationNode = memo(function AgentOrchestrationNode({
                     </div>
                   )}
 
-                  {/* Chain of Thought - Placeholder for integration */}
+                  {/* Chain of Thought summary */}
                   {streamingData?.chainOfThought &&
                     streamingData.chainOfThought.length > 0 && (
                       <div className="p-2 bg-sky-500/10 border border-sky-500/20 rounded-lg">
@@ -298,8 +298,7 @@ export const AgentOrchestrationNode = memo(function AgentOrchestrationNode({
                           Chain of Thought ({streamingData.chainOfThought.length} steps)
                         </span>
                         <p className="text-[10px] text-slate-400">
-                          {/* ChainOfThought component would render here */}
-                          Steps visible when expanded...
+                          Open the details panel to view the full trace.
                         </p>
                       </div>
                     )}

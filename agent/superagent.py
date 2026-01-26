@@ -863,7 +863,7 @@ class CLICallbackHandler:
 def create_gemini_model() -> RonGeminiModel:
     """Create Gemini 3 Flash Preview model with high reasoning."""
     return RonGeminiModel(
-        model_id="gemini-3-flash-preview",
+        model_id="gemini-3-pro-preview",
         client_args={
             "api_key": os.getenv("GOOGLE_API_KEY"),
         },
@@ -886,7 +886,7 @@ def create_primary_model():
     provider = os.getenv("SUPERAGENT_PROVIDER", "google")
     model_override = os.getenv("SUPERAGENT_MODEL_ID")
     if provider == "google":
-        model_id = model_override or "gemini-3-flash-preview"
+        model_id = model_override or "gemini-3-pro-preview"
         return RonGeminiModel(
             model_id=model_id,
             client_args={
@@ -912,7 +912,7 @@ def create_summarization_model():
     provider = os.getenv("SUPERAGENT_SUMMARIZER_PROVIDER") or os.getenv("SUPERAGENT_PROVIDER", "google")
     model_override = os.getenv("SUPERAGENT_SUMMARIZER_MODEL_ID") or os.getenv("SUPERAGENT_MODEL_ID")
     if provider == "google":
-        model_id = model_override or "gemini-3-flash-preview"
+        model_id = model_override or "gemini-3-pro-preview"
         return RonGeminiModel(
             model_id=model_id,
             client_args={

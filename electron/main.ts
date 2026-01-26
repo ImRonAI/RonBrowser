@@ -19,6 +19,11 @@ const MCP_BRIDGE_PORT = 9231
 
 let mcpBridgeStarted = false
 
+// Dev-only: silence CSP warning noise during local development
+if (!app.isPackaged) {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'
+}
+
 async function startMcpBridge() {
   if (mcpBridgeStarted) return
   try {
@@ -239,6 +244,7 @@ class TabsManager {
 
     // Sync URL to renderer
     mainWindow.webContents.send('browser:url-changed', tab.url)
+    this.focusVisibleSurface(tab)
     return true
   }
 
@@ -290,6 +296,7 @@ class TabsManager {
       this.ensureView(tab)
       this.attachIfActive(tab)
       tab.view!.webContents.loadURL(normalizedUrl)
+      this.focusVisibleSurface(tab)
       return { success: true, isExternal: true, url: normalizedUrl }
     } else {
       // Internal page => detach any view if this tab is active
@@ -310,6 +317,7 @@ class TabsManager {
         mainWindow.webContents.send('browser:external-mode', false)
         mainWindow.webContents.send('browser:url-changed', tab.url)
       }
+      this.focusVisibleSurface(tab)
       return { success: true, isExternal: false, url: normalizedUrl }
     }
   }
@@ -425,6 +433,7 @@ class TabsManager {
     if (!contentView.children.includes(tab.view)) contentView.addChildView(tab.view)
     this.updateViewBounds(tab.view)
     mainWindow.webContents.send('browser:external-mode', true)
+    this.focusVisibleSurface(tab)
   }
 
   updateViewBounds(view: WebContentsView) {
@@ -439,6 +448,19 @@ class TabsManager {
   }
 
   emitTabsUpdated() { mainWindow?.webContents.send('tabs:updated', this.list()) }
+
+  // DO NOT MODIFY WITHOUT EXPLICIT APPROVAL FROM TIM HUNTER.
+  // This enforces that automation targets only what the user can see.
+  private focusVisibleSurface(tab: TabRecord) {
+    if (!mainWindow) return
+    if (tab.isExternal && tab.view && !tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.focus()
+      return
+    }
+    if (!mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.focus()
+    }
+  }
 }
 
 const tabsManager = new TabsManager()

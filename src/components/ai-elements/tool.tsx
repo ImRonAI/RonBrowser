@@ -207,12 +207,22 @@ export const ToolHeader = memo(function ToolHeader({
   state, 
   className 
 }: ToolHeaderProps) {
-  const { isOpen, setIsOpen } = useTool()
+  const { isOpen, setIsOpen, duration, isStreaming } = useTool()
   const displayName = getToolDisplayName(title)
 
   const handleClick = useCallback(() => {
     setIsOpen(!isOpen)
   }, [isOpen, setIsOpen])
+
+  const statusLabel =
+    state === 'running'
+      ? 'Running'
+      : state === 'success'
+        ? 'Completed'
+        : state === 'error'
+          ? 'Error'
+          : 'Pending'
+  const durationLabel = duration ? `${duration}s` : null
 
   return (
     <button
@@ -239,6 +249,20 @@ export const ToolHeader = memo(function ToolHeader({
             </span>
           )}
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-[10px] text-ink-muted dark:text-ink-inverse-muted">
+        <span className={cn(
+          'uppercase tracking-wide',
+          state === 'error' && 'text-red-500',
+          state === 'success' && 'text-emerald-500',
+          (state === 'running' || isStreaming) && 'text-blue-500'
+        )}>
+          {statusLabel}
+        </span>
+        {durationLabel && (state === 'success' || state === 'error') && (
+          <span>{durationLabel}</span>
+        )}
       </div>
       
       <ChevronIcon 

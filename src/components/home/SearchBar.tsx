@@ -90,6 +90,8 @@ export function SearchBar() {
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
+            id="main-search-bar"
+            data-testid="ask-anything-input"
             placeholder="Ask anything..."
             className="
               w-full pl-16 pr-8 py-5

@@ -6,33 +6,20 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import type { UIMessage } from '@ai-sdk/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
-// Response Components (for streaming markdown)
-import { ResponseMarkdown } from '@/components/ai-elements/response'
+import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 
 // Context Picker
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
 
 // Source Card for citations
 import { SourceCard, type SourceData } from './SourceCard'
-import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
-import { useOrchestrationStore } from '@/stores/orchestrationStore'
 
-// Chain of Thought Component
-import {
-  ChainOfThought,
-  ChainOfThoughtHeader,
-  ChainOfThoughtContent,
-  ChainOfThoughtStep,
-} from '@/components/ai-elements/chain-of-thought'
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from '@/components/ai-elements/reasoning'
+import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -58,10 +45,22 @@ interface Message {
   isReasoningComplete?: boolean
   searchResults?: SourceData[]
   images?: string[]
+  toolExecutions?: ToolExecution[]
 }
 
 // Export for external use
 export type ChatMessage = Message
+
+type ToolExecution = {
+  id: string
+  name: string
+  state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+  input?: unknown
+  output?: unknown
+  errorText?: string
+}
+
+type MessagePart = UIMessage['parts'][number]
 
 // Sleek, minimal suggestions
 const SUGGESTIONS = [
@@ -144,6 +143,45 @@ function buildInitialContext(
     .join('\n\n')
 }
 
+function buildSearchChatParts(message: Message): MessagePart[] {
+  const parts: MessagePart[] = []
+  const reasoningText = message.reasoning?.length
+    ? message.reasoning
+        .map((step) => `**${step.type}**\n${step.thought}`)
+        .join('\n\n')
+    : ''
+
+  if (reasoningText) {
+    parts.push({
+      type: 'reasoning',
+      text: reasoningText,
+      state: message.isReasoningComplete ? 'done' : 'streaming',
+    } as MessagePart)
+  }
+
+  message.toolExecutions?.forEach((tool) => {
+    parts.push({
+      type: 'dynamic-tool',
+      toolName: tool.name,
+      toolCallId: tool.id,
+      state: tool.state,
+      input: tool.input,
+      output: tool.output,
+      errorText: tool.errorText,
+    } as MessagePart)
+  })
+
+  if (message.content) {
+    parts.push({
+      type: 'text',
+      text: message.content,
+      state: message.isStreaming ? 'streaming' : 'done',
+    } as MessagePart)
+  }
+
+  return parts
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,21 +197,6 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-
-  // Connect to orchestrationStore for 70/30 split visualization
-  const {
-    workflowTasks,
-    swarmNodes,
-    graphNodes,
-    activeAgentIds,
-    agentStreamingData
-  } = useOrchestrationStore()
-
-  const hasOrchestration = workflowTasks.length > 0 || swarmNodes.length > 0 || graphNodes.length > 0
-  const formationType: 'workflow' | 'swarm' | 'graph' =
-    workflowTasks.length > 0 ? 'workflow' :
-    swarmNodes.length > 0 ? 'swarm' :
-    'graph'
 
   const isEmpty = messages.length === 0
 
@@ -243,8 +266,47 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
       isStreaming: true,
       reasoning: [],
       isReasoningComplete: false,
+      toolExecutions: [],
     }
     setMessages(prev => [...prev, assistantMessage])
+
+    const updateAssistantMessage = (update: Partial<Message>) => {
+      setMessages(prev => prev.map(m =>
+        m.id === assistantMessage.id ? { ...m, ...update } : m
+      ))
+    }
+
+    const upsertToolExecution = (toolCallId: string, update: Partial<ToolExecution>) => {
+      setMessages(prev => prev.map(m => {
+        if (m.id !== assistantMessage.id) return m
+        const existing = m.toolExecutions || []
+        const index = existing.findIndex(tool => tool.id === toolCallId)
+        if (index === -1) {
+          return {
+            ...m,
+            toolExecutions: [
+              ...existing,
+              {
+                id: toolCallId,
+                name: update.name || toolCallId,
+                state: update.state || 'input-streaming',
+                input: update.input,
+                output: update.output,
+                errorText: update.errorText,
+              },
+            ],
+          }
+        }
+
+        const next = [...existing]
+        next[index] = {
+          ...next[index],
+          ...update,
+          name: update.name || next[index].name,
+        }
+        return { ...m, toolExecutions: next }
+      }))
+    }
 
     try {
       abortControllerRef.current = new AbortController()
@@ -300,36 +362,60 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
             switch (event.type) {
               case 'text-delta':
                 currentContent += event.delta || ''
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantMessage.id
-                    ? { ...m, content: currentContent }
-                    : m
-                ))
+                updateAssistantMessage({ content: currentContent })
                 break
 
               case 'reasoning-delta':
                 reasoningText += event.delta || ''
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantMessage.id
-                    ? {
-                        ...m,
-                        reasoning: reasoningText
-                          ? [{ thought: reasoningText, type: 'analysis' }]
-                          : [],
-                      }
-                    : m
-                ))
+                updateAssistantMessage({
+                  reasoning: reasoningText
+                    ? [{ thought: reasoningText, type: 'analysis' }]
+                    : [],
+                })
+                break
+
+              case 'tool-input-start':
+                if (event.toolCallId) {
+                  upsertToolExecution(event.toolCallId, {
+                    name: event.toolName || event.toolCallId,
+                    state: 'input-streaming',
+                  })
+                }
                 break
 
               case 'tool-input-available':
+                if (event.toolCallId) {
+                  upsertToolExecution(event.toolCallId, {
+                    name: event.toolName || event.toolCallId,
+                    state: 'input-available',
+                    input: event.input,
+                  })
+                }
                 if (event.input) {
                   searchResults = mergeSources(searchResults, normalizeSources(event.input?.sources || event.input?.search_results || []))
                 }
                 break
 
               case 'tool-output-available':
+                if (event.toolCallId) {
+                  upsertToolExecution(event.toolCallId, {
+                    name: event.toolName || event.toolCallId,
+                    state: 'output-available',
+                    output: event.output,
+                  })
+                }
                 if (event.output) {
                   searchResults = mergeSources(searchResults, normalizeSources(event.output?.sources || event.output?.search_results || event.output?.results || []))
+                }
+                break
+
+              case 'tool-output-error':
+                if (event.toolCallId) {
+                  upsertToolExecution(event.toolCallId, {
+                    name: event.toolName || event.toolCallId,
+                    state: 'output-error',
+                    errorText: event.errorText || 'Tool error',
+                  })
                 }
                 break
 
@@ -351,29 +437,35 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
               }
 
               case 'workflow_visualization':
-                setWorkflowParts((prev) => [
-                  ...prev,
-                  {
-                    type: 'workflow_visualization',
-                    title: event.title,
-                    nodes: event.nodes || [],
-                    edges: event.edges || [],
-                    activeAgents: event.activeAgents || [],
-                  },
-                ])
+                handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
+                {
+                  const orchestrationName = event.toolName || 'workflow'
+                  upsertToolExecution(event.toolCallId || `orchestration-${orchestrationName}`, {
+                    name: orchestrationName,
+                    state: 'output-available',
+                    output: event,
+                  })
+                }
+                break
+
+              case 'multiagent_node_start':
+              case 'multiagent_node_stream':
+              case 'multiagent_node_stop':
+              case 'multiagent_handoff':
+              case 'multiagent_result':
+                handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
+                break
+
+              case 'data-orchestration':
+                handleOrchestrationDataPart(event)
                 break
 
               case 'finish':
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantMessage.id
-                    ? {
-                        ...m,
-                        isStreaming: false,
-                        isReasoningComplete: true,
-                        searchResults: searchResults.length > 0 ? searchResults : m.searchResults,
-                      }
-                    : m
-                ))
+                updateAssistantMessage({
+                  isStreaming: false,
+                  isReasoningComplete: true,
+                  searchResults: searchResults.length > 0 ? searchResults : undefined,
+                })
                 setHasSentContext(true)
                 break
 
@@ -450,7 +542,6 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
                   <MessageBubble
                     key={msg.id}
                     message={msg}
-                    workflowParts={workflowParts}
                   />
                 ))}
                 {isTyping && messages[messages.length - 1]?.role === 'user' && (
@@ -632,8 +723,15 @@ function EmptyState({ query, onSubmit }: { query: string; onSubmit: (text: strin
 // MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MessageBubble({ message, workflowParts }: { message: Message; workflowParts: WorkflowVisualizationUIPart[] }) {
+function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user'
+  const parts = buildSearchChatParts(message)
+  const citations = (message.searchResults || []).map((source, index) => ({
+    number: String(index + 1),
+    title: source.title,
+    url: source.url,
+    snippet: source.snippet,
+  }))
 
   return (
     <motion.div
@@ -642,55 +740,20 @@ function MessageBubble({ message, workflowParts }: { message: Message; workflowP
       className={cn("flex flex-col gap-3", isUser ? "items-end" : "items-start")}
     >
       <div className={cn("max-w-[85%]", isUser ? "order-2" : "order-1")}>
-        {/* Chain of Thought - Reasoning steps */}
-        {!isUser && message.reasoning && message.reasoning.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ delay: 0.1, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-3"
-          >
-            <ChainOfThought defaultOpen={!message.isReasoningComplete}>
-              <ChainOfThoughtHeader>
-                Reasoning
-              </ChainOfThoughtHeader>
-              <ChainOfThoughtContent>
-                <ChainOfThoughtStep
-                  label="Thinking"
-                  status={message.isReasoningComplete ? 'complete' : 'running'}
-                >
-                  <Reasoning
-                    isStreaming={!message.isReasoningComplete}
-                    defaultOpen={!message.isReasoningComplete}
-                  >
-                    <ReasoningTrigger />
-                    <ReasoningContent>
-                      <ResponseMarkdown
-                        content={message.reasoning.map((step) => step.thought).join('\n\n')}
-                        isStreaming={!message.isReasoningComplete}
-                        className="text-body-sm"
-                      />
-                    </ReasoningContent>
-                  </Reasoning>
-                </ChainOfThoughtStep>
-              </ChainOfThoughtContent>
-            </ChainOfThought>
-          </motion.div>
-        )}
-
-        {/* Content with inline citations */}
-        <div className={cn(
-          "px-4 py-3 rounded-2xl",
-          isUser
-            ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20 rounded-br-md [&_*]:text-white [&_code]:bg-white/20 [&_code]:text-white [&_a]:text-white [&_a]:underline"
-            : "glass-card text-ink dark:text-ink-inverse rounded-bl-md border border-white/10"
-        )}>
-          <ResponseMarkdown
-            content={message.content}
+        {isUser ? (
+          <div className="px-4 py-3 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20 rounded-br-md">
+            <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
+              {message.content}
+            </p>
+          </div>
+        ) : (
+          <ChainOfThoughtMessage
+            parts={parts}
             isStreaming={message.isStreaming}
-            className="text-body-sm"
+            messageId={message.id}
+            citations={citations}
           />
-        </div>
+        )}
 
         {/* Source Cards Grid */}
         {!isUser && message.searchResults && message.searchResults.length > 0 && !message.isStreaming && (
@@ -708,23 +771,6 @@ function MessageBubble({ message, workflowParts }: { message: Message; workflowP
                 className="h-full"
               />
             ))}
-          </motion.div>
-        )}
-
-        {/* 70/30 Orchestration Visualization */}
-        {!isUser && hasOrchestration && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mt-6"
-          >
-            <AgentFormationAccordion
-              formationType={formationType}
-              isFormationActive={isTyping}
-              isFormationComplete={!isTyping}
-              defaultExpanded={true}
-            />
           </motion.div>
         )}
       </div>

@@ -104,6 +104,9 @@ export interface ConversationContext {
 // ============================================
 
 export interface AgentStreamEvent {
+  // UIMessageStream event type
+  type?: string
+
   // Text streaming
   data?: string
   reasoningText?: string
@@ -127,6 +130,11 @@ export interface AgentStreamEvent {
     name?: string
     input?: Record<string, unknown>
   }
+  toolCallId?: string
+  toolName?: string
+  input?: Record<string, unknown>
+  output?: unknown
+  errorText?: string
   tool_stream_event?: {
     data?: unknown
   }

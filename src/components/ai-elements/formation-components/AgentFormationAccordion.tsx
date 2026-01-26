@@ -77,12 +77,29 @@ export function AgentFormationAccordion({
   }));
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"single" | "all">("single");
+  const effectiveActiveAgentIds = useMemo(() => {
+    const derived =
+      formationType === "workflow"
+        ? workflowTasks
+            .filter((task) => task.status === "running")
+            .map((task) => task.taskId)
+        : formationType === "swarm"
+          ? swarmNodes
+              .filter((node) => node.data.status === "running" || node.data.status === "handoff")
+              .map((node) => node.id)
+          : graphNodes
+              .filter((node) => node.data.status === "running" || node.data.status === "handoff")
+              .map((node) => node.id);
+
+    return Array.from(new Set([...activeAgentIds, ...derived]));
+  }, [activeAgentIds, formationType, workflowTasks, swarmNodes, graphNodes]);
 
   // ─── Auto-select first active agent ───
   useEffect(() => {
-    if (activeAgentIds.length > 0 && !selectedAgentId) {
-      setSelectedAgentId(activeAgentIds[0]);
-    } else if (activeAgentIds.length === 0 && isFormationComplete) {
+    if (effectiveActiveAgentIds.length > 0 && !selectedAgentId) {
+      setSelectedAgentId(effectiveActiveAgentIds[0]);
+    } else if (effectiveActiveAgentIds.length === 0 && isFormationComplete) {
       // Formation complete, keep selection or pick first node
       if (!selectedAgentId) {
         if (formationType === "workflow" && workflowTasks.length > 0) {
@@ -94,15 +111,19 @@ export function AgentFormationAccordion({
         }
       }
     }
-  }, [activeAgentIds, selectedAgentId, isFormationComplete, formationType, workflowTasks, swarmNodes, graphNodes]);
+  }, [effectiveActiveAgentIds, selectedAgentId, isFormationComplete, formationType, workflowTasks, swarmNodes, graphNodes]);
 
   // ─── Cleanup: switch tab if selected agent completes ───
   useEffect(() => {
-    if (selectedAgentId && !activeAgentIds.includes(selectedAgentId) && activeAgentIds.length > 0) {
+    if (
+      selectedAgentId &&
+      !effectiveActiveAgentIds.includes(selectedAgentId) &&
+      effectiveActiveAgentIds.length > 0
+    ) {
       // Selected agent is no longer active, switch to another active agent
-      setSelectedAgentId(activeAgentIds[0]);
+      setSelectedAgentId(effectiveActiveAgentIds[0]);
     }
-  }, [activeAgentIds, selectedAgentId]);
+  }, [effectiveActiveAgentIds, selectedAgentId]);
 
   // ─── Handle node click ───
   const handleNodeClick = useCallback(
@@ -145,6 +166,65 @@ export function AgentFormationAccordion({
     [formationType, swarmNodes, graphNodes]
   );
 
+  const getAgentMeta = useCallback(
+    (nodeId: string): { model?: string; prompt?: string; tools?: string[] } => {
+      if (formationType === "workflow") {
+        const task = workflowTasks.find((t) => t.taskId === nodeId);
+        if (!task) return {};
+        const modelSettings = task.modelSettings || {};
+        const modelId =
+          typeof modelSettings.model_id === "string"
+            ? modelSettings.model_id
+            : typeof modelSettings.modelId === "string"
+              ? modelSettings.modelId
+              : undefined;
+        return {
+          model: formatModelLabel(task.modelProvider, modelId),
+          prompt: task.systemPrompt,
+          tools: task.tools,
+        };
+      }
+      if (formationType === "swarm") {
+        const node = swarmNodes.find((n) => n.id === nodeId);
+        const agent = node?.data.agent;
+        if (!agent) return {};
+        return {
+          model: formatModelLabel(agent.modelProvider, agent.modelId),
+          prompt: agent.systemPrompt,
+          tools: agent.tools,
+        };
+      }
+      if (formationType === "graph") {
+        const node = graphNodes.find((n) => n.id === nodeId);
+        const agent = node?.data.agent;
+        if (!agent) return {};
+        return {
+          model: formatModelLabel(agent.modelProvider, agent.modelId),
+          prompt: agent.systemPrompt,
+          tools: agent.tools,
+        };
+      }
+      return {};
+    },
+    [formationType, workflowTasks, swarmNodes, graphNodes]
+  );
+
+  const getAgentResult = useCallback(
+    (nodeId: string): AgentResult | undefined => {
+      if (formationType === "workflow") {
+        return workflowTasks.find((task) => task.taskId === nodeId)?.result;
+      }
+      if (formationType === "swarm") {
+        return swarmNodes.find((node) => node.id === nodeId)?.data.result;
+      }
+      if (formationType === "graph") {
+        return graphNodes.find((node) => node.id === nodeId)?.data.result;
+      }
+      return undefined;
+    },
+    [formationType, workflowTasks, swarmNodes, graphNodes]
+  );
+
   // ─── Formation status ───
   const formationStatus: TaskStatus = useMemo(() => {
     if (isFormationActive) return "running";
@@ -174,20 +254,17 @@ export function AgentFormationAccordion({
   }, [formationType, title]);
 
   // ─── Show tabs only for graph with multiple active nodes ───
-  const shouldShowTabs = formationType === "graph" && activeAgentIds.length > 1;
+  const shouldShowTabs = formationType === "graph" && effectiveActiveAgentIds.length > 1;
+  useEffect(() => {
+    if (!shouldShowTabs && viewMode === "all") {
+      setViewMode("single");
+    }
+  }, [shouldShowTabs, viewMode]);
+
   const selectedResult = useMemo(() => {
     if (!selectedAgentId) return undefined;
-    if (formationType === "workflow") {
-      return workflowTasks.find((task) => task.taskId === selectedAgentId)?.result;
-    }
-    if (formationType === "swarm") {
-      return swarmNodes.find((node) => node.id === selectedAgentId)?.data.result;
-    }
-    if (formationType === "graph") {
-      return graphNodes.find((node) => node.id === selectedAgentId)?.data.result;
-    }
-    return undefined;
-  }, [selectedAgentId, formationType, workflowTasks, swarmNodes, graphNodes]);
+    return getAgentResult(selectedAgentId);
+  }, [selectedAgentId, getAgentResult]);
 
   const finalOutput = useMemo(() => toCompletedOutput(selectedResult), [selectedResult]);
   const panelMode = isFormationComplete && finalOutput ? "completed" : "live";
@@ -248,17 +325,29 @@ export function AgentFormationAccordion({
         {/* Right: Subagent Panel (30%) */}
         <div className="flex-[3] flex flex-col p-4 md:p-5 bg-surface-0/80 dark:bg-surface-850/80">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">
-              Active Agent
-            </span>
-            <span className="text-xs text-ink-muted/70 dark:text-ink-inverse-muted/70">
-              {activeAgentIds.length}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">
+                Active Agents
+              </span>
+              <span className="text-xs text-ink-muted/70 dark:text-ink-inverse-muted/70">
+                {effectiveActiveAgentIds.length}
+              </span>
+            </div>
+            {shouldShowTabs && (
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "all" ? "single" : "all")
+                }
+                className="rounded-full border border-surface-200 px-2.5 py-1 text-[11px] font-medium text-ink-muted transition hover:bg-surface-100 dark:border-surface-700 dark:text-ink-inverse-muted dark:hover:bg-surface-800"
+              >
+                {viewMode === "all" ? "Single view" : "View all"}
+              </button>
+            )}
           </div>
           {/* Tabs (ONLY for graph with multiple active nodes) */}
-          {shouldShowTabs && (
+          {shouldShowTabs && viewMode === "single" && (
             <div className="flex gap-2 mb-3 border-b border-surface-200 dark:border-surface-700 pb-2 overflow-x-auto">
-              {activeAgentIds.map((agentId) => {
+              {effectiveActiveAgentIds.map((agentId) => {
                 const isSelected = agentId === selectedAgentId;
                 return (
                   <button
@@ -285,15 +374,51 @@ export function AgentFormationAccordion({
           {/* Note: Workflow/Swarm are sequential - no tabs needed */}
 
           {/* Subagent details */}
-          <SubagentTransparencyPanel
-            agentId={selectedAgentId}
-            mode={panelMode}
-            streamingData={selectedAgentId ? agentStreamingData.get(selectedAgentId) : undefined}
-            finalOutput={finalOutput}
-            isActive={selectedAgentId ? activeAgentIds.includes(selectedAgentId) : false}
-            agentName={selectedAgentId ? getAgentName(selectedAgentId) : undefined}
-            agentDescription={selectedAgentId ? getAgentDescription(selectedAgentId) : undefined}
-          />
+          {shouldShowTabs && viewMode === "all" ? (
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {effectiveActiveAgentIds.map((agentId) => {
+                const agentResult = getAgentResult(agentId);
+                const agentOutput = toCompletedOutput(agentResult);
+                const agentMode =
+                  isFormationComplete && agentOutput ? "completed" : "live";
+                return (
+                  <SubagentTransparencyPanel
+                    key={agentId}
+                    agentId={agentId}
+                    mode={agentMode}
+                    streamingData={agentStreamingData.get(agentId)}
+                    finalOutput={agentOutput}
+                    isActive={effectiveActiveAgentIds.includes(agentId)}
+                    agentName={getAgentName(agentId)}
+                    agentDescription={getAgentDescription(agentId)}
+                    agentModel={getAgentMeta(agentId).model}
+                    agentPrompt={getAgentMeta(agentId).prompt}
+                    agentTools={getAgentMeta(agentId).tools}
+                    className="h-auto"
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <SubagentTransparencyPanel
+              agentId={selectedAgentId}
+              mode={panelMode}
+              streamingData={
+                selectedAgentId ? agentStreamingData.get(selectedAgentId) : undefined
+              }
+              finalOutput={finalOutput}
+              isActive={
+                selectedAgentId ? effectiveActiveAgentIds.includes(selectedAgentId) : false
+              }
+              agentName={selectedAgentId ? getAgentName(selectedAgentId) : undefined}
+              agentDescription={
+                selectedAgentId ? getAgentDescription(selectedAgentId) : undefined
+              }
+              agentModel={selectedAgentId ? getAgentMeta(selectedAgentId).model : undefined}
+              agentPrompt={selectedAgentId ? getAgentMeta(selectedAgentId).prompt : undefined}
+              agentTools={selectedAgentId ? getAgentMeta(selectedAgentId).tools : undefined}
+            />
+          )}
         </div>
       </div>
     </CollapsibleAgentTask>
@@ -312,4 +437,10 @@ function toCompletedOutput(result?: AgentResult): CompletedNodeOutput | undefine
       output: result.metrics?.outputTokens,
     },
   };
+}
+
+function formatModelLabel(provider?: string, modelId?: string): string | undefined {
+  if (!provider && !modelId) return undefined;
+  if (provider && modelId) return `${provider} · ${modelId}`;
+  return provider || modelId;
 }

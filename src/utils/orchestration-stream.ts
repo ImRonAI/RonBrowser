@@ -192,8 +192,8 @@ function handleNodeStream(event: OrchestrationStreamEvent) {
 
   const dataText = streamEvent.data as string | undefined;
   if (dataText) {
-    const current = existing?.chainOfThought || [];
-    update.chainOfThought = upsertOutputStep(current, dataText);
+    const current = existing?.output || "";
+    update.output = `${current}${dataText}`;
   }
 
   const toolUse = (streamEvent.current_tool_use || streamEvent.currentToolUse) as
@@ -565,7 +565,12 @@ function normalizeNodeId(event: OrchestrationStreamEvent): string | null {
 }
 
 function normalizeToolName(toolName: string): string {
-  return toolName.toLowerCase().trim();
+  const normalized = toolName.toLowerCase().trim();
+  if (normalized.includes("swarm")) return "swarm";
+  if (normalized.includes("workflow")) return "workflow";
+  if (normalized.includes("graph")) return "graph";
+  const parts = normalized.split(/[./:\\\s-]+/g).filter(Boolean);
+  return parts[parts.length - 1] || normalized;
 }
 
 function buildToolUpdate(toolUse: Record<string, unknown>, status: AIToolExecution["status"]) {
@@ -585,11 +590,16 @@ function buildToolStreamUpdate(toolStream: Record<string, unknown>) {
   if (!toolUse) return null;
   const id = String(toolUse.toolUseId || toolUse.id || toolUse.tool_use_id || "");
   if (!id) return null;
+  const outputPayload =
+    toolStream.data ??
+    toolStream.output ??
+    toolStream.result ??
+    toolStream.content;
   return {
     id,
     name: String(toolUse.name || toolUse.tool_name || "tool"),
     status: "running",
-    output: stringifyToolOutput(toolStream.data),
+    output: stringifyToolOutput(outputPayload),
     timestamp: Date.now(),
   } satisfies AIToolExecution;
 }
@@ -598,11 +608,16 @@ function buildToolResultUpdate(toolResult: Record<string, unknown>) {
   const id = String(toolResult.toolUseId || toolResult.id || toolResult.tool_use_id || "");
   if (!id) return null;
   const status = toolResult.status === "error" ? "error" : "success";
+  const outputPayload =
+    toolResult.content ??
+    toolResult.output ??
+    toolResult.result ??
+    toolResult.data;
   return {
     id,
     name: String(toolResult.name || toolResult.tool_name || "tool"),
     status,
-    output: stringifyToolOutput(toolResult.content),
+    output: stringifyToolOutput(outputPayload),
     error: toolResult.error as string | undefined,
     timestamp: Date.now(),
   } satisfies AIToolExecution;
@@ -611,6 +626,21 @@ function buildToolResultUpdate(toolResult: Record<string, unknown>) {
 function stringifyToolOutput(output: unknown): string | undefined {
   if (typeof output === "string") return output;
   if (output == null) return undefined;
+  if (Array.isArray(output)) {
+    const textParts = output
+      .map((item) => (item as { text?: string } | undefined)?.text)
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (textParts.length > 0) {
+      return textParts.join("\n");
+    }
+  }
+  if (typeof output === "object") {
+    const record = output as Record<string, unknown>;
+    if (typeof record.text === "string") return record.text;
+    if (typeof record.output === "string") return record.output;
+    if (typeof record.result === "string") return record.result;
+    if (typeof record.data === "string") return record.data;
+  }
   try {
     return JSON.stringify(output, null, 2);
   } catch {
@@ -673,24 +703,6 @@ function upsertReasoningStep(
     label: "Reasoning",
     description: content,
     status,
-  };
-
-  if (existingIndex === -1) {
-    return [...steps, nextStep];
-  }
-
-  return steps.map((step, index) => (index === existingIndex ? nextStep : step));
-}
-
-function upsertOutputStep(
-  steps: AIChainOfThoughtStep[],
-  content: string,
-): AIChainOfThoughtStep[] {
-  const existingIndex = steps.findIndex((step) => step.label === "Output");
-  const nextStep: AIChainOfThoughtStep = {
-    label: "Output",
-    description: content,
-    status: "running",
   };
 
   if (existingIndex === -1) {

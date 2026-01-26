@@ -15,7 +15,6 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useChat, type UIMessage } from '@ai-sdk/react'
 import { DefaultChatTransport, type TextUIPart } from 'ai'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
-import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
 import { useOrchestrationStore } from '@/stores/orchestrationStore'
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 import {
@@ -223,21 +222,6 @@ export function RonTab({ task }: RonTabProps) {
   const isTyping = status === 'streaming' || status === 'submitted'
   const isEmpty = messages.length === 0
 
-  // Connect to orchestrationStore for 70/30 split visualization
-  const {
-    workflowTasks,
-    swarmNodes,
-    graphNodes,
-    activeAgentIds,
-    agentStreamingData
-  } = useOrchestrationStore()
-
-  const hasOrchestration = workflowTasks.length > 0 || swarmNodes.length > 0 || graphNodes.length > 0
-  const formationType: 'workflow' | 'swarm' | 'graph' =
-    workflowTasks.length > 0 ? 'workflow' :
-    swarmNodes.length > 0 ? 'swarm' :
-    'graph'
-
   const handleTextAttachmentRemove = (id: string) => {
     setTextAttachments(prev => prev.filter(att => att.id !== id))
   }
@@ -376,25 +360,6 @@ export function RonTab({ task }: RonTabProps) {
           )}
         </motion.div>
       </div>
-
-      {/* 70/30 Orchestration Visualization */}
-      {!isEmpty && hasOrchestration && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="px-4 py-4"
-        >
-          <div className="max-w-2xl mx-auto">
-            <AgentFormationAccordion
-              formationType={formationType}
-              isFormationActive={isTyping}
-              isFormationComplete={!isTyping}
-              defaultExpanded={true}
-            />
-          </div>
-        </motion.div>
-      )}
 
       {/* Input */}
       <motion.div

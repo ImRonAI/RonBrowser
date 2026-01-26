@@ -56,6 +56,7 @@ export interface AgentStreamingData {
     base64: string;
     mediaType: string;
   }[];
+  output?: string;
 }
 
 export interface CompletedNodeOutput {
@@ -366,6 +367,7 @@ export const useOrchestrationStore = create<OrchestrationStoreState>((set, get) 
         images: data.images
           ? [...(existing?.images || []), ...data.images]
           : existing?.images,
+        output: data.output ?? existing?.output,
       });
 
       return { agentStreamingData: newMap };

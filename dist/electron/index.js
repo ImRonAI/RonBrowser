@@ -606,6 +606,9 @@ const __dirname$1 = node_path.join(__filename$1, "..");
 const CDP_PORT = 9222;
 const MCP_BRIDGE_PORT = 9231;
 let mcpBridgeStarted = false;
+if (!electron.app.isPackaged) {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
+}
 async function startMcpBridge() {
   if (mcpBridgeStarted) return;
   try {
@@ -747,6 +750,7 @@ class TabsManager {
       mainWindow.webContents.send("browser:external-mode", false);
     }
     mainWindow.webContents.send("browser:url-changed", tab.url);
+    this.focusVisibleSurface(tab);
     return true;
   }
   close(id) {
@@ -788,6 +792,7 @@ class TabsManager {
       this.ensureView(tab);
       this.attachIfActive(tab);
       tab.view.webContents.loadURL(normalizedUrl);
+      this.focusVisibleSurface(tab);
       return { success: true, isExternal: true, url: normalizedUrl };
     } else {
       if (mainWindow) {
@@ -805,6 +810,7 @@ class TabsManager {
         mainWindow.webContents.send("browser:external-mode", false);
         mainWindow.webContents.send("browser:url-changed", tab.url);
       }
+      this.focusVisibleSurface(tab);
       return { success: true, isExternal: false, url: normalizedUrl };
     }
   }
@@ -924,6 +930,7 @@ class TabsManager {
     if (!contentView.children.includes(tab.view)) contentView.addChildView(tab.view);
     this.updateViewBounds(tab.view);
     mainWindow.webContents.send("browser:external-mode", true);
+    this.focusVisibleSurface(tab);
   }
   updateViewBounds(view) {
     if (!mainWindow) return;
@@ -936,6 +943,18 @@ class TabsManager {
   }
   emitTabsUpdated() {
     mainWindow?.webContents.send("tabs:updated", this.list());
+  }
+  // DO NOT MODIFY WITHOUT EXPLICIT APPROVAL FROM TIM HUNTER.
+  // This enforces that automation targets only what the user can see.
+  focusVisibleSurface(tab) {
+    if (!mainWindow) return;
+    if (tab.isExternal && tab.view && !tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.focus();
+      return;
+    }
+    if (!mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.focus();
+    }
   }
 }
 const tabsManager = new TabsManager();

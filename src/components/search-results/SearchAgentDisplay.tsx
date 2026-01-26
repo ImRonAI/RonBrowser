@@ -11,31 +11,18 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import type { UIMessage } from '@ai-sdk/react'
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
   ArrowRightIcon,
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from '@/components/ai-elements/reasoning'
-import {
-  ChainOfThought,
-  ChainOfThoughtHeader,
-  ChainOfThoughtContent,
-  ChainOfThoughtStep,
-} from '@/components/ai-elements/chain-of-thought'
-import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState } from '@/components/ai-elements/tool'
-import { ResponseMarkdown } from '@/components/ai-elements/response'
-import { ResponseWithCitations } from '@/components/ai-elements/response-with-citations'
+import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 import { SourcesGrid } from './SourcesGrid'
 import type { SourceData } from './SourceCard'
-import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
-import { useOrchestrationStore } from '@/stores/orchestrationStore'
 import { useSearchStore } from '@/stores/searchStore'
+import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 
 interface Citation {
   number: string
@@ -57,6 +44,53 @@ type ToolExecution = {
   input?: unknown
   output?: unknown
   errorText?: string
+}
+
+type MessagePart = UIMessage['parts'][number]
+
+function buildSearchAgentParts({
+  answerText,
+  reasoningText,
+  toolExecutions,
+  isStreaming,
+}: {
+  answerText: string
+  reasoningText: string
+  toolExecutions: ToolExecution[]
+  isStreaming: boolean
+}): MessagePart[] {
+  const parts: MessagePart[] = []
+
+  if (reasoningText || isStreaming) {
+    parts.push({
+      type: 'reasoning',
+      text: reasoningText || 'Thinking...',
+      state: isStreaming ? 'streaming' : 'done',
+    } as MessagePart)
+  }
+
+  toolExecutions.forEach((tool) => {
+    parts.push({
+      type: 'dynamic-tool',
+      toolName: tool.name,
+      toolCallId: tool.id,
+      state: tool.state,
+      input: tool.input,
+      output: tool.output,
+      errorText: tool.errorText,
+    } as MessagePart)
+  })
+
+  const finalText = answerText || (isStreaming ? 'Generating answer…' : '')
+  if (finalText) {
+    parts.push({
+      type: 'text',
+      text: finalText,
+      state: isStreaming ? 'streaming' : 'done',
+    } as MessagePart)
+  }
+
+  return parts
 }
 
 function getDomainFromUrl(url: string): string {
@@ -171,26 +205,16 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
   const updateQuickResult = useSearchStore((state) => state.updateQuickResult)
   const setIsStreamingStore = useSearchStore((state) => state.setIsStreaming)
 
-  // Connect to orchestrationStore for 70/30 split visualization
-  const {
-    workflowTasks,
-    swarmNodes,
-    graphNodes,
-    activeAgentIds,
-    agentStreamingData
-  } = useOrchestrationStore()
-
-  const hasOrchestration = workflowTasks.length > 0 || swarmNodes.length > 0 || graphNodes.length > 0
-  const formationType: 'workflow' | 'swarm' | 'graph' =
-    workflowTasks.length > 0 ? 'workflow' :
-    swarmNodes.length > 0 ? 'swarm' :
-    'graph'
-
   const mergedSources = useMemo(() => {
     if (sources.length > 0) return sources
     if (citations.length > 0) return citationsToSources(citations)
     return []
   }, [sources, citations])
+
+  const assistantParts = useMemo(
+    () => buildSearchAgentParts({ answerText, reasoningText, toolExecutions, isStreaming }),
+    [answerText, reasoningText, toolExecutions, isStreaming]
+  )
 
   const resetState = useCallback(() => {
     setAnswerText('')
@@ -399,13 +423,27 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
                   break
 
                 case 'workflow_visualization':
-                  // TODO: Properly integrate with orchestrationStore
-                  // The backend needs to send structured orchestration events:
-                  // - workflow-task-start/update for WorkflowState
-                  // - swarm-handoff for SwarmState
-                  // - graph-node-start/complete for GraphState
-                  // Then call useOrchestrationStore().initWorkflowOrchestration(state)
-                  console.warn('Received workflow_visualization event - orchestration store integration needed', event)
+                  handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
+                  {
+                    const orchestrationName = event.toolName || 'workflow'
+                    upsertToolExecution(event.toolCallId || `orchestration-${orchestrationName}`, {
+                      name: orchestrationName,
+                      state: 'output-available',
+                      output: event,
+                    })
+                  }
+                  break
+
+                case 'multiagent_node_start':
+                case 'multiagent_node_stream':
+                case 'multiagent_node_stop':
+                case 'multiagent_handoff':
+                case 'multiagent_result':
+                  handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
+                  break
+
+                case 'data-orchestration':
+                  handleOrchestrationDataPart(event)
                   break
 
                 case 'error':
@@ -436,17 +474,6 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
     fetchSearchResults()
   }, [query, sessionId, retryToken, resetState, upsertToolExecution])
 
-  const hasChainOfThought = Boolean(
-    reasoningText ||
-    isStreaming ||
-    toolExecutions.length > 0 ||
-    workflowParts.length > 0
-  )
-  const stepCount =
-    (reasoningText || isStreaming ? 1 : 0) +
-    toolExecutions.length +
-    workflowParts.length
-
   return (
     <div className="max-w-5xl mx-auto px-5 py-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -475,107 +502,19 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
         </div>
       </div>
 
-      {hasChainOfThought && (
-        <ChainOfThought defaultOpen isStreaming={isStreaming} autoCollapseDelay={0}>
-          <ChainOfThoughtHeader>
-            {isStreaming
-              ? 'Processing...'
-              : `Chain of Thought (${stepCount} step${stepCount === 1 ? '' : 's'})`}
-          </ChainOfThoughtHeader>
-          <ChainOfThoughtContent>
-            {(reasoningText || isStreaming) && (
-              <ChainOfThoughtStep
-                label="Reasoning"
-                status={isStreaming ? 'running' : 'complete'}
-              >
-                <Reasoning className="w-full" isStreaming={isStreaming}>
-                  <ReasoningTrigger />
-                  <ReasoningContent>
-                    {reasoningText ? (
-                      <ResponseMarkdown
-                        content={reasoningText}
-                        isStreaming={isStreaming}
-                        className="text-sm text-white/80"
-                      />
-                    ) : (
-                      <div className="text-sm text-white/40">Thinking...</div>
-                    )}
-                  </ReasoningContent>
-                </Reasoning>
-              </ChainOfThoughtStep>
-            )}
-
-            {toolExecutions.map((tool) => {
-              const toolState = mapToolPartState(tool.state)
-              const stepStatus =
-                toolState === 'success'
-                  ? 'complete'
-                  : toolState === 'error'
-                    ? 'error'
-                    : 'running'
-              const toolInput =
-                tool.input && typeof tool.input === 'object'
-                  ? (tool.input as Record<string, unknown>)
-                  : tool.input != null
-                    ? { value: tool.input }
-                    : undefined
-
-              return (
-                <ChainOfThoughtStep
-                  key={tool.id}
-                  label={tool.name}
-                  status={stepStatus}
-                >
-                  <Tool defaultOpen={toolState !== 'success'}>
-                    <ToolHeader title={tool.name} state={toolState} />
-                    <ToolContent>
-                      {toolInput && (
-                        <ToolInput
-                          input={toolInput}
-                          isStreaming={tool.state === 'input-streaming'}
-                        />
-                      )}
-                      {tool.state === 'output-available' && tool.output != null && (
-                        <ToolOutput output={tool.output} />
-                      )}
-                      {tool.state === 'output-error' && tool.errorText && (
-                        <ToolOutput errorText={tool.errorText} />
-                      )}
-                    </ToolContent>
-                  </Tool>
-                </ChainOfThoughtStep>
-              )
-            })}
-          </ChainOfThoughtContent>
-        </ChainOfThought>
+      {assistantParts.length > 0 && (
+        <ChainOfThoughtMessage
+          parts={assistantParts}
+          isStreaming={isStreaming}
+          messageId={`search-agent-${sessionId}-${retryToken}`}
+          citations={citations.map((citation) => ({
+            number: citation.number,
+            title: citation.title,
+            url: citation.url,
+            snippet: citation.snippet,
+          }))}
+        />
       )}
-
-      <div className="glass-card rounded-2xl overflow-hidden border border-white/5">
-        <div className="px-5 py-4 max-h-[50vh] overflow-y-auto">
-          {answerText ? (
-            <div className="prose prose-invert max-w-none text-white/80">
-              <ResponseWithCitations
-                content={answerText}
-                citations={citations.map((citation) => ({
-                  number: citation.number,
-                  title: citation.title,
-                  url: citation.url,
-                  snippet: citation.snippet,
-                }))}
-                isStreaming={isStreaming}
-              />
-              {isStreaming && (
-                <span className="inline-block w-0.5 h-5 bg-purple-400 ml-0.5 animate-pulse" />
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-10 text-white/40 text-sm">
-              <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mr-3" />
-              Generating answer…
-            </div>
-          )}
-        </div>
-      </div>
 
       <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -591,18 +530,6 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
             </div>
           )}
         </div>
-
-      {/* 70/30 Orchestration Visualization */}
-      {hasOrchestration && (
-        <div className="mt-6">
-          <AgentFormationAccordion
-            formationType={formationType}
-            isFormationActive={isStreaming}
-            isFormationComplete={!isStreaming}
-            defaultExpanded={true}
-          />
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
         <button

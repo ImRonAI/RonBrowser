@@ -20,6 +20,7 @@ Protocol:
 import base64
 import json
 import logging
+import re
 import uuid
 from typing import Dict, Any, Optional
 from enum import Enum
@@ -205,8 +206,15 @@ class AISDKCallbackHandler:
         return f"{prefix}{uuid.uuid4().hex[:8]}"
 
     def _is_orchestration_tool(self, tool_name: Optional[str]) -> bool:
-        normalized = (tool_name or "").lower()
+        normalized = self._normalize_tool_name(tool_name)
         return any(key in normalized for key in ("swarm", "workflow", "graph"))
+
+    def _normalize_tool_name(self, tool_name: Optional[str]) -> str:
+        normalized = (tool_name or "").lower().strip()
+        if not normalized:
+            return ""
+        parts = re.split(r"[./:\\\s|-]+", normalized)
+        return parts[-1] if parts else normalized
 
     def _emit_reasoning_chunk(self, chunk: str):
         """Emit reasoning chunk, opening block if needed."""
@@ -303,7 +311,9 @@ class AISDKCallbackHandler:
             edges = []
             active_agents = []
 
-            if tool_name == "swarm":
+            base_name = self._normalize_tool_name(tool_name) or tool_name
+
+            if base_name == "swarm":
                 # Transform SwarmResult
                 node_history = data.get("node_history", [])
                 results = data.get("results", {})
@@ -353,7 +363,7 @@ class AISDKCallbackHandler:
                         }
                     })
 
-            elif tool_name == "workflow":
+            elif base_name == "workflow":
                 # Transform workflow state
                 tasks = data.get("tasks", [])
                 task_results = data.get("task_results", {})
@@ -407,7 +417,7 @@ class AISDKCallbackHandler:
                                 }
                             })
 
-            elif tool_name == "graph":
+            elif base_name == "graph":
                 # Transform graph results (parallel execution)
                 # Graph structure depends on implementation - use generic structure
                 if isinstance(data, dict):
@@ -429,12 +439,12 @@ class AISDKCallbackHandler:
                     "orchestration",
                     {
                         "eventType": "workflow_visualization",
-                        "toolName": tool_name,
+                        "toolName": base_name,
                         "toolCallId": tool_id,
                         "nodes": nodes,
                         "edges": edges,
                         "activeAgents": active_agents if active_agents else None,
-                        "title": f"{tool_name.capitalize()} Orchestration",
+                        "title": f"{base_name.capitalize()} Orchestration",
                     },
                     transient=True,
                 ))
@@ -714,4 +724,3 @@ class AISDKCallbackHandler:
     def is_finished(self) -> bool:
         """Check if terminal events have already been emitted."""
         return self._finished
-

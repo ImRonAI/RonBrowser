@@ -10,7 +10,7 @@
 
 'use client'
 
-import { useMemo, memo, useEffect, useRef } from 'react'
+import { useMemo, memo, useEffect, useRef, useCallback } from 'react'
 import {
   isToolUIPart,
   getToolName,
@@ -18,7 +18,7 @@ import {
   type ReasoningUIPart,
 } from 'ai'
 import type { UIMessage } from '@ai-sdk/react'
-import { 
+import {
   usePreviewStore, 
   isBrowserTool, 
   isProjectTool, 
@@ -34,16 +34,29 @@ import {
   ChainOfThoughtContent,
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
+import { ChainOfThoughtSearch } from '@/components/ai-elements/chain-of-thought-search'
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState } from '@/components/ai-elements/tool'
 import { ResponseMarkdown } from '@/components/ai-elements/response'
 import { ResponseWithCitations, type Citation } from '@/components/ai-elements/response-with-citations'
 import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
 import { initOrchestrationFromToolInput } from '@/utils/orchestration-stream'
+import { extractSearchQuery, extractSearchResults, getSearchProvider } from '@/utils/search-tool-utils'
 // ToolState is used by mapToolPartState return type
 
-// Orchestration tool names to render with special visualization
-const ORCHESTRATION_TOOLS = ['workflow', 'swarm', 'graph']
+const ORCHESTRATION_KEYWORDS = ['workflow', 'swarm', 'graph'] as const
+
+function isOrchestrationToolName(toolName?: string) {
+  if (!toolName) return false
+  const normalized = toolName.toLowerCase()
+  if (ORCHESTRATION_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return true
+  }
+
+  // Handle namespaced tool names (e.g. "strands_tools.workflow", "mcp:swarm")
+  const segments = normalized.split(/[./:\\|\\s-]+/g).filter(Boolean)
+  return segments.some((segment) => ORCHESTRATION_KEYWORDS.includes(segment as typeof ORCHESTRATION_KEYWORDS[number]))
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -54,6 +67,7 @@ interface ChainOfThoughtMessageProps {
   isStreaming?: boolean
   messageId: string
   className?: string
+  citations?: Citation[]
 }
 
 // Tool part type with all possible states
@@ -74,31 +88,10 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
   parts,
   isStreaming,
   messageId,
-  className
+  className,
+  citations: citationsOverride
 }: ChainOfThoughtMessageProps) {
   const processedToolCallsRef = useRef(new Set<string>())
-  // Find last non-text index to determine final text boundary
-  const lastNonTextIndex = useMemo(() => {
-    let idx = -1
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      if (part.type === 'reasoning' || isToolUIPart(part)) {
-        idx = i
-      }
-    }
-    return idx
-  }, [parts])
-
-  // Determine if we have final text output (to auto-collapse chain of thought)
-  const hasFinalTextOutput = useMemo(() => {
-    for (let i = lastNonTextIndex + 1; i < parts.length; i++) {
-      const part = parts[i] as TextUIPart
-      if (part.type === 'text' && part.text?.trim()) {
-        return true
-      }
-    }
-    return false
-  }, [parts, lastNonTextIndex])
 
   // Separate process parts from final text and extract citations
   const { processParts, finalTextParts, citations } = useMemo(() => {
@@ -106,11 +99,16 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
     const finalTextParts: TextUIPart[] = []
     const citations: Citation[] = []
 
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      if (i > lastNonTextIndex && part.type === 'text') {
-        finalTextParts.push(part as TextUIPart)
-      } else if (part.type !== 'step-start') {
+    for (const part of parts) {
+      if (part.type === 'text') {
+        const textPart = part as TextUIPart
+        if (textPart.text?.trim()) {
+          finalTextParts.push(textPart)
+        }
+        continue
+      }
+
+      if (part.type === 'reasoning' || isToolUIPart(part)) {
         processParts.push(part)
       }
 
@@ -134,11 +132,23 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
     }
 
     return { processParts, finalTextParts, citations }
-  }, [parts, lastNonTextIndex])
+  }, [parts])
+
+  const hasFinalTextOutput = finalTextParts.length > 0
+  const resolvedCitations = citationsOverride && citationsOverride.length > 0
+    ? citationsOverride
+    : citations
 
   // Calculate step count for header
   const stepCount = useMemo(() => {
     return processParts.filter(p => p.type === 'reasoning' || isToolUIPart(p)).length
+  }, [processParts])
+
+  const hasOrchestrationTools = useMemo(() => {
+    return processParts.some((part) => {
+      if (!isToolUIPart(part)) return false
+      return isOrchestrationToolName(getToolName(part))
+    })
   }, [processParts])
 
   // Auto-trigger preview panel when browser/project tools are detected
@@ -225,8 +235,9 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
       if (!toolName || !toolCallId) continue
       if (processedToolCallsRef.current.has(toolCallId)) continue
 
-      if (toolPart.state === 'input-available') {
-        const didInit = initOrchestrationFromToolInput(toolName, toolPart.input)
+      if (toolPart.state === 'input-available' || toolPart.state === 'output-available') {
+        const payload = toolPart.input ?? toolPart.output
+        const didInit = initOrchestrationFromToolInput(toolName, payload)
         if (didInit) {
           processedToolCallsRef.current.add(toolCallId)
         }
@@ -241,9 +252,9 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
         {/* Chain of Thought at top of bubble */}
         {processParts.length > 0 && (
           <ChainOfThought
-            defaultOpen={!hasFinalTextOutput}
+            defaultOpen={hasOrchestrationTools || !hasFinalTextOutput}
             isStreaming={isStreaming && !hasFinalTextOutput}
-            autoCollapseDelay={hasFinalTextOutput ? 2000 : 0}
+            autoCollapseDelay={hasOrchestrationTools ? 0 : hasFinalTextOutput ? 2000 : 0}
           >
             <ChainOfThoughtHeader>
               {isStreaming && !hasFinalTextOutput
@@ -271,7 +282,7 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
               <ResponseWithCitations
                 key={`${messageId}-text-${index}`}
                 content={part.text}
-                citations={citations}
+                citations={resolvedCitations}
                 isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}
               />
             ))}
@@ -293,6 +304,20 @@ interface PartRendererProps {
 }
 
 const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
+  const { openBrowserPreview } = usePreviewStore()
+
+  const handleSearchPreview = useCallback(
+    (result: { url?: string; title?: string }) => {
+      if (!result.url) return
+      openBrowserPreview({
+        url: result.url,
+        title: result.title,
+        isLive: true,
+      })
+    },
+    [openBrowserPreview]
+  )
+
   // Reasoning
   if (part.type === 'reasoning') {
     const reasoningPart = part as ReasoningUIPart
@@ -322,23 +347,28 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
     const toolName = getToolName(part)
     const toolState = mapToolPartState(toolPart.state)
     const stepStatus = toolState === 'success' ? 'complete' : toolState === 'error' ? 'error' : 'running'
-
-    // Check if this is an orchestration tool (workflow, swarm, graph)
-    const isOrchestrationTool = ORCHESTRATION_TOOLS.some(t => 
-      toolName.toLowerCase().includes(t)
-    )
+    const isToolStreaming = toolPart.state === 'input-streaming' || toolPart.state === 'input-available'
+    const searchProvider = getSearchProvider(toolName)
+    const searchQuery = searchProvider ? extractSearchQuery(toolPart.input) : null
+    const searchResults = searchProvider
+      ? extractSearchResults(toolPart.output, searchProvider)
+      : []
+    const shouldShowSearch = Boolean(searchProvider)
+    const hasToolOutput = toolPart.output != null || toolPart.errorText != null
+    const shouldKeepOpen = toolState !== 'success' || shouldShowSearch || hasToolOutput
+    const isOrchestrationTool = isOrchestrationToolName(toolName)
 
     if (isOrchestrationTool) {
       return (
         <ChainOfThoughtStep
-          label={toolName}
+          label={toolName || 'Tool'}
           status={stepStatus}
         >
           <ChainOfThoughtOrchestration
             tool={{
               type: toolPart.type,
               toolCallId: toolPart.toolCallId,
-              toolName: toolName,
+              toolName: toolName || 'tool',
               state: toolPart.state,
               input: toolPart.input,
               output: toolPart.output,
@@ -351,25 +381,36 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
     // Regular tool rendering
     return (
       <ChainOfThoughtStep
-        label={toolName}
+        label={toolName || 'Tool'}
         status={stepStatus}
       >
         <Tool
-          isStreaming={toolPart.state === 'input-streaming'}
-          defaultOpen={toolState !== 'success'}
+          isStreaming={isToolStreaming}
+          defaultOpen={shouldKeepOpen}
         >
           <ToolHeader
-            title={toolName}
+            title={toolName || 'Tool'}
             state={toolState}
           />
           <ToolContent>
             {toolPart.input != null && (
               <ToolInput 
                 input={toolPart.input as Record<string, unknown>} 
-                isStreaming={toolPart.state === 'input-streaming'}
+                isStreaming={isToolStreaming}
               />
             )}
-            {toolPart.state === 'output-available' && toolPart.output != null && (
+            {shouldShowSearch && searchProvider && (
+              <ChainOfThoughtSearch
+                provider={searchProvider}
+                query={searchQuery || toolName || 'Search'}
+                results={searchResults}
+                isSearching={isToolStreaming}
+                error={toolPart.state === 'output-error' ? toolPart.errorText : undefined}
+                onResultClick={handleSearchPreview}
+                onExpandPreview={handleSearchPreview}
+              />
+            )}
+            {!shouldShowSearch && toolPart.state === 'output-available' && toolPart.output != null && (
               <ToolOutput output={toolPart.output} />
             )}
             {toolPart.state === 'output-error' && toolPart.errorText && (
@@ -377,21 +418,6 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
             )}
           </ToolContent>
         </Tool>
-      </ChainOfThoughtStep>
-    )
-  }
-
-  // Text within process parts (intermediate text)
-  if (part.type === 'text') {
-    const textPart = part as TextUIPart
-    if (!textPart.text?.trim()) return null
-
-    return (
-      <ChainOfThoughtStep label="Response" status="complete">
-        <ResponseMarkdown
-          content={textPart.text}
-          isStreaming={isStreaming && isLast && textPart.state === 'streaming'}
-        />
       </ChainOfThoughtStep>
     )
   }

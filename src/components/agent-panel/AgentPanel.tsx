@@ -25,6 +25,13 @@ type MessagePart = UIMessage['parts'][number]
 
 const EASE = [0.16, 1, 0.3, 1] as const
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
+const MAIN_SEARCH_BAR_ID = 'main-search-bar'
+
+const shouldSkipAutoFocus = () => {
+  if (typeof document === 'undefined') return false
+  const activeElement = document.activeElement as HTMLElement | null
+  return activeElement?.id === MAIN_SEARCH_BAR_ID
+}
 
 // Sleek pill suggestions - minimal & elegant
 const SUGGESTIONS = [
@@ -115,8 +122,12 @@ export function AgentPanel() {
     // 4. Clear orchestration visualization state
     useOrchestrationStore.getState().reset()
     
-    // 4. Focus input for immediate typing
-    setTimeout(() => inputRef.current?.focus(), 100)
+    // 4. Focus input for immediate typing (unless user is in main search bar)
+    setTimeout(() => {
+      if (!shouldSkipAutoFocus()) {
+        inputRef.current?.focus()
+      }
+    }, 100)
   }
 
   const [input, setInput] = useState('')
@@ -135,7 +146,11 @@ export function AgentPanel() {
   // Focus input when panel opens
   useEffect(() => {
     if (isPanelOpen && interactionMode === 'text') {
-      setTimeout(() => inputRef.current?.focus(), 300)
+      setTimeout(() => {
+        if (!shouldSkipAutoFocus()) {
+          inputRef.current?.focus()
+        }
+      }, 300)
     }
   }, [isPanelOpen, interactionMode])
 

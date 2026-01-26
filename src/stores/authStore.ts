@@ -79,6 +79,45 @@ function mapAuthError(error: unknown): AuthError {
   }
 }
 
+type SupabaseTable = 'users' | 'user_preferences'
+
+const tableAvailability: Record<SupabaseTable, boolean | null> = {
+  users: null,
+  user_preferences: null,
+}
+
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const status = (error as { status?: number }).status
+  const code = (error as { code?: string }).code
+  const message = (error as { message?: string }).message
+  return (
+    status === 404 ||
+    code === '42P01' ||
+    message?.includes('does not exist') === true ||
+    message?.includes('relation') === true
+  )
+}
+
+function shouldQueryTable(table: SupabaseTable): boolean {
+  return tableAvailability[table] !== false
+}
+
+function markTableAvailable(table: SupabaseTable) {
+  tableAvailability[table] = true
+}
+
+function handleTableError(table: SupabaseTable, error: unknown): boolean {
+  if (isMissingTableError(error)) {
+    if (tableAvailability[table] !== false) {
+      console.warn(`[Supabase] Table "${table}" unavailable. Skipping further queries.`)
+    }
+    tableAvailability[table] = false
+    return true
+  }
+  return false
+}
+
 // ============================================
 // Store
 // ============================================
@@ -114,26 +153,48 @@ export const useAuthStore = create<AuthState>()(
             let userProfile: Record<string, unknown> | null = null
             let preferences: Record<string, unknown> | null = null
             
-            try {
-              const { data } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .single()
-              userProfile = data
-            } catch {
-              // Database might not exist yet
+            if (shouldQueryTable('users')) {
+              try {
+                const { data, error } = await supabase
+                  .from('users')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .single()
+                if (error) {
+                  if (!handleTableError('users', error)) {
+                    console.warn('Failed to fetch user profile:', error)
+                  }
+                } else {
+                  markTableAvailable('users')
+                  userProfile = data
+                }
+              } catch (error) {
+                if (!handleTableError('users', error)) {
+                  console.warn('Failed to fetch user profile:', error)
+                }
+              }
             }
 
-            try {
-              const { data } = await supabase
-                .from('user_preferences')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .single()
-              preferences = data
-            } catch {
-              // Database might not exist yet
+            if (shouldQueryTable('user_preferences')) {
+              try {
+                const { data, error } = await supabase
+                  .from('user_preferences')
+                  .select('*')
+                  .eq('user_id', session.user.id)
+                  .single()
+                if (error) {
+                  if (!handleTableError('user_preferences', error)) {
+                    console.warn('Failed to fetch user preferences:', error)
+                  }
+                } else {
+                  markTableAvailable('user_preferences')
+                  preferences = data
+                }
+              } catch (error) {
+                if (!handleTableError('user_preferences', error)) {
+                  console.warn('Failed to fetch user preferences:', error)
+                }
+              }
             }
 
             const user = mapSessionToUser(session, {
@@ -282,13 +343,24 @@ export const useAuthStore = create<AuthState>()(
             const user = mapSessionToUser(data.session)
             
             // Try to update last login time in database
-            try {
-              await supabase
-                .from('users')
-                .update({ last_login_at: new Date().toISOString() })
-                .eq('id', user.id)
-            } catch {
-              // Database might not exist yet
+            if (shouldQueryTable('users')) {
+              try {
+                const { error } = await supabase
+                  .from('users')
+                  .update({ last_login_at: new Date().toISOString() })
+                  .eq('id', user.id)
+                if (error) {
+                  if (!handleTableError('users', error)) {
+                    console.warn('Failed to update last login:', error)
+                  }
+                } else {
+                  markTableAvailable('users')
+                }
+              } catch (error) {
+                if (!handleTableError('users', error)) {
+                  console.warn('Failed to update last login:', error)
+                }
+              }
             }
 
             set({
@@ -408,22 +480,46 @@ export const useAuthStore = create<AuthState>()(
 
           if (data.user && data.session) {
             // Try to create user profile in database
-            try {
-              await supabase.from('users').insert({
-                id: data.user.id,
-                email: data.user.email || email,
-                name,
-                tenant_id: data.user.id, // User-based tenancy
-                onboarding_complete: false,
-              })
+            if (shouldQueryTable('users')) {
+              try {
+                const { error } = await supabase.from('users').insert({
+                  id: data.user.id,
+                  email: data.user.email || email,
+                  name,
+                  tenant_id: data.user.id, // User-based tenancy
+                  onboarding_complete: false,
+                })
+                if (error) {
+                  if (!handleTableError('users', error)) {
+                    console.warn('Could not create user profile in database:', error)
+                  }
+                } else {
+                  markTableAvailable('users')
+                }
+              } catch (error) {
+                if (!handleTableError('users', error)) {
+                  console.warn('Could not create user profile in database:', error)
+                }
+              }
+            }
 
-              // Create default preferences
-              await supabase.from('user_preferences').insert({
-                user_id: data.user.id,
-              })
-            } catch {
-              // Database might not exist yet - that's okay
-              console.warn('Could not create user profile in database')
+            if (shouldQueryTable('user_preferences')) {
+              try {
+                const { error } = await supabase.from('user_preferences').insert({
+                  user_id: data.user.id,
+                })
+                if (error) {
+                  if (!handleTableError('user_preferences', error)) {
+                    console.warn('Could not create user preferences:', error)
+                  }
+                } else {
+                  markTableAvailable('user_preferences')
+                }
+              } catch (error) {
+                if (!handleTableError('user_preferences', error)) {
+                  console.warn('Could not create user preferences:', error)
+                }
+              }
             }
 
             const user = mapSessionToUser(data.session, { name })
@@ -487,21 +583,32 @@ export const useAuthStore = create<AuthState>()(
         })
 
         // Try to sync to database
-        try {
-          await supabase
-            .from('user_preferences')
-            .update({
-              theme: preferences.theme,
-              interaction_mode: preferences.interactionMode,
-              search_mode: preferences.searchMode,
-              content_density: preferences.contentDensity,
-              show_animations: preferences.showAnimations,
-              reduce_motion: preferences.reduceMotion,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', currentUser.id)
-        } catch (error) {
-          console.error('Failed to sync preferences:', error)
+        if (shouldQueryTable('user_preferences')) {
+          try {
+            const { error } = await supabase
+              .from('user_preferences')
+              .update({
+                theme: preferences.theme,
+                interaction_mode: preferences.interactionMode,
+                search_mode: preferences.searchMode,
+                content_density: preferences.contentDensity,
+                show_animations: preferences.showAnimations,
+                reduce_motion: preferences.reduceMotion,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', currentUser.id)
+            if (error) {
+              if (!handleTableError('user_preferences', error)) {
+                console.error('Failed to sync preferences:', error)
+              }
+            } else {
+              markTableAvailable('user_preferences')
+            }
+          } catch (error) {
+            if (!handleTableError('user_preferences', error)) {
+              console.error('Failed to sync preferences:', error)
+            }
+          }
         }
       },
 

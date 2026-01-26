@@ -20,7 +20,6 @@ import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-car
 import type { TextAttachment } from '@/components/ai-elements/types'
 
 // Orchestration visualization
-import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
 import { useOrchestrationStore } from '@/stores/orchestrationStore'
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 
@@ -79,11 +78,6 @@ export function SuperAgentInterface() {
   // Orchestration store
   const { graphNodes, workflowTasks, swarmNodes } = useOrchestrationStore()
   const hasOrchestration = graphNodes.length > 0 || workflowTasks.length > 0 || swarmNodes.length > 0
-  const formationType: 'workflow' | 'swarm' | 'graph' =
-    workflowTasks.length > 0 ? 'workflow' :
-    swarmNodes.length > 0 ? 'swarm' :
-    'graph'
-
   // Preview store (for browser/project automation previews)
   const isPreviewOpen = usePreviewStore(state => state.isOpen)
 
@@ -373,23 +367,6 @@ export function SuperAgentInterface() {
                   <TypingIndicator />
                 )}
 
-                {/* 70/30 Orchestration Visualization */}
-                {hasOrchestration && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="mt-4"
-                  >
-                    <AgentFormationAccordion
-                      formationType={formationType}
-                      isFormationActive={isTyping}
-                      isFormationComplete={!isTyping}
-                      defaultExpanded={true}
-                    />
-                  </motion.div>
-                )}
-                
                 <div ref={messagesEndRef} />
               </motion.div>
             )}

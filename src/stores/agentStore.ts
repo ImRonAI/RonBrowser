@@ -175,6 +175,56 @@ export const useAgentStore = create<AgentState>((set, get) => {
           }
         })
       }
+
+      // Handle UIMessageStream tool events (tool-input / tool-output)
+      const toolEventType = agentEvent.type
+      if (toolEventType) {
+        const toolCallId = agentEvent.toolCallId || get().currentToolUse?.id || generateId()
+        const toolName = agentEvent.toolName || get().currentToolUse?.name || 'tool'
+
+        if (toolEventType === 'tool-input-start' || toolEventType === 'tool-input-available') {
+          set({
+            currentToolUse: {
+              id: toolCallId,
+              name: toolName,
+              input: agentEvent.input,
+              status: 'running',
+            }
+          })
+        }
+
+        if (toolEventType === 'tool-output-available') {
+          set({
+            currentToolUse: {
+              id: toolCallId,
+              name: toolName,
+              status: 'success',
+            }
+          })
+          setTimeout(() => {
+            const current = get().currentToolUse
+            if (current && current.id === toolCallId && current.status !== 'running') {
+              set({ currentToolUse: null })
+            }
+          }, 500)
+        }
+
+        if (toolEventType === 'tool-output-error') {
+          set({
+            currentToolUse: {
+              id: toolCallId,
+              name: toolName,
+              status: 'error',
+            }
+          })
+          setTimeout(() => {
+            const current = get().currentToolUse
+            if (current && current.id === toolCallId && current.status !== 'running') {
+              set({ currentToolUse: null })
+            }
+          }, 900)
+        }
+      }
       
       // Handle completion
       if (agentEvent.complete || agentEvent.result) {

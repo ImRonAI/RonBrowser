@@ -81,6 +81,9 @@ export * from './artifact'
 // Task components
 export * from './task'
 
+// Agent components
+export * from './agent'
+
 // Action components
 export * from './actions'
 
@@ -95,4 +98,3 @@ export * from './orchestration-tasks'
 // Note: types.ts re-exports are handled specifically to avoid conflicts with
 // types already exported from chain-of-thought modules. Import specific types
 // from types.ts directly if needed: import type { AIMessage, ... } from './types'
-
