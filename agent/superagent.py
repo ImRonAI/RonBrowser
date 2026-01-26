@@ -42,8 +42,9 @@ from strands_tools import (
     swarm,
     graph,
     image_reader,
+    use_computer,
 )
-from strands_fun_tools import screen_reader
+from strands_fun_tools import screen_reader, yolo_vision
 from strands_tools.utils.models.model import create_model, get_provider_config
 from strands_tools.electron_sandbox_tools import ElectronSandboxTools
 from strands_tools.a2a_client import A2AClientToolProvider
@@ -310,49 +311,8 @@ Security defaults:
 - Never pass --electron-allow-destructive-cdp unless explicitly allowed.
 - Unsafe eval and full Electron APIs are OFF unless explicitly enabled.
 
-## BROWSER INTERACTION PROTOCOL (MANDATORY)
-When browsing the web, ALWAYS follow this exact workflow:
-
-### Step 1: Initial Navigation
-- Type the website URL in the address bar OR enter a search query in a search bar
-- Use `browser` with `navigate` action or `type` action to input the URL/search
-
-### Step 2: Capture & Understand (USE SCREEN_READER)
-- Use `screen_reader(action="capture_once")` to capture the screen with OCR
-- This returns ALL visible text elements with their **bounding boxes** (x, y, width, height, center)
-- Use the `center` coordinates to know EXACTLY where to click
-- For finding specific elements: `screen_reader(action="find_element", search_text="Button Text")`
-- NEVER proceed without understanding the current state via screen_reader
-
-### Step 3: Execute Actions Using Coordinates
-- Use the bounding box data from screen_reader to perform precise actions
-- Click using center coordinates from screen_reader results
-- Execute actions sequentially (one at a time)
-- Actions you can perform based on screen_reader data:
-  - Clicking at specific coordinates where text was detected
-  - Typing into a field you confirmed exists (use coordinates to click it first)
-  - Scrolling in a known direction
-
-### Step 4: Verify & Repeat
-- After any action that changes the page state, IMMEDIATELY call `screen_reader(action="capture_once")`
-- Use the returned elements to understand the new state
-- NEVER GUESS what's on screen - always verify with screen_reader
-- Repeat Steps 2-4 until task is completed
-
-### SCREEN_READER ACTIONS REFERENCE
-| Action | Description | Returns |
-|--------|-------------|---------|
-| `capture_once` | One-shot screen capture with OCR | All text elements with bounding boxes |
-| `find_element` | Search for specific text | Matching elements with coordinates |
-| `list_elements` | List all unique visible elements | Deduplicated element list with positions |
-| `start` | Begin background monitoring | Status message |
-| `stop` | Stop background monitoring | Status message |
-
-### CRITICAL RULES
-- **USE SCREEN_READER**: Always use `screen_reader` instead of screenshot + image_reader for browser automation
-- **BOUNDING BOXES**: Use the center coordinates from screen_reader to click elements precisely
-- **NO GUESSING**: Never assume what's on screen - always verify with screen_reader
-- **SEQUENTIAL EXECUTION**: One action at a time, verify between uncertain actions
+## BROWSER INTERACTION PROTOCOL
+For screen interaction, try `use_computer` first. Use `analyze_screen` to see the screen and get element coordinates, then `click`/`type` at those coordinates. Fall back to Playwright MCP or `browser` tool if needed.
 
 ### Data Collection & Context Files
 When performing research or coding tasks from web sources:
@@ -1169,7 +1129,7 @@ def create_superagent(
         use_agent, workflow, swarm, graph, think,
         # Core utilities
         http_request, sandbox_tools.file_read, sandbox_tools.file_write, environment,
-        mcp_client, mem0_memory, stop, sleep, image_reader, screen_reader,
+        mcp_client, mem0_memory, stop, sleep, image_reader, use_computer,
         # Browser execution
         browser.browser,
         # Task Management
