@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Task } from '@/types/task'
+import { Task } from '@/pages/types/task'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES

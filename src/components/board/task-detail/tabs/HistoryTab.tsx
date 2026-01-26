@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Task, TaskHistoryEvent, TaskHistoryEventType } from '@/types/task'
+import type { Task, TaskHistoryEvent, TaskHistoryEventType } from '@/pages/types/task'
 import { 
   Sparkles as SparklesIcon,
   Clock as ClockIcon,

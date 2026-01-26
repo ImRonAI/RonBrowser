@@ -14,6 +14,12 @@ import type { TextAttachment } from '@/components/ai-elements/types'
 import { useChat, type UIMessage } from '@ai-sdk/react'
 import { DefaultChatTransport, type TextUIPart } from 'ai'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
+import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
+import { useOrchestrationStore } from '@/stores/orchestrationStore'
+
+// Preview Panel
+import { AccordionPreview } from '@/components/ai-elements/preview-panel'
+import { usePreviewStore } from '@/stores/previewStore'
 
 type MessagePart = UIMessage['parts'][number]
 
@@ -74,7 +80,7 @@ export function AgentPanel() {
 
   // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
   // body option adds session_id to every request per AI SDK docs
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, clearError } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
       body: () => {
@@ -83,12 +89,15 @@ export function AgentPanel() {
           session_id: sessionIdRef.current,
         }
       },
-      onError: (error) => {
-        console.error('[AgentPanel] API Error:', error)
-        console.error('[AgentPanel] Failed to connect to backend at:', SUPERAGENT_API)
-        console.error('[AgentPanel] Make sure backend is running: npm run dev:backend')
-      },
     }),
+    onError: (error: Error) => {
+      console.error('[AgentPanel] API Error:', error)
+      console.error('[AgentPanel] Failed to connect to backend at:', SUPERAGENT_API)
+      console.error('[AgentPanel] Make sure backend is running: npm run dev:backend')
+    },
+    onData: (dataPart) => {
+      handleOrchestrationDataPart(dataPart as { type: string; data?: any })
+    },
   })
 
   // Handle new chat - resets both local UI state and store state
@@ -102,6 +111,9 @@ export function AgentPanel() {
     
     // 3. Clear store state (for history tracking)
     startNewChat()
+
+    // 4. Clear orchestration visualization state
+    useOrchestrationStore.getState().reset()
     
     // 4. Focus input for immediate typing
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -129,7 +141,12 @@ export function AgentPanel() {
 
   const handleSubmit = async (text?: string) => {
     const messageText = text || input.trim()
-    if ((!messageText && textAttachments.length === 0) || status !== 'ready') return
+    const canSend = status === 'ready' || status === 'error'
+    if ((!messageText && textAttachments.length === 0) || !canSend) return
+
+    if (status === 'error') {
+      clearError()
+    }
 
     setInput('')
     setSelectedContexts([])
@@ -479,7 +496,7 @@ export function AgentPanel() {
                       {/* Send Button */}
                       <motion.button
                         onClick={() => handleSubmit()}
-                        disabled={(!input.trim() && textAttachments.length === 0) || status !== 'ready'}
+                        disabled={(!input.trim() && textAttachments.length === 0) || (status !== 'ready' && status !== 'error')}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className={cn(
@@ -487,7 +504,7 @@ export function AgentPanel() {
                           "w-8 h-8 rounded-lg",
                           "flex items-center justify-center",
                           "transition-all duration-300",
-                          (input.trim() || textAttachments.length > 0) && status === 'ready'
+                          (input.trim() || textAttachments.length > 0) && (status === 'ready' || status === 'error')
                             ? "bg-ink dark:bg-ink-inverse text-surface-0 dark:text-surface-900"
                             : "bg-surface-200 dark:bg-surface-700 text-ink-muted/50 dark:text-ink-inverse-muted/50"
                         )}
@@ -778,6 +795,8 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) =
 
 function MessageBubble({ message }: { message: { id: string; role: string; parts: MessagePart[] } }) {
   const isUser = message.role === 'user'
+  const [previewExpanded, setPreviewExpanded] = useState(false)
+  const isPreviewOpen = usePreviewStore(state => state.isOpen)
 
   if (isUser) {
     // User messages - just show text
@@ -812,6 +831,14 @@ function MessageBubble({ message }: { message: { id: string; role: string; parts
           isStreaming={isStreaming}
           messageId={message.id}
         />
+        
+        {/* Accordion Preview for browser/project automation */}
+        {isPreviewOpen && (
+          <AccordionPreview
+            isExpanded={previewExpanded}
+            onToggle={() => setPreviewExpanded(!previewExpanded)}
+          />
+        )}
       </div>
     </motion.div>
   )

@@ -11,8 +11,9 @@
 
 'use client'
 
-import React, { useState, useCallback, createContext, useContext, memo, useMemo } from 'react'
+import React, { useState, useCallback, createContext, useContext, memo, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
 import type { ToolState } from './types'
@@ -24,11 +25,15 @@ import type { ToolState } from './types'
 interface ToolContextValue {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
+  isStreaming?: boolean
+  duration?: number
 }
 
 const ToolContext = createContext<ToolContextValue>({
   isOpen: false,
   setIsOpen: () => {},
+  isStreaming: false,
+  duration: undefined,
 })
 
 export const useTool = () => useContext(ToolContext)
@@ -98,31 +103,76 @@ interface ToolProps {
   defaultOpen?: boolean
   /** Callback when open state changes */
   onOpenChange?: (open: boolean) => void
+  /** Whether the tool is currently streaming */
+  isStreaming?: boolean
+  /** Duration of the tool execution in seconds */
+  duration?: number
   className?: string
 }
 
-export const Tool = memo(function Tool({ 
-  children, 
+export const Tool = memo(function Tool({
+  children,
   open: controlledOpen,
-  defaultOpen = false, 
+  defaultOpen = false,
   onOpenChange,
-  className 
+  isStreaming = false,
+  duration: durationProp,
+  className
 }: ToolProps) {
-  const isControlled = controlledOpen !== undefined
-  const [internalOpen, setInternalOpen] = useState(defaultOpen)
-  const isOpen = isControlled ? controlledOpen : internalOpen
+  // Use Radix's useControllableState for open state
+  const [isOpen, setIsOpen] = useControllableState({
+    prop: controlledOpen,
+    defaultProp: defaultOpen,
+    onChange: onOpenChange,
+  })
 
-  const setIsOpen = useCallback((newOpen: boolean) => {
-    if (!isControlled) {
-      setInternalOpen(newOpen)
+  // Use Radix's useControllableState for duration
+  const [duration, setDuration] = useControllableState({
+    prop: durationProp,
+    defaultProp: undefined,
+  })
+
+  // Track auto-close state and start time
+  const [hasAutoClosed, setHasAutoClosed] = useState(false)
+  const [startTime, setStartTime] = useState<number | null>(null)
+
+  const AUTO_CLOSE_DELAY = 1000
+  const MS_IN_S = 1000
+
+  // Track duration when streaming starts and ends
+  useEffect(() => {
+    if (isStreaming) {
+      if (startTime === null) {
+        setStartTime(Date.now())
+      }
+      if (!isOpen) {
+        setIsOpen(true)  // Auto-open when streaming starts
+      }
+      setHasAutoClosed(false)
+    } else if (startTime !== null) {
+      // Streaming ended, calculate duration
+      setDuration(Math.ceil((Date.now() - startTime) / MS_IN_S))
+      setStartTime(null)
     }
-    onOpenChange?.(newOpen)
-  }, [isControlled, onOpenChange])
+  }, [isStreaming, startTime, setDuration, isOpen, setIsOpen])
+
+  // Auto-close when streaming ends (only if defaultOpen is true)
+  useEffect(() => {
+    if (defaultOpen && !isStreaming && isOpen && !hasAutoClosed) {
+      const timer = setTimeout(() => {
+        setIsOpen(false)
+        setHasAutoClosed(true)
+      }, AUTO_CLOSE_DELAY)
+      return () => clearTimeout(timer)
+    }
+  }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosed])
 
   const contextValue = useMemo(() => ({
     isOpen,
     setIsOpen,
-  }), [isOpen, setIsOpen])
+    isStreaming,
+    duration,
+  }), [isOpen, setIsOpen, isStreaming, duration])
 
   return (
     <ToolContext.Provider value={contextValue}>
@@ -400,9 +450,9 @@ export const ToolOutput = memo(function ToolOutput({ output, errorText, classNam
 export function mapToolPartState(state: string): ToolState {
   switch (state) {
     case 'input-streaming':
-      return 'pending'
+      return 'running'  // Changed from 'pending' to show active state
     case 'input-available':
-      return 'input-available'
+      return 'running'  // Changed from 'input-available' to show active state
     case 'output-available':
       return 'success'
     case 'output-error':

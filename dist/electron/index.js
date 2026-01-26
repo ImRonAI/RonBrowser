@@ -25,6 +25,7 @@ const electron = require("electron");
 const node_path = require("node:path");
 const node_url = require("node:url");
 const node_child_process = require("node:child_process");
+const node_module = require("node:module");
 const promises = require("node:fs/promises");
 const node_fs = require("node:fs");
 const chokidar = require("chokidar");
@@ -603,6 +604,29 @@ async function performSecurityCheck(tool, args) {
 const __filename$1 = node_url.fileURLToPath(require("url").pathToFileURL(__filename).href);
 const __dirname$1 = node_path.join(__filename$1, "..");
 const CDP_PORT = 9222;
+const MCP_BRIDGE_PORT = 9231;
+let mcpBridgeStarted = false;
+async function startMcpBridge() {
+  if (mcpBridgeStarted) return;
+  try {
+    const require2 = node_module.createRequire(require("url").pathToFileURL(__filename).href);
+    let startElectronBridge;
+    try {
+      startElectronBridge = require2("@executeautomation/playwright-mcp-server/electron").startElectronBridge;
+    } catch {
+      startElectronBridge = require2("/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/electron/index.js").startElectronBridge;
+    }
+    startElectronBridge({
+      port: MCP_BRIDGE_PORT,
+      cdpPort: CDP_PORT,
+      headless: false
+    });
+    mcpBridgeStarted = true;
+    console.log(`[MCP] Electron bridge listening on http://127.0.0.1:${MCP_BRIDGE_PORT}`);
+  } catch (error) {
+    console.warn("[MCP] Bridge unavailable (install @executeautomation/playwright-mcp-server)", error);
+  }
+}
 const CHROME_HEIGHT = 108;
 const AGENT_PANEL_WIDTH = 420;
 electron.app.commandLine.appendSwitch("remote-debugging-port", String(CDP_PORT));
@@ -638,15 +662,18 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false
-    }
+    },
+    icon: node_path.join(__dirname$1, "../../public/favicon.png")
   });
+  const isDev = !electron.app.isPackaged || Boolean(process.env.ELECTRON_RENDERER_URL);
+  const devCsp = "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob: *; connect-src 'self' http://localhost:8765 https: wss: ws:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval';";
+  const prodCsp = "default-src 'self'; img-src 'self' data: https: blob:; connect-src 'self' http://localhost:8765 https: wss: ws:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self';";
+  const csp = isDev ? devCsp : prodCsp;
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        "Content-Security-Policy": [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob: *; connect-src 'self' http://localhost:8765 https: wss: ws:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
-        ]
+        "Content-Security-Policy": [csp]
       }
     });
   });
@@ -657,6 +684,13 @@ async function createWindow() {
     electron.shell.openExternal(details.url);
     return { action: "deny" };
   });
+  if (isDev) {
+    try {
+      await mainWindow.webContents.session.clearCache();
+    } catch (error) {
+      console.warn("[Dev] Failed to clear cache:", error);
+    }
+  }
   if (process.env["ELECTRON_RENDERER_URL"]) {
     mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
@@ -757,6 +791,17 @@ class TabsManager {
       return { success: true, isExternal: true, url: normalizedUrl };
     } else {
       if (mainWindow) {
+        if (tab.view && mainWindow.contentView.children.includes(tab.view)) {
+          mainWindow.contentView.removeChildView(tab.view);
+        }
+        if (normalizedUrl.startsWith("ron://search")) {
+          tab.title = "Search";
+        } else if (normalizedUrl.startsWith("ron://home")) {
+          tab.title = "Home";
+        } else if (normalizedUrl.startsWith("ron://")) {
+          tab.title = "Ron";
+        }
+        this.emitTabsUpdated();
         mainWindow.webContents.send("browser:external-mode", false);
         mainWindow.webContents.send("browser:url-changed", tab.url);
       }
@@ -921,6 +966,7 @@ electron.app.whenReady().then(async () => {
   createWindow();
   tabsManager.create("tab-initial", "ron://home");
   tabsManager.switch("tab-initial");
+  await startMcpBridge();
   if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true") {
     console.log("[Main] Initializing Python Tool Management System...");
     registerToolManagerIPC();
@@ -1379,14 +1425,26 @@ electron.ipcMain.handle("sandbox:get-root", async () => {
 electron.ipcMain.handle("sandbox:shell", async (_, command, args = [], options = {}) => {
   const sandboxRoot = ensureSandboxExists();
   const { spawn: spawn2 } = require("child_process");
-  const timeout = options.timeout || 3e4;
+  const maxTimeout = 3e4;
+  const maxNoOutputTimeout = 15e3;
+  const requestedTimeout = Number.isFinite(options.timeout) ? options.timeout : maxTimeout;
+  const timeout = Math.min(Math.max(requestedTimeout, 1e3), maxTimeout);
+  const requestedNoOutputTimeout = Number.isFinite(options.noOutputTimeout) ? options.noOutputTimeout : maxNoOutputTimeout;
+  const noOutputTimeout = Math.min(Math.max(requestedNoOutputTimeout, 1e3), maxNoOutputTimeout);
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let noOutputTimedOut = false;
+    let resolved = false;
+    let outputSeen = false;
+    let killTimer = null;
+    let timer = null;
+    let noOutputTimer = null;
     const child = spawn2(command, args, {
       cwd: sandboxRoot,
       shell: true,
+      detached: true,
       env: {
         ...process.env,
         HOME: sandboxRoot,
@@ -1394,26 +1452,78 @@ electron.ipcMain.handle("sandbox:shell", async (_, command, args = [], options =
         PWD: sandboxRoot
       }
     });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGTERM");
-      setTimeout(() => {
+    const terminate = (signal) => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
         try {
-          child.kill("SIGKILL");
+          child.kill(signal);
         } catch {
         }
-      }, 1e3);
+      }
+    };
+    const clearNoOutputTimer = () => {
+      if (noOutputTimer) {
+        clearTimeout(noOutputTimer);
+        noOutputTimer = null;
+      }
+    };
+    const finalize = (payload) => {
+      if (resolved) return;
+      resolved = true;
+      if (timer) clearTimeout(timer);
+      if (!timedOut && !noOutputTimedOut && killTimer) clearTimeout(killTimer);
+      clearNoOutputTimer();
+      child.stdout?.removeAllListeners("data");
+      child.stderr?.removeAllListeners("data");
+      child.removeAllListeners("close");
+      child.removeAllListeners("error");
+      resolve(payload);
+    };
+    timer = setTimeout(() => {
+      if (resolved) return;
+      timedOut = true;
+      terminate("SIGTERM");
+      killTimer = setTimeout(() => terminate("SIGKILL"), 1e3);
+      finalize({
+        success: false,
+        error: `Command timed out after ${timeout}ms`,
+        stdout,
+        stderr,
+        exitCode: -1
+      });
     }, timeout);
+    noOutputTimer = setTimeout(() => {
+      if (resolved || outputSeen) return;
+      noOutputTimedOut = true;
+      terminate("SIGTERM");
+      killTimer = setTimeout(() => terminate("SIGKILL"), 1e3);
+      finalize({
+        success: false,
+        error: `Command produced no output after ${noOutputTimeout}ms`,
+        stdout,
+        stderr,
+        exitCode: -1
+      });
+    }, noOutputTimeout);
     child.stdout?.on("data", (data) => {
+      if (!outputSeen) {
+        outputSeen = true;
+        clearNoOutputTimer();
+      }
       stdout += data.toString();
     });
     child.stderr?.on("data", (data) => {
+      if (!outputSeen) {
+        outputSeen = true;
+        clearNoOutputTimer();
+      }
       stderr += data.toString();
     });
     child.on("close", (code) => {
-      clearTimeout(timer);
       if (timedOut) {
-        resolve({
+        finalize({
           success: false,
           error: `Command timed out after ${timeout}ms`,
           stdout,
@@ -1421,7 +1531,7 @@ electron.ipcMain.handle("sandbox:shell", async (_, command, args = [], options =
           exitCode: -1
         });
       } else {
-        resolve({
+        finalize({
           success: code === 0,
           stdout,
           stderr,
@@ -1431,8 +1541,7 @@ electron.ipcMain.handle("sandbox:shell", async (_, command, args = [], options =
       }
     });
     child.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({
+      finalize({
         success: false,
         error: err.message,
         stdout,

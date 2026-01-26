@@ -26,3 +26,6 @@ export { SitePreviewModal } from './SitePreviewModal'
 
 // Full Results Layout
 export { SearchLayout } from './SearchLayout'
+
+// Search Agent Display
+export { SearchAgentDisplay } from './SearchAgentDisplay'

@@ -7,7 +7,7 @@
  * TODO: This is a placeholder - full implementation in Phase 2
  */
 
-import type { SearchResponse, UniversalResult, SearchFilters } from '@/types/search'
+import type { SearchResponse, UniversalResult, SearchFilters } from '@/pages/types/search'
 
 interface SearchLayoutProps {
   searchResponse: SearchResponse | null

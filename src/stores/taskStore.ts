@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Task, TaskStatus, TaskRelationship, RelationshipType } from '@/types/task'
+import { Task, TaskStatus, TaskRelationship, RelationshipType } from '@/pages/types/task'
 
 // Sample data adapted from TaskCard.tsx
 const sampleTasks: Task[] = [

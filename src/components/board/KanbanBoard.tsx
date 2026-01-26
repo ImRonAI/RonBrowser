@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { TaskCard } from './TaskCard'
 import { TaskDetailView } from './task-detail'
-import type { Task } from '@/types/task'
+import type { Task } from '@/pages/types/task'
 import { useTaskStore } from '@/stores/taskStore'
 
 // Sophisticated easing

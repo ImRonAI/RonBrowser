@@ -36,12 +36,16 @@ export default defineConfig({
         '@catalyst': resolve(__dirname, './src/components/catalyst')
       }
     },
+    optimizeDeps: {
+      include: ['three', '@react-three/fiber', '@react-three/drei']
+    },
     build: {
       outDir: 'dist/renderer',
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'index.html')
-        }
+        },
+        external: ['vscode-jsonrpc', 'langium']
       }
     }
   }

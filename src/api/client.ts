@@ -7,7 +7,7 @@
  * Base URL: https://api.ron-ai.io/v1
  */
 
-import { API_BASE_URL, type ApiResponse, type ApiError, type ApiRequestConfig } from '@/types/api'
+import { API_BASE_URL, type ApiResponse, type ApiError, type ApiRequestConfig } from '@/pages/types/api'
 import { getAccessToken, refreshSession } from './supabase'
 
 // ============================================

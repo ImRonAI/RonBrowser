@@ -66,10 +66,16 @@ MCP_SERVERS = {
         'description': 'Google Data Commons statistical data'
     },
     'playwright-electron-mcp': {
-        'path': 'agent/tools/mcp/playwright-electron-mcp',
+        'path': 'agent/tools/mcp/mcp-playwright',
         'command': 'node',
-        'args': ['dist/index.js'],
-        'description': 'Browser automation via Playwright'
+        'args': [
+            'dist/index.js',
+            '--electron-mode', 'electron',
+            '--electron-bridge-url', 'http://127.0.0.1:9231',
+            '--electron-iframe-selector', 'iframe[data-active="true"]',
+            '--electron-iframe-type', 'iframe'
+        ],
+        'description': 'Playwright/Electron MCP Server (Electron UI only)'
     }
 }
 
@@ -186,12 +192,13 @@ def generate_manifest(base_path: Path, output_path: Path, custom_tools_dir: Opti
     # Add MCP servers
     for server_id, config in MCP_SERVERS.items():
         server_path = base_path / config['path']
+        env_arg = f", env={config['env']}" if config.get('env') else ""
         manifest["mcp_servers"].append({
             "id": server_id,
             "description": config['description'],
             "path": str(server_path.absolute()),
             "exists": server_path.exists(),
-            "connect_command": f"mcp_client(action='connect', connection_id='{server_id}', transport='stdio', command='{config['command']}', args={config['args']})"
+            "connect_command": f"mcp_client(action='connect', connection_id='{server_id}', transport='stdio', command='{config['command']}', args={config['args']}{env_arg})"
         })
     
     # Scan OpenAPI specs

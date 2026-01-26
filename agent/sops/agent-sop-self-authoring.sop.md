@@ -57,7 +57,7 @@ Use tools to research best practices for the workflow being encoded.
 - You MUST use at least one of:
   - Sonar Reasoning Pro search
   - Sonar Deep Research
-  - A relevant MCP server (via `load_mcp_server` or `mcp_client`) if domain-specific tools exist
+  - A relevant MCP server (via `mcp_client`) if domain-specific tools exist
 - You MUST capture citations or source links when available.
 - You MUST store the research output in a working file (e.g., `sop_authoring_research.md`).
 
@@ -109,7 +109,7 @@ Save the SOP and ensure it is discoverable by the agent-sop MCP server.
 ### Example Input
 ```
 workflow_goal: "Create an SOP for incident triage in the app"
-target_agent_context: "Strands agent with load_mcp_server, mcp_client, file_read, file_write, mem0_memory"
+target_agent_context: "Strands agent with mcp_client, file_read, file_write, mem0_memory"
 output_sop_name: "incident-triage"
 output_dir: "agent/sops"
 ```

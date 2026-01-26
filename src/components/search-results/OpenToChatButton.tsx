@@ -6,7 +6,7 @@
  * Supports icon-only, text-only, and full button variants.
  */
 
-import type { UniversalResult } from '@/types/search'
+import type { UniversalResult } from '@/pages/types/search'
 import { Button } from '@/components/ui/button'
 import { MessageCircle } from 'lucide-react'
 import { openInAgent, getAgentForResult } from '@/utils/open-to-chat'

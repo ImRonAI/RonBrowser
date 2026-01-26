@@ -11,12 +11,21 @@ export function SearchBar() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!query.trim()) return
+    const trimmed = query.trim()
+    if (!trimmed) return
 
-    console.log('Searching:', query)
+    console.log('Searching:', trimmed)
 
     // Trigger the search results page
-    search(query)
+    search(trimmed)
+
+    if (typeof window !== 'undefined' && window.electron?.browser?.search) {
+      try {
+        await window.electron.browser.search(trimmed)
+      } catch (error) {
+        console.error('Search error:', error)
+      }
+    }
   }
 
   return (

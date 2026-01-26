@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Task } from '@/types/task'
+import type { Task } from '@/pages/types/task'
 import { NotionEditor } from '../editor/NotionEditor'
 import { 
   Sparkles as SparklesIcon, 
@@ -108,7 +108,7 @@ export function DescriptionTab({ task, onUpdate, onTaskClick }: DescriptionTabPr
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { SubtaskCreationModal } from '../SubtaskCreationModal'
-import { TaskPriority } from '@/types/task'
+import { TaskPriority } from '@/pages/types/task'
 
 function SubtasksSection({ 
   subtasks, 

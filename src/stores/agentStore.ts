@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { API_BASE_URL, API_ENDPOINTS } from '@/types/api'
+import { API_BASE_URL, API_ENDPOINTS } from '@/pages/types/api'
 import type {
   Message,
   ToolUse,
@@ -7,7 +7,7 @@ import type {
   ConversationContext,
   AgentStreamEvent,
   ChatRequest,
-} from '@/types/agent'
+} from '@/pages/types/agent'
 import { getAccessToken } from '@/api/supabase'
 
 // ============================================

@@ -10,7 +10,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Task, TaskRelationship } from '@/types/task'
+import type { Task, TaskRelationship } from '@/pages/types/task'
 import { useTaskStore } from '@/stores/taskStore'
 import {
   Link as LinkIcon,

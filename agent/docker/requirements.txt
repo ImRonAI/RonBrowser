@@ -4,3 +4,4 @@ pyautogui
 pytesseract
 opencv-python-headless
 pillow
+google-genai

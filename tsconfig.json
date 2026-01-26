@@ -21,7 +21,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@catalyst/*": ["./src/components/catalyst/*"]
+      "@catalyst/*": ["./src/components/catalyst/*"],
+      "three": ["./node_modules/@types/three/index.d.ts"]
     }
   },
   "include": ["src", "electron"],

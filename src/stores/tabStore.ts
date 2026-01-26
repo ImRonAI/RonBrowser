@@ -34,6 +34,7 @@ const DEFAULT_TAB_URL = 'ron://home'
 const RON_URL_TITLES: Record<string, string> = {
   'ron://home': 'Home',
   'ron://board': 'Task Board',
+  'ron://search': 'Search',
 }
 
 export const useTabStore = create<TabState>()(

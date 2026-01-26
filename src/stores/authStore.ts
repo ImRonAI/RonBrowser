@@ -10,7 +10,7 @@ import {
   getSession,
   isSupabaseConfigured,
 } from '@/api/supabase'
-import type { User, UserPreferences, AuthError } from '@/types/user'
+import type { User, UserPreferences, AuthError } from '@/pages/types/user'
 
 // ============================================
 // State Interface

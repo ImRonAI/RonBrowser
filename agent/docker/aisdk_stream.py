@@ -20,6 +20,7 @@ Protocol:
 import json
 import uuid
 from typing import Dict, Any, Optional
+from enum import Enum
 
 
 class AISDKStreamEmitter:
@@ -117,6 +118,16 @@ class AISDKStreamEmitter:
         return f'data: {json.dumps({"type": "error", "errorText": error_text})}\n\n'
 
     @staticmethod
+    def emit_data_part(part_type: str, data: Any, part_id: Optional[str] = None, transient: bool = False) -> str:
+        """Emit a custom data part (AI SDK UIMessageStream)."""
+        event: Dict[str, Any] = {"type": f"data-{part_type}", "data": data}
+        if part_id is not None:
+            event["id"] = part_id
+        if transient:
+            event["transient"] = True
+        return f'data: {json.dumps(event)}\n\n'
+
+    @staticmethod
     def emit_ping() -> str:
         """SSE ping/keepalive comment."""
         return ': ping\n\n'
@@ -152,6 +163,25 @@ class AISDKCallbackHandler:
         self.reasoning_id: Optional[str] = None
         self.text_id: Optional[str] = None
         self.pending_tool_ids: set = set()  # Track tools awaiting output
+
+    def _json_safe(self, payload: Any) -> Any:
+        """Best-effort JSON-safe conversion for SSE payloads."""
+        def default(obj: Any):
+            if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
+                try:
+                    return obj.to_dict()
+                except Exception:
+                    pass
+            if isinstance(obj, Enum):
+                return obj.value
+            if isinstance(obj, set):
+                return list(obj)
+            return str(obj)
+
+        try:
+            return json.loads(json.dumps(payload, default=default))
+        except Exception:
+            return payload
 
     def _new_id(self, prefix: str = "") -> str:
         """Generate unique ID for blocks."""
@@ -201,6 +231,15 @@ class AISDKCallbackHandler:
 
         if kwargs.get("start_event_loop"):
             self._ensure_started()
+            return
+
+        # Handle multiagent orchestration events (graph/swarm)
+        event_type = kwargs.get("type")
+        if isinstance(event_type, str) and event_type.startswith("multiagent_"):
+            self._ensure_started()
+            payload = {k: v for k, v in kwargs.items() if k != "type"}
+            payload["eventType"] = event_type
+            self.emit(self.emitter.emit_data_part("orchestration", self._json_safe(payload), transient=True))
             return
 
         # Handle reasoning content
@@ -262,6 +301,14 @@ class AISDKCallbackHandler:
             tool_use = tool_stream_event.get("tool_use", {})
             tool_id = tool_use.get("toolUseId", "unknown")
             output_data = tool_stream_event.get("data")
+
+            if (
+                isinstance(output_data, dict)
+                and isinstance(output_data.get("type"), str)
+                and output_data["type"].startswith("multiagent_")
+            ):
+                self.emit(self.emitter.emit_data_part("orchestration", self._json_safe(output_data), transient=True))
+                return
 
             self.emit(self.emitter.emit_tool_output_available(tool_id, output_data))
             self.pending_tool_ids.discard(tool_id)

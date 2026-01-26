@@ -21,8 +21,8 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
 
-import type { SonarReasoningResponse, ChainOfThoughtStep, UniversalResult } from '@/types/search'
-import { isSocialMediaResult, isImageResult } from '@/types/search'
+import type { SonarReasoningResponse, ChainOfThoughtStep, UniversalResult } from '@/pages/types/search'
+import { isSocialMediaResult, isImageResult } from '@/pages/types/search'
 import { cn } from '@/lib/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────

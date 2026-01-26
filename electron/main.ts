@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, ipcMain, safeStorage, WebContentsView, Menu,
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
+import { createRequire } from 'node:module'
 
 // Tool Management System (behind feature flag)
 import { initializeToolManager, registerToolManagerIPC, getDiscoveredTools, stopWatcher } from './tool-manager'
@@ -14,6 +15,31 @@ const __dirname = join(__filename, '..')
 
 // CDP Port for browser automation
 const CDP_PORT = 9222
+const MCP_BRIDGE_PORT = 9231
+
+let mcpBridgeStarted = false
+
+async function startMcpBridge() {
+  if (mcpBridgeStarted) return
+  try {
+    const require = createRequire(import.meta.url)
+    let startElectronBridge: any
+    try {
+      startElectronBridge = require('@executeautomation/playwright-mcp-server/electron').startElectronBridge
+    } catch {
+      startElectronBridge = require('/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/electron/index.js').startElectronBridge
+    }
+    startElectronBridge({
+      port: MCP_BRIDGE_PORT,
+      cdpPort: CDP_PORT,
+      headless: false
+    })
+    mcpBridgeStarted = true
+    console.log(`[MCP] Electron bridge listening on http://127.0.0.1:${MCP_BRIDGE_PORT}`)
+  } catch (error) {
+    console.warn('[MCP] Bridge unavailable (install @executeautomation/playwright-mcp-server)', error)
+  }
+}
 
 // Layout constants
 const CHROME_HEIGHT = 108 // Height of toolbar (64px) + tabs (44px)
@@ -77,22 +103,33 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false
-    }
+    },
+    icon: join(__dirname, '../../public/favicon.png')
   })
 
-  // Allow external images (Unsplash, etc.) by setting permissive CSP for images
+  // Allow external images (Unsplash, etc.) by setting CSP (dev is permissive for HMR)
+  const isDev = !app.isPackaged || Boolean(process.env.ELECTRON_RENDERER_URL)
+  const devCsp =
+    "default-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "img-src 'self' data: https: blob: *; " +
+    "connect-src 'self' http://localhost:8765 https: wss: ws:; " +
+    "font-src 'self' data: https:; " +
+    "style-src 'self' 'unsafe-inline' https:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+  const prodCsp =
+    "default-src 'self'; " +
+    "img-src 'self' data: https: blob:; " +
+    "connect-src 'self' http://localhost:8765 https: wss: ws:; " +
+    "font-src 'self' data: https:; " +
+    "style-src 'self' 'unsafe-inline' https:; " +
+    "script-src 'self';"
+  const csp = isDev ? devCsp : prodCsp
+
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-          "img-src 'self' data: https: blob: *; " +
-          "connect-src 'self' http://localhost:8765 https: wss: ws:; " +
-          "font-src 'self' data: https:; " +
-          "style-src 'self' 'unsafe-inline' https:; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval';"
-        ]
+        'Content-Security-Policy': [csp]
       }
     })
   })
@@ -105,6 +142,14 @@ async function createWindow() {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
+
+  if (isDev) {
+    try {
+      await mainWindow.webContents.session.clearCache()
+    } catch (error) {
+      console.warn('[Dev] Failed to clear cache:', error)
+    }
+  }
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
@@ -249,6 +294,19 @@ class TabsManager {
     } else {
       // Internal page => detach any view if this tab is active
       if (mainWindow) {
+        if (tab.view && mainWindow.contentView.children.includes(tab.view)) {
+          mainWindow.contentView.removeChildView(tab.view)
+        }
+
+        if (normalizedUrl.startsWith('ron://search')) {
+          tab.title = 'Search'
+        } else if (normalizedUrl.startsWith('ron://home')) {
+          tab.title = 'Home'
+        } else if (normalizedUrl.startsWith('ron://')) {
+          tab.title = 'Ron'
+        }
+
+        this.emitTabsUpdated()
         mainWindow.webContents.send('browser:external-mode', false)
         mainWindow.webContents.send('browser:url-changed', tab.url)
       }
@@ -442,6 +500,7 @@ app.whenReady().then(async () => {
   // Create an initial tab so renderer has something to render/sync
   tabsManager.create('tab-initial', 'ron://home')
   tabsManager.switch('tab-initial')
+  await startMcpBridge()
 
   // Initialize Tool Management System (if feature flag enabled)
   if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {
@@ -1114,48 +1173,115 @@ ipcMain.handle('sandbox:get-root', async () => {
 })
 
 // Execute shell command in sandbox (with timeout)
-ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], options: { timeout?: number } = {}) => {
+ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], options: { timeout?: number; noOutputTimeout?: number } = {}) => {
   const sandboxRoot = ensureSandboxExists()
   const { spawn } = require('child_process')
-  const timeout = options.timeout || 30000 // 30 second default timeout
+  const maxTimeout = 30000
+  const maxNoOutputTimeout = 15000
+  const requestedTimeout = Number.isFinite(options.timeout) ? options.timeout! : maxTimeout
+  const timeout = Math.min(Math.max(requestedTimeout, 1000), maxTimeout)
+  const requestedNoOutputTimeout = Number.isFinite(options.noOutputTimeout) ? options.noOutputTimeout! : maxNoOutputTimeout
+  const noOutputTimeout = Math.min(Math.max(requestedNoOutputTimeout, 1000), maxNoOutputTimeout)
   
   return new Promise((resolve) => {
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let noOutputTimedOut = false
+    let resolved = false
+    let outputSeen = false
+    let killTimer: NodeJS.Timeout | null = null
+    let timer: NodeJS.Timeout | null = null
+    let noOutputTimer: NodeJS.Timeout | null = null
     
     const child = spawn(command, args, {
       cwd: sandboxRoot,
       shell: true,
+      detached: true,
       env: {
         ...process.env,
         HOME: sandboxRoot, // Restrict HOME to sandbox
         PWD: sandboxRoot,
       }
     })
+
+    const terminate = (signal: NodeJS.Signals) => {
+      if (!child.pid) return
+      try {
+        process.kill(-child.pid, signal)
+      } catch {
+        try { child.kill(signal) } catch {}
+      }
+    }
+
+    const clearNoOutputTimer = () => {
+      if (noOutputTimer) {
+        clearTimeout(noOutputTimer)
+        noOutputTimer = null
+      }
+    }
+
+    const finalize = (payload: { success: boolean; error?: string; stdout: string; stderr: string; exitCode: number }) => {
+      if (resolved) return
+      resolved = true
+      if (timer) clearTimeout(timer)
+      if (!timedOut && !noOutputTimedOut && killTimer) clearTimeout(killTimer)
+      clearNoOutputTimer()
+      child.stdout?.removeAllListeners('data')
+      child.stderr?.removeAllListeners('data')
+      child.removeAllListeners('close')
+      child.removeAllListeners('error')
+      resolve(payload)
+    }
     
     // Set timeout
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
+      if (resolved) return
       timedOut = true
-      child.kill('SIGTERM')
-      setTimeout(() => {
-        try { child.kill('SIGKILL') } catch {}
-      }, 1000)
+      terminate('SIGTERM')
+      killTimer = setTimeout(() => terminate('SIGKILL'), 1000)
+      finalize({
+        success: false,
+        error: `Command timed out after ${timeout}ms`,
+        stdout,
+        stderr,
+        exitCode: -1
+      })
     }, timeout)
+
+    noOutputTimer = setTimeout(() => {
+      if (resolved || outputSeen) return
+      noOutputTimedOut = true
+      terminate('SIGTERM')
+      killTimer = setTimeout(() => terminate('SIGKILL'), 1000)
+      finalize({
+        success: false,
+        error: `Command produced no output after ${noOutputTimeout}ms`,
+        stdout,
+        stderr,
+        exitCode: -1
+      })
+    }, noOutputTimeout)
     
     child.stdout?.on('data', (data: Buffer) => {
+      if (!outputSeen) {
+        outputSeen = true
+        clearNoOutputTimer()
+      }
       stdout += data.toString()
     })
     
     child.stderr?.on('data', (data: Buffer) => {
+      if (!outputSeen) {
+        outputSeen = true
+        clearNoOutputTimer()
+      }
       stderr += data.toString()
     })
     
     child.on('close', (code: number | null) => {
-      clearTimeout(timer)
-      
       if (timedOut) {
-        resolve({
+        finalize({
           success: false,
           error: `Command timed out after ${timeout}ms`,
           stdout,
@@ -1163,7 +1289,7 @@ ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], 
           exitCode: -1
         })
       } else {
-        resolve({
+        finalize({
           success: code === 0,
           stdout,
           stderr,
@@ -1174,8 +1300,7 @@ ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], 
     })
     
     child.on('error', (err: Error) => {
-      clearTimeout(timer)
-      resolve({
+      finalize({
         success: false,
         error: err.message,
         stdout,
@@ -1258,4 +1383,3 @@ ipcMain.handle('sandbox:list-files', async (_, relativePath: string = '') => {
     return { success: false, error: error.message }
   }
 })
-

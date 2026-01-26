@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
-import type { Task, TaskPriority, TaskStatus, TaskLabel } from '@/types/task'
-import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG } from '@/types/task'
+import type { Task, TaskPriority, TaskStatus, TaskLabel } from '@/pages/types/task'
+import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG } from '@/pages/types/task'
 import { useTaskStore } from '@/stores/taskStore'
 import { RelationshipManager } from './RelationshipManager'
 import { RelationshipSummary } from './RelationshipSummary'

@@ -4,16 +4,15 @@ import { useAuthStore } from '@/stores/authStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useOnboardingStore } from '@/stores/onboardingStore'
 import { useInterestsStore } from '@/stores/interestsStore'
-import { useSearchStore, selectShowQuickResults, selectShowFullResults, selectShowChat } from '@/stores/searchStore'
+import { useSearchStore, selectShowFullResults, selectShowChat } from '@/stores/searchStore'
+import { getSearchQueryFromRonUrl } from '@/components/chrome/UrlBar'
 import { BrowserLayout } from '@/layouts/BrowserLayout'
 import { AuthPageLayout } from '@/layouts/AuthPageLayout'
 import { HomePage } from '@/pages/HomePage'
 import { SignInPage } from '@/pages/SignInPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { AIElementsShowcase } from '@/pages/AIElementsShowcase'
-import { SearchResultsPage } from '@/pages/SearchResultsPage'
-import { SearchThinkingOverlay, SearchQuickResults, SearchChat } from '@/components/search-results'
-import type { SourceData } from '@/components/search-results/SourceCard'
+import { SearchThinkingOverlay, SearchChat, SearchAgentDisplay } from '@/components/search-results'
 
 // ============================================
 // DEV MODE FLAGS
@@ -41,13 +40,10 @@ export function App() {
     query: searchQuery, 
     quickResult,
     isStreaming,
-    goToFullResults,
-    goToChat,
-    tryAgain,
+    setPhase,
     clearSearch,
   } = searchStore
   
-  const showQuickResults = selectShowQuickResults(searchStore)
   const showFullResults = selectShowFullResults(searchStore)
   const showChat = selectShowChat(searchStore)
   const showThinking = searchPhase === 'thinking'
@@ -61,6 +57,7 @@ export function App() {
   const [showSearchResultsDev, setShowSearchResultsDev] = useState(() => {
     return window.location.hash === '#search' || window.location.hash === '#results'
   })
+  const [searchRouteQuery, setSearchRouteQuery] = useState<string | null>(null)
   
   // DEV: Reset app on launch if flag is set
   useEffect(() => {
@@ -108,6 +105,36 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [searchPhase, clearSearch])
 
+  useEffect(() => {
+    const updateSearchRoute = () => {
+      const queryParams = new URLSearchParams(window.location.search)
+      const query = queryParams.get('q')
+      setSearchRouteQuery(query && query.trim() ? query : null)
+    }
+
+    const handleUrlChanged = (newUrl: string) => {
+      if (!newUrl.startsWith('ron://search')) {
+        setSearchRouteQuery(null)
+        return
+      }
+      const query = getSearchQueryFromRonUrl(newUrl)
+      setSearchRouteQuery(query && query.trim() ? query : null)
+    }
+
+    updateSearchRoute()
+    window.addEventListener('popstate', updateSearchRoute)
+
+    let cleanup: (() => void) | undefined
+    if (typeof window !== 'undefined' && window.electron?.browser?.onUrlChanged) {
+      cleanup = window.electron.browser.onUrlChanged(handleUrlChanged)
+    }
+
+    return () => {
+      window.removeEventListener('popstate', updateSearchRoute)
+      if (cleanup) cleanup()
+    }
+  }, [])
+
   // Initialize with at least one tab
   useEffect(() => {
     if (isAuthenticated && isComplete && tabs.length === 0) {
@@ -124,12 +151,7 @@ export function App() {
     }
   }, [isDark])
 
-  // Stream search results from Sonar Reasoning Pro API
-  useEffect(() => {
-    if (searchPhase === 'reasoning' && quickResult) {
-      streamSonarReasoningPro(quickResult.query)
-    }
-  }, [searchPhase, quickResult])
+  // SearchAgentDisplay handles its own fetching - no need to fetch here
 
   // DEV: Show AI Elements Showcase (accessible from any state via Cmd/Ctrl + Shift + S)
   if (showShowcase) {
@@ -138,10 +160,32 @@ export function App() {
 
   // DEV: Show Search Results Page (accessible from any state via #search or #results hash, or Cmd/Ctrl + Shift + R)
   // Also show when full results phase is active
-  if (showSearchResultsDev || showFullResults) {
+  if (showSearchResultsDev || showFullResults || searchRouteQuery) {
     return (
       <BrowserLayout>
-        <SearchResultsPage />
+        <div className="min-h-screen bg-surface-0 dark:bg-surface-900 p-8">
+          <SearchAgentDisplay
+            query={searchRouteQuery || searchQuery || "The Buffalo Bills"}
+            sessionId="search-page"
+          />
+        </div>
+      </BrowserLayout>
+    )
+  }
+
+  if (showChat && searchQuery) {
+    return (
+      <BrowserLayout>
+        <SearchChat
+          searchResult={{
+            query: searchQuery,
+            answer: quickResult?.answer,
+            sources: quickResult?.sources,
+          }}
+          onBack={() => {
+            setPhase(isStreaming ? 'answering' : 'complete')
+          }}
+        />
       </BrowserLayout>
     )
   }
@@ -160,49 +204,16 @@ export function App() {
     return <OnboardingPage />
   }
 
-  // Handler functions for search quick results
-  const handleSendToRon = (source: SourceData) => {
-    console.log('Send to Ron:', source)
-    // TODO: Implement Ron agent integration
-  }
-
-  const handleSendToCoding = (source: SourceData) => {
-    console.log('Send to Coding:', source)
-    // TODO: Implement coding agent integration
-  }
-
-  const handleAttachToTask = (source: SourceData) => {
-    console.log('Attach to Task:', source)
-    // TODO: Implement task attachment
-  }
-
-  const handleStartTask = (source: SourceData) => {
-    console.log('Start Task:', source)
-    // TODO: Implement task creation
-  }
-
   // Main browser interface with search overlays
   return (
     <>
       <BrowserLayout>
-        {/* Show chat interface when in chatting phase */}
-        {showChat && quickResult ? (
-          <SearchChat
-            searchResult={quickResult}
-            onBack={() => clearSearch()}
-          />
-        ) : showQuickResults && quickResult ? (
-          <div className="h-full overflow-auto bg-surface-0 dark:bg-surface-900">
-            <SearchQuickResults
-              result={quickResult}
-              isStreaming={isStreaming}
-              onSeeFullResults={goToFullResults}
-              onTryAgain={tryAgain}
-              onLetsChat={goToChat}
-              onSendToRon={handleSendToRon}
-              onSendToCoding={handleSendToCoding}
-              onAttachToTask={handleAttachToTask}
-              onStartTask={handleStartTask}
+        {/* If there's an active search, show SearchAgentDisplay */}
+        {searchQuery && searchPhase !== 'idle' ? (
+          <div className="h-full overflow-auto bg-surface-0 dark:bg-surface-900 p-8">
+            <SearchAgentDisplay
+              query={searchQuery}
+              sessionId="search-session"
             />
           </div>
         ) : (
@@ -220,133 +231,6 @@ export function App() {
 }
 
 // ============================================
-// DEMO: Simulate search streaming
-// In production, this would be replaced with actual API calls
+// Search Agent Stream - Real Implementation with Strands
 // ============================================
-async function streamSonarReasoningPro(query: string) {
-  const store = useSearchStore.getState()
-
-  // Reset state for new search
-  store.setIsStreaming(true)
-
-  // Create reasoning step for displaying progress
-  const reasoningStepId = 'reasoning-1'
-  store.addReasoningStep({
-    id: reasoningStepId,
-    label: 'Deep Reasoning',
-    description: 'Analyzing your query with advanced reasoning',
-    status: 'running'
-  })
-
-  try {
-    const response = await fetch('http://localhost:8765/api/sonar-reasoning-pro/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'system',
-            content: `You are a sophisticated search assistant. Show your step-by-step reasoning in <think> tags, then provide a comprehensive answer with inline citations [1], [2], [3].`
-          },
-          {
-            role: 'user',
-            content: query
-          }
-        ],
-        reasoning_effort: 'high',
-        temperature: 0.2
-      })
-    })
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-      throw new Error('No response body available')
-    }
-
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim()
-          if (data === '[DONE]' || !data) continue
-
-          try {
-            const event = JSON.parse(data)
-
-            switch (event.type) {
-              case 'reasoning_start':
-                store.updateReasoningStep(reasoningStepId, {
-                  status: 'running',
-                  reasoning: ''
-                })
-                break
-
-              case 'reasoning':
-                const currentStep = store.getState().quickResult?.reasoning.find(r => r.id === reasoningStepId)
-                store.updateReasoningStep(reasoningStepId, {
-                  reasoning: (currentStep?.reasoning || '') + event.content
-                })
-                break
-
-              case 'reasoning_end':
-                store.updateReasoningStep(reasoningStepId, { status: 'complete' })
-                break
-
-              case 'content':
-                store.appendAnswer(event.content)
-                break
-
-              case 'metadata':
-                if (event.citations) {
-                  const sources = event.citations.map((c: any) => ({
-                    id: c.id,
-                    url: c.url,
-                    title: c.title,
-                    snippet: c.snippet,
-                    domain: c.domain,
-                    type: 'web' as const
-                  }))
-                  store.setSources(sources)
-                }
-                if (event.finish_reason === 'stop') {
-                  store.setIsStreaming(false)
-                }
-                break
-
-              case 'error':
-                console.error('Streaming error:', event.error)
-                store.updateReasoningStep(reasoningStepId, {
-                  status: 'complete',
-                  reasoning: `Error: ${event.error}`
-                })
-                store.setIsStreaming(false)
-                break
-            }
-          } catch (e) {
-            console.error('Failed to parse SSE event:', e)
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Sonar Reasoning Pro streaming error:', error)
-    store.updateReasoningStep(reasoningStepId, {
-      status: 'complete',
-      reasoning: `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`
-    })
-    store.setIsStreaming(false)
-  }
-}
+// Removed streamSonarReasoningPro - SearchAgentDisplay handles its own fetching

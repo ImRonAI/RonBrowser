@@ -1,10 +1,11 @@
 """Ron Superagent - Runs inside Docker container with virtual desktop."""
 import json
+import os
 from pathlib import Path
 from typing import Optional, Any, Dict, Callable
 
 from strands import Agent
-from strands.models import BedrockModel
+from strands.models.litellm import LiteLLMModel
 from strands.types.tools import ToolResult, ToolUse
 
 from strands.tools.mcp import MCPClient
@@ -151,17 +152,17 @@ class CallbackHandler:
         pass
 
 
-def create_bedrock_model() -> BedrockModel:
-    """Create Bedrock model with Claude Opus 4.5."""
-    return BedrockModel(
-        model_id="us.anthropic.claude-opus-4-5-20250101-v1:0",
-        temperature=1,
-        additional_request_fields={
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 32768
-            },
-            "anthropic_beta": ["interleaved-thinking-2025-05-14"]
+def create_litellm_model() -> LiteLLMModel:
+    """Create LiteLLM model with Grok 4.1 Fast Reasoning."""
+    return LiteLLMModel(
+        model_id="xai/grok-4-1-fast-reasoning",
+        client_args={
+            "api_key": os.getenv("XAI_API_KEY"),
+            "merge_reasoning_content_in_choices": True
+        },
+        params={
+            "temperature": 1.0,
+            "max_tokens": 200000
         }
     )
 
@@ -172,7 +173,7 @@ def create_superagent(
     additional_tools: Optional[list] = None
 ) -> Agent:
     """Create and configure the Ron Superagent."""
-    model = create_bedrock_model()
+    model = create_litellm_model()
     a2a_provider = A2AClientToolProvider(known_agent_urls=a2a_urls or [])
 
     tools = [

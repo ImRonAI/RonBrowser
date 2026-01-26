@@ -11,6 +11,7 @@
 
 import { create } from 'zustand';
 import type {
+  AgentResult,
   GraphState,
   WorkflowState,
   SwarmState,
@@ -57,6 +58,16 @@ export interface AgentStreamingData {
   }[];
 }
 
+export interface CompletedNodeOutput {
+  status: "success" | "error";
+  content: string;
+  duration?: number;
+  tokenUsage: {
+    input?: number;
+    output?: number;
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Store State Interface
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,6 +102,7 @@ interface OrchestrationStoreState {
 
   // ─── State Update Actions ───
   updateNodeStatus: (nodeId: string, status: AgentStatus) => void;
+  setNodeResult: (nodeId: string, result: AgentResult) => void;
   setActiveAgents: (agentIds: string[]) => void;
   addHandoff: (handoff: HandoffMessage) => void;
 
@@ -249,6 +261,67 @@ export const useOrchestrationStore = create<OrchestrationStoreState>((set, get) 
     }
   },
 
+  // ─── Set Node Result ───
+  setNodeResult: (nodeId: string, result: AgentResult) => {
+    const { currentExecutionType } = get();
+
+    if (currentExecutionType === 'graph') {
+      set((state) => ({
+        graphNodes: state.graphNodes.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, result } }
+            : node
+        ),
+        graphState: state.graphState
+          ? {
+              ...state.graphState,
+              nodes: state.graphNodes.map((node) =>
+                node.id === nodeId
+                  ? { ...node, data: { ...node.data, result } }
+                  : node
+              ),
+            }
+          : null,
+      }));
+    } else if (currentExecutionType === 'swarm') {
+      set((state) => ({
+        swarmNodes: state.swarmNodes.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, result } }
+            : node
+        ),
+        swarmState: state.swarmState
+          ? {
+              ...state.swarmState,
+              nodes: state.swarmNodes.map((node) =>
+                node.id === nodeId
+                  ? { ...node, data: { ...node.data, result } }
+                  : node
+              ),
+            }
+          : null,
+      }));
+    } else if (currentExecutionType === 'workflow') {
+      set((state) => ({
+        workflowTasks: state.workflowTasks.map((task) =>
+          task.taskId === nodeId
+            ? { ...task, result }
+            : task
+        ),
+        workflowState: state.workflowState
+          ? {
+              ...state.workflowState,
+              tasks: state.workflowTasks.map((task) =>
+                task.taskId === nodeId
+                  ? { ...task, result }
+                  : task
+              ),
+            }
+          : null,
+      }));
+    }
+  },
+
   // ─── Set Active Agents ───
   setActiveAgents: (agentIds: string[]) => {
     set({ activeAgentIds: agentIds });
@@ -273,14 +346,23 @@ export const useOrchestrationStore = create<OrchestrationStoreState>((set, get) 
     set((state) => {
       const newMap = new Map(state.agentStreamingData);
       const existing = newMap.get(agentId);
+      const existingTools = existing?.tools || [];
+      const incomingTools = data.tools || [];
+      const mergedTools = (() => {
+        if (incomingTools.length === 0) return existingTools;
+        const toolMap = new Map(existingTools.map((tool) => [tool.id, tool]));
+        incomingTools.forEach((tool) => {
+          const prev = toolMap.get(tool.id);
+          toolMap.set(tool.id, { ...prev, ...tool });
+        });
+        return Array.from(toolMap.values());
+      })();
 
       // Merge new data with existing
       newMap.set(agentId, {
         reasoning: data.reasoning || existing?.reasoning,
         chainOfThought: data.chainOfThought || existing?.chainOfThought,
-        tools: data.tools
-          ? [...(existing?.tools || []), ...data.tools]
-          : existing?.tools,
+        tools: mergedTools,
         images: data.images
           ? [...(existing?.images || []), ...data.images]
           : existing?.images,

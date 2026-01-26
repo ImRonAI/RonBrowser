@@ -1,12 +1,11 @@
 /**
  * Graph Orchestration Task Wrapper
  *
- * Wraps AgentGraphCanvas with CollapsibleTask accordion for task UI integration.
- * Derives status from orchestrationStore graph state.
+ * Wraps AgentGraphCanvas with a 70/30 split layout and subagent panel.
+ * Derives active/complete state from orchestrationStore graph data.
  */
 
-import { CollapsibleTask, type TaskStatus } from '@/components/ai-elements/task';
-import { AgentGraphCanvas } from '@/components/ai-elements/agent-graph-canvas';
+import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion';
 import { useOrchestrationStore } from '@/stores/orchestrationStore';
 import type { StrandsGraphNode, StrandsGraphEdge } from '@/components/ai-elements/strands-orchestration/types';
 
@@ -33,46 +32,25 @@ export function GraphOrchestrationTask({
 }: GraphOrchestrationTaskProps) {
   const { graphNodes } = useOrchestrationStore();
 
-  // Derive task status from graph state
-  const status = deriveGraphStatus(graphNodes);
+  const hasNodes = graphNodes.length > 0;
+  const hasRunning = graphNodes.some((node) => node.data.status === 'running');
+  const hasPending = graphNodes.some(
+    (node) => node.data.status === 'pending' || node.data.status === 'idle'
+  );
+  const isFormationActive = hasRunning;
+  const isFormationComplete = hasNodes && !hasRunning && !hasPending;
 
   return (
-    <CollapsibleTask
+    <AgentFormationAccordion
+      formationType="graph"
+      isFormationActive={isFormationActive}
+      isFormationComplete={isFormationComplete}
       title={title}
       description={description}
-      status={status}
       defaultExpanded={defaultExpanded}
       className={className}
-    >
-      <div className="h-[280px] w-full rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
-        <AgentGraphCanvas
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
-          showStats={false}
-          showControls={false}
-          showTimeline={false}
-          showMiniMap={false}
-        />
-      </div>
-    </CollapsibleTask>
+      onGraphNodeClick={onNodeClick}
+      onGraphEdgeClick={onEdgeClick}
+    />
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function deriveGraphStatus(nodes: StrandsGraphNode[]): TaskStatus {
-  if (!nodes || nodes.length === 0) {
-    return 'pending';
-  }
-
-  const hasRunning = nodes.some((n) => n.data.status === 'running');
-  const hasError = nodes.some((n) => n.data.status === 'error');
-  const allCompleted = nodes.every((n) => n.data.status === 'completed');
-
-  if (hasError) return 'error';
-  if (hasRunning) return 'running';
-  if (allCompleted) return 'success';
-  return 'pending';
 }

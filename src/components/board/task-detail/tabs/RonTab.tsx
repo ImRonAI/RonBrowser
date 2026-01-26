@@ -8,16 +8,19 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import type { FullTask, TaskConversation } from '@/types/task'
+import type { FullTask, TaskConversation } from '@/pages/types/task'
 import { useTaskStore } from '@/stores/taskStore'
 
 // AI SDK v6 - useChat with DefaultChatTransport for UIMessageStream
 import { useChat, type UIMessage } from '@ai-sdk/react'
 import { DefaultChatTransport, type TextUIPart } from 'ai'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
-import { 
-  Plus as PlusIcon, 
-  History as HistoryIcon, 
+import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
+import { useOrchestrationStore } from '@/stores/orchestrationStore'
+import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
+import {
+  Plus as PlusIcon,
+  History as HistoryIcon,
   ChevronDown as ChevronDownIcon,
   ArrowUp as ArrowUpIcon
 } from 'lucide-react'
@@ -29,6 +32,10 @@ import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/
 import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
 import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
 import type { TextAttachment } from '@/components/ai-elements/types'
+
+// Preview Panel
+import { PreviewPanel } from '@/components/ai-elements/preview-panel'
+import { usePreviewStore } from '@/stores/previewStore'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -90,11 +97,19 @@ export function RonTab({ task }: RonTabProps) {
   const { messages, setMessages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
+      body: () => ({
+        session_id: activeConversationId
+          ? `task-${task.id}-${activeConversationId}`
+          : `task-${task.id}-new`,
+      }),
     }),
     id: activeConversationId || 'new',
     // 3. SAFE PERSISTENCE
     // We only save to the store when the AI generation FINISHES.
     // This happens once per turn, preventing any rapid render cycles.
+    onData: (dataPart) => {
+      handleOrchestrationDataPart(dataPart as { type: string; data?: any })
+    },
     onFinish: () => {
       if (!activeConversationId) return
       
@@ -146,6 +161,7 @@ export function RonTab({ task }: RonTabProps) {
     setActiveConversationId(newId)
     setMessages([])
     setIsHistoryOpen(false)
+    useOrchestrationStore.getState().reset()
   }
 
   const handleSwitchChat = (convId: string) => {
@@ -155,6 +171,7 @@ export function RonTab({ task }: RonTabProps) {
       setMessages(conv.messages as any)
     }
     setIsHistoryOpen(false)
+    useOrchestrationStore.getState().reset()
   }
   
   // Custom submit to handle context injection
@@ -206,6 +223,21 @@ export function RonTab({ task }: RonTabProps) {
   const isTyping = status === 'streaming' || status === 'submitted'
   const isEmpty = messages.length === 0
 
+  // Connect to orchestrationStore for 70/30 split visualization
+  const {
+    workflowTasks,
+    swarmNodes,
+    graphNodes,
+    activeAgentIds,
+    agentStreamingData
+  } = useOrchestrationStore()
+
+  const hasOrchestration = workflowTasks.length > 0 || swarmNodes.length > 0 || graphNodes.length > 0
+  const formationType: 'workflow' | 'swarm' | 'graph' =
+    workflowTasks.length > 0 ? 'workflow' :
+    swarmNodes.length > 0 ? 'swarm' :
+    'graph'
+
   const handleTextAttachmentRemove = (id: string) => {
     setTextAttachments(prev => prev.filter(att => att.id !== id))
   }
@@ -244,6 +276,9 @@ export function RonTab({ task }: RonTabProps) {
     }
   }
 
+
+  // Preview panel state
+  const isPreviewOpen = usePreviewStore(state => state.isOpen)
 
   return (
     <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900 relative">
@@ -342,6 +377,25 @@ export function RonTab({ task }: RonTabProps) {
         </motion.div>
       </div>
 
+      {/* 70/30 Orchestration Visualization */}
+      {!isEmpty && hasOrchestration && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="px-4 py-4"
+        >
+          <div className="max-w-2xl mx-auto">
+            <AgentFormationAccordion
+              formationType={formationType}
+              isFormationActive={isTyping}
+              isFormationComplete={!isTyping}
+              defaultExpanded={true}
+            />
+          </div>
+        </motion.div>
+      )}
+
       {/* Input */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -426,6 +480,21 @@ export function RonTab({ task }: RonTabProps) {
           </p>
         </div>
       </motion.div>
+
+      {/* Sliding Preview Panel - positioned absolutely on the right */}
+      <AnimatePresence>
+        {isPreviewOpen && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="absolute right-0 top-0 bottom-0 z-30"
+          >
+            <PreviewPanel variant="sliding" />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

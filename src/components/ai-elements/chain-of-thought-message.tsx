@@ -10,7 +10,7 @@
 
 'use client'
 
-import { useMemo, memo } from 'react'
+import { useMemo, memo, useEffect, useRef } from 'react'
 import {
   isToolUIPart,
   getToolName,
@@ -18,6 +18,12 @@ import {
   type ReasoningUIPart,
 } from 'ai'
 import type { UIMessage } from '@ai-sdk/react'
+import { 
+  usePreviewStore, 
+  isBrowserTool, 
+  isProjectTool, 
+  isDevServerCommand 
+} from '@/stores/previewStore'
 
 // Use the parts type from UIMessage to avoid generic constraints
 type MessagePart = UIMessage['parts'][number]
@@ -33,6 +39,7 @@ import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState 
 import { ResponseMarkdown } from '@/components/ai-elements/response'
 import { ResponseWithCitations, type Citation } from '@/components/ai-elements/response-with-citations'
 import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
+import { initOrchestrationFromToolInput } from '@/utils/orchestration-stream'
 // ToolState is used by mapToolPartState return type
 
 // Orchestration tool names to render with special visualization
@@ -69,6 +76,7 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
   messageId,
   className
 }: ChainOfThoughtMessageProps) {
+  const processedToolCallsRef = useRef(new Set<string>())
   // Find last non-text index to determine final text boundary
   const lastNonTextIndex = useMemo(() => {
     let idx = -1
@@ -92,10 +100,11 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
     return false
   }, [parts, lastNonTextIndex])
 
-  // Separate process parts from final text
-  const { processParts, finalTextParts } = useMemo(() => {
+  // Separate process parts from final text and extract citations
+  const { processParts, finalTextParts, citations } = useMemo(() => {
     const processParts: MessagePart[] = []
     const finalTextParts: TextUIPart[] = []
+    const citations: Citation[] = []
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
@@ -104,9 +113,27 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
       } else if (part.type !== 'step-start') {
         processParts.push(part)
       }
+
+      // Extract citations from perplexity_search_api tool outputs
+      if (isToolUIPart(part) && part.state === 'output-available') {
+        const toolName = getToolName(part)
+        if (toolName === 'perplexity_search_api' && (part as any).output) {
+          const output = (part as any).output
+          // Extract flat_results from tool output
+          const flatResults = output.flat_results || []
+          flatResults.forEach((result: any, index: number) => {
+            citations.push({
+              number: String(index + 1),
+              title: result.title || 'Untitled',
+              url: result.url || '',
+              snippet: result.snippet
+            })
+          })
+        }
+      }
     }
 
-    return { processParts, finalTextParts }
+    return { processParts, finalTextParts, citations }
   }, [parts, lastNonTextIndex])
 
   // Calculate step count for header
@@ -114,44 +141,143 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
     return processParts.filter(p => p.type === 'reasoning' || isToolUIPart(p)).length
   }, [processParts])
 
-  return (
-    <div className={cn('space-y-4', className)}>
-      {/* Chain of Thought (wraps all process parts) */}
-      {processParts.length > 0 && (
-        <ChainOfThought 
-          defaultOpen={!hasFinalTextOutput}
-          isStreaming={isStreaming && !hasFinalTextOutput}
-          autoCollapseDelay={hasFinalTextOutput ? 2000 : 0}
-        >
-          <ChainOfThoughtHeader>
-            {isStreaming && !hasFinalTextOutput 
-              ? 'Processing...' 
-              : `Thought Process (${stepCount} step${stepCount !== 1 ? 's' : ''})`
+  // Auto-trigger preview panel when browser/project tools are detected
+  const { openBrowserPreview, openProjectPreview, updateBrowserPreview } = usePreviewStore()
+  
+  useEffect(() => {
+    // Scan through parts for browser/project tools
+    for (const part of parts) {
+      if (!isToolUIPart(part)) continue
+      
+      const toolName = getToolName(part)
+      const toolPart = part as AnyToolUIPart
+      
+      // Handle browser tools
+      if (isBrowserTool(toolName)) {
+        // Extract data from tool output
+        if (toolPart.state === 'output-available' && toolPart.output) {
+          const output = toolPart.output as Record<string, unknown>
+          
+          // Check for screenshot in output
+          const screenshot = output.screenshot || output.image || output.base64
+          const url = output.url || output.current_url || (toolPart.input as Record<string, unknown>)?.url
+          const title = output.title || output.page_title
+          
+          if (screenshot || url) {
+            openBrowserPreview({
+              url: typeof url === 'string' ? url : undefined,
+              screenshot: typeof screenshot === 'string' ? screenshot : undefined,
+              title: typeof title === 'string' ? title : undefined,
+              isLive: false,
+            })
+          }
+        } else if (toolPart.state === 'input-available' || toolPart.state === 'input-streaming') {
+          // Tool is running - show loading state
+          const input = toolPart.input as Record<string, unknown>
+          if (input?.url) {
+            updateBrowserPreview({
+              url: typeof input.url === 'string' ? input.url : undefined,
+            })
+          }
+        }
+      }
+      
+      // Handle project tools
+      if (isProjectTool(toolName) || (toolName === 'shell' && isDevServerCommand(toolPart.input))) {
+        const input = toolPart.input as Record<string, unknown>
+        
+        if (toolPart.state === 'input-available' || toolPart.state === 'input-streaming') {
+          openProjectPreview({
+            name: typeof input?.command === 'string' ? input.command.split(' ')[0] : 'Dev Server',
+            status: 'starting',
+          })
+        } else if (toolPart.state === 'output-available') {
+          const output = toolPart.output as Record<string, unknown>
+          // Look for URL in output (e.g., dev server started at localhost:3000)
+          let devUrl: string | undefined
+          if (typeof output?.url === 'string') {
+            devUrl = output.url
+          } else if (typeof output?.output === 'string') {
+            // Parse output for localhost URLs
+            const urlMatch = output.output.match(/https?:\/\/localhost:\d+/)
+            if (urlMatch) {
+              devUrl = urlMatch[0]
             }
-          </ChainOfThoughtHeader>
-          <ChainOfThoughtContent>
-            {processParts.map((part, index) => (
-              <PartRenderer
-                key={`${messageId}-part-${index}`}
-                part={part}
-                isLast={index === processParts.length - 1}
-                isStreaming={isStreaming}
+          }
+          
+          openProjectPreview({
+            url: devUrl,
+            status: devUrl ? 'running' : 'stopped',
+          })
+        }
+      }
+    }
+  }, [parts, openBrowserPreview, openProjectPreview, updateBrowserPreview])
+
+  // Initialize orchestration store from tool input (workflow/swarm/graph)
+  useEffect(() => {
+    for (const part of parts) {
+      if (!isToolUIPart(part)) continue
+      const toolPart = part as AnyToolUIPart
+      const toolName = getToolName(part)
+      const toolCallId = toolPart.toolCallId
+
+      if (!toolName || !toolCallId) continue
+      if (processedToolCallsRef.current.has(toolCallId)) continue
+
+      if (toolPart.state === 'input-available') {
+        const didInit = initOrchestrationFromToolInput(toolName, toolPart.input)
+        if (didInit) {
+          processedToolCallsRef.current.add(toolCallId)
+        }
+      }
+    }
+  }, [parts])
+
+  return (
+    <div className={cn('flex flex-col', className)}>
+      {/* Message bubble with reasoning at top */}
+      <div className="glass-card rounded-2xl overflow-hidden">
+        {/* Chain of Thought at top of bubble */}
+        {processParts.length > 0 && (
+          <ChainOfThought
+            defaultOpen={!hasFinalTextOutput}
+            isStreaming={isStreaming && !hasFinalTextOutput}
+            autoCollapseDelay={hasFinalTextOutput ? 2000 : 0}
+          >
+            <ChainOfThoughtHeader>
+              {isStreaming && !hasFinalTextOutput
+                ? 'Processing...'
+                : `Thought Process (${stepCount} step${stepCount !== 1 ? 's' : ''})`
+              }
+            </ChainOfThoughtHeader>
+            <ChainOfThoughtContent>
+              {processParts.map((part, index) => (
+                <PartRenderer
+                  key={`${messageId}-part-${index}`}
+                  part={part}
+                  isLast={index === processParts.length - 1}
+                  isStreaming={isStreaming}
+                />
+              ))}
+            </ChainOfThoughtContent>
+          </ChainOfThought>
+        )}
+
+        {/* Final Text Output (inside same bubble, below reasoning) */}
+        {finalTextParts.length > 0 && (
+          <div className="p-6">
+            {finalTextParts.map((part, index) => (
+              <ResponseWithCitations
+                key={`${messageId}-text-${index}`}
+                content={part.text}
+                citations={citations}
+                isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}
               />
             ))}
-          </ChainOfThoughtContent>
-        </ChainOfThought>
-      )}
-
-      {/* Final Text Output (renders outside chain of thought) */}
-      {/* NOTE: Citations will be parsed from [1], [2], [3] markers in the text.
-          Full citation metadata extraction from tool outputs is not yet implemented. */}
-      {finalTextParts.map((part, index) => (
-        <ResponseWithCitations
-          key={`${messageId}-text-${index}`}
-          content={part.text}
-          isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}
-        />
-      ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 })
@@ -177,9 +303,14 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
         label="Reasoning"
         status={isReasoningStreaming ? 'running' : 'complete'}
       >
-        <Reasoning isStreaming={isReasoningStreaming} defaultOpen={isReasoningStreaming}>
+        <Reasoning isStreaming={isReasoningStreaming}>
           <ReasoningTrigger />
-          <ReasoningContent>{reasoningPart.text}</ReasoningContent>
+          <ReasoningContent>
+            <ResponseMarkdown
+              content={reasoningPart.text}
+              isStreaming={isReasoningStreaming}
+            />
+          </ReasoningContent>
         </Reasoning>
       </ChainOfThoughtStep>
     )
@@ -223,7 +354,10 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
         label={toolName}
         status={stepStatus}
       >
-        <Tool defaultOpen={toolState !== 'success'}>
+        <Tool
+          isStreaming={toolPart.state === 'input-streaming'}
+          defaultOpen={toolState !== 'success'}
+        >
           <ToolHeader
             title={toolName}
             state={toolState}

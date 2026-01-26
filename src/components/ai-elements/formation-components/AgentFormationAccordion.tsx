@@ -13,14 +13,16 @@ import { AgentWorkflowCanvas } from "@/components/ai-elements/agent-workflow-can
 import { AgentSwarmCanvas } from "@/components/ai-elements/agent-swarm-canvas";
 import { AgentGraphCanvas } from "@/components/ai-elements/agent-graph-canvas/AgentGraphCanvas";
 import { SubagentTransparencyPanel } from "./SubagentTransparencyPanel";
-import { useOrchestrationStore } from "@/stores/orchestrationStore";
-import type {
-  WorkflowState,
-  SwarmState,
-  GraphState,
-  AgentStreamingData,
-} from "@/components/ai-elements/strands-orchestration/types";
+import { useOrchestrationStore, type CompletedNodeOutput } from "@/stores/orchestrationStore";
 import type { TaskStatus } from "@/components/ai-elements/task";
+import type {
+  AgentResult,
+  HandoffMessage,
+  StrandsGraphEdge,
+  StrandsGraphNode,
+  StrandsSwarmNode,
+  WorkflowTask,
+} from "@/components/ai-elements/strands-orchestration/types";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,8 +33,15 @@ export interface AgentFormationAccordionProps {
   formationType: "workflow" | "swarm" | "graph";
   isFormationActive: boolean;
   isFormationComplete: boolean;
+  title?: string;
+  description?: string;
   defaultExpanded?: boolean;
   className?: string;
+  onWorkflowNodeClick?: (task: WorkflowTask) => void;
+  onSwarmNodeClick?: (node: StrandsSwarmNode) => void;
+  onSwarmHandoff?: (handoff: HandoffMessage) => void;
+  onGraphNodeClick?: (node: StrandsGraphNode) => void;
+  onGraphEdgeClick?: (edge: StrandsGraphEdge) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,20 +52,29 @@ export function AgentFormationAccordion({
   formationType,
   isFormationActive,
   isFormationComplete,
+  title,
+  description,
   defaultExpanded,
   className,
+  onWorkflowNodeClick,
+  onSwarmNodeClick,
+  onSwarmHandoff,
+  onGraphNodeClick,
+  onGraphEdgeClick,
 }: AgentFormationAccordionProps) {
   const {
-    workflowState,
     workflowTasks,
-    swarmState,
     swarmNodes,
-    graphState,
     graphNodes,
     activeAgentIds,
     agentStreamingData,
-    getCompletedNodeOutput,
-  } = useOrchestrationStore();
+  } = useOrchestrationStore((state) => ({
+    workflowTasks: state.workflowTasks,
+    swarmNodes: state.swarmNodes,
+    graphNodes: state.graphNodes,
+    activeAgentIds: state.activeAgentIds,
+    agentStreamingData: state.agentStreamingData,
+  }));
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
@@ -152,26 +170,46 @@ export function AgentFormationAccordion({
         : formationType === "swarm"
           ? "Swarm"
           : "Graph";
-    return `${typeLabel} Formation`;
-  }, [formationType]);
+    return title || `${typeLabel} Formation`;
+  }, [formationType, title]);
 
   // ─── Show tabs only for graph with multiple active nodes ───
   const shouldShowTabs = formationType === "graph" && activeAgentIds.length > 1;
+  const selectedResult = useMemo(() => {
+    if (!selectedAgentId) return undefined;
+    if (formationType === "workflow") {
+      return workflowTasks.find((task) => task.taskId === selectedAgentId)?.result;
+    }
+    if (formationType === "swarm") {
+      return swarmNodes.find((node) => node.id === selectedAgentId)?.data.result;
+    }
+    if (formationType === "graph") {
+      return graphNodes.find((node) => node.id === selectedAgentId)?.data.result;
+    }
+    return undefined;
+  }, [selectedAgentId, formationType, workflowTasks, swarmNodes, graphNodes]);
+
+  const finalOutput = useMemo(() => toCompletedOutput(selectedResult), [selectedResult]);
+  const panelMode = isFormationComplete && finalOutput ? "completed" : "live";
 
   return (
     <CollapsibleAgentTask
       agentName={formationName}
+      agentDescription={description}
       status={formationStatus}
       tools={[formationType]}
       defaultExpanded={defaultExpanded ?? (isFormationActive || isFormationComplete)}
       className={className}
     >
-      <div className="flex gap-4 h-[600px]">
+      <div className="flex flex-col md:flex-row min-h-[520px] md:h-[560px] rounded-xl border border-surface-200/60 dark:border-surface-700/60 overflow-hidden bg-surface-0/60 dark:bg-surface-900/40">
         {/* Left: Formation Canvas (70%) */}
-        <div className="flex-[7] border-r border-surface-200 dark:border-surface-700 pr-4">
+        <div className="flex-[7] min-h-[320px] md:min-h-0 border-b md:border-b-0 md:border-r border-surface-200/60 dark:border-surface-700/60 bg-surface-50/70 dark:bg-surface-900/50 p-3 md:p-4">
           {formationType === "workflow" && (
             <AgentWorkflowCanvas
-              onNodeClick={(task) => handleNodeClick(task.taskId)}
+              onNodeClick={(task) => {
+                handleNodeClick(task.taskId);
+                onWorkflowNodeClick?.(task);
+              }}
               showControls={false}
               showMiniMap={false}
               showStepBadges={false}
@@ -181,7 +219,11 @@ export function AgentFormationAccordion({
 
           {formationType === "swarm" && (
             <AgentSwarmCanvas
-              onNodeClick={(node) => handleNodeClick(node.id)}
+              onNodeClick={(node) => {
+                handleNodeClick(node.id);
+                onSwarmNodeClick?.(node);
+              }}
+              onHandoffClick={onSwarmHandoff}
               showControls={false}
               showMiniMap={false}
               showHandoffHistory={false}
@@ -190,17 +232,29 @@ export function AgentFormationAccordion({
 
           {formationType === "graph" && (
             <AgentGraphCanvas
-              onNodeClick={(node) => handleNodeClick(node.id)}
+              onNodeClick={(node) => {
+                handleNodeClick(node.id);
+                onGraphNodeClick?.(node);
+              }}
+              onEdgeClick={onGraphEdgeClick}
               showControls={false}
               showMiniMap={false}
-              showStatsPanel={false}
+              showStats={false}
               showTimeline={false}
             />
           )}
         </div>
 
         {/* Right: Subagent Panel (30%) */}
-        <div className="flex-[3] flex flex-col">
+        <div className="flex-[3] flex flex-col p-4 md:p-5 bg-surface-0/80 dark:bg-surface-850/80">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">
+              Active Agent
+            </span>
+            <span className="text-xs text-ink-muted/70 dark:text-ink-inverse-muted/70">
+              {activeAgentIds.length}
+            </span>
+          </div>
           {/* Tabs (ONLY for graph with multiple active nodes) */}
           {shouldShowTabs && (
             <div className="flex gap-2 mb-3 border-b border-surface-200 dark:border-surface-700 pb-2 overflow-x-auto">
@@ -233,13 +287,9 @@ export function AgentFormationAccordion({
           {/* Subagent details */}
           <SubagentTransparencyPanel
             agentId={selectedAgentId}
-            mode={isFormationComplete ? "completed" : "live"}
+            mode={panelMode}
             streamingData={selectedAgentId ? agentStreamingData.get(selectedAgentId) : undefined}
-            finalOutput={
-              isFormationComplete && selectedAgentId
-                ? getCompletedNodeOutput(selectedAgentId) || undefined
-                : undefined
-            }
+            finalOutput={finalOutput}
             isActive={selectedAgentId ? activeAgentIds.includes(selectedAgentId) : false}
             agentName={selectedAgentId ? getAgentName(selectedAgentId) : undefined}
             agentDescription={selectedAgentId ? getAgentDescription(selectedAgentId) : undefined}
@@ -248,4 +298,18 @@ export function AgentFormationAccordion({
       </div>
     </CollapsibleAgentTask>
   );
+}
+
+function toCompletedOutput(result?: AgentResult): CompletedNodeOutput | undefined {
+  if (!result) return undefined;
+
+  return {
+    status: result.status,
+    content: result.content,
+    duration: result.metrics?.latencyMs ?? undefined,
+    tokenUsage: {
+      input: result.metrics?.inputTokens,
+      output: result.metrics?.outputTokens,
+    },
+  };
 }

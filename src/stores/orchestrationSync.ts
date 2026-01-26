@@ -5,7 +5,7 @@
  * Handles the conversion between AgentStreamEvent and AgentStreamingData.
  */
 
-import type { AgentStreamEvent } from '@/types/agent';
+import type { AgentStreamEvent } from '@/pages/types/agent';
 import type { AgentStreamingData, AIToolExecution } from './orchestrationStore';
 
 // ─────────────────────────────────────────────────────────────────────────────

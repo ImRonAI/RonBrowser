@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Task, TaskCommunication, CommunicationType } from '@/types/task'
+import type { Task, TaskCommunication, CommunicationType } from '@/pages/types/task'
 import { 
     LayoutGrid as GridIcon,
     Mail as MailIcon,

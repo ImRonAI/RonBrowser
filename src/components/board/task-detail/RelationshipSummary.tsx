@@ -1,7 +1,7 @@
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import type { Task, Subtask, TaskRelationship } from '@/types/task'
+import type { Task, Subtask, TaskRelationship } from '@/pages/types/task'
 import { Link, ArrowRight, Layers } from 'lucide-react'
 
 interface RelationshipSummaryProps {

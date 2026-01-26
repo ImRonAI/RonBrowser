@@ -21,6 +21,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Sandbox dependencies
+COPY ron_gemini.py .
+COPY aisdk_stream.py .
+
 # Sandbox A2A agent
 COPY sandbox_agent.py .
 

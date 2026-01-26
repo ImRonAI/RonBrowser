@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Sparkles } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { useTabStore } from '@/stores/tabStore'
 import { cn } from '@/utils/cn'
 import { useEffect } from 'react'
@@ -130,11 +130,11 @@ export function TabBar() {
                 {tab.favicon ? (
                   <img src={tab.favicon} alt="" className="w-4 h-4 flex-shrink-0 rounded-sm" />
                 ) : isRonTab ? (
-                  <Sparkles className={cn(
+                  <img src="/favicon.png" alt="Ron" className={cn(
                     "w-4 h-4 flex-shrink-0",
                     isActive 
-                      ? "text-accent dark:text-accent-light" 
-                      : "text-ink-muted dark:text-ink-inverse-muted"
+                      ? "opacity-100" 
+                      : "opacity-70 grayscale"
                   )} />
                 ) : (
                   <div className={cn(

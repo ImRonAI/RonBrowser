@@ -56,10 +56,22 @@ export function SubagentTransparencyPanel({
   // ─── Update streaming data ───
   useEffect(() => {
     if (mode === "live" && streamingData) {
-      setReasoningSteps(streamingData.chainOfThought || []);
+      const fallbackReasoning = streamingData.reasoning?.content
+        ? [{
+            label: "Reasoning",
+            description: streamingData.reasoning.content,
+            status: isActive ? "running" : "success",
+          }]
+        : [];
+
+      setReasoningSteps(
+        streamingData.chainOfThought && streamingData.chainOfThought.length > 0
+          ? streamingData.chainOfThought
+          : fallbackReasoning
+      );
       setToolCalls(streamingData.tools || []);
     }
-  }, [mode, streamingData]);
+  }, [mode, streamingData, isActive]);
 
   // ─── Auto-scroll to bottom when new content arrives ───
   useEffect(() => {
@@ -332,17 +344,19 @@ export function SubagentTransparencyPanel({
       </div>
 
       {/* Footer Metrics */}
-      {(mode === "completed" && finalOutput) || toolCalls.length > 0 && (
+      {((mode === "completed" && finalOutput) || toolCalls.length > 0) && (
         <div className="flex-shrink-0 border-t border-surface-200 dark:border-surface-700 pt-3">
           <div className="flex items-center justify-between text-xs text-ink-muted">
             <div className="flex items-center gap-4">
               {mode === "completed" && finalOutput && (
                 <>
-                  <div>
-                    <span className="font-medium">Duration:</span>{" "}
-                    {finalOutput.duration}ms
-                  </div>
-                  {finalOutput.tokenUsage.input && (
+                  {finalOutput.duration != null && (
+                    <div>
+                      <span className="font-medium">Duration:</span>{" "}
+                      {finalOutput.duration}ms
+                    </div>
+                  )}
+                  {finalOutput.tokenUsage.input != null && (
                     <div>
                       <span className="font-medium">Tokens:</span>{" "}
                       {finalOutput.tokenUsage.input + (finalOutput.tokenUsage.output || 0)}

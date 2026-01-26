@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import type { Task } from '@/types/task'
+import type { Task } from '@/pages/types/task'
 import { TaskMetadataSidebar } from './TaskMetadataSidebar'
 import { DescriptionTab } from './tabs/DescriptionTab'
 import { RonTab } from './tabs/RonTab'

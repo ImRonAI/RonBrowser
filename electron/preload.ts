@@ -343,7 +343,7 @@ const electronAPI = {
       ipcRenderer.invoke('sandbox:get-root') as Promise<{ success: boolean; root: string }>,
     
     // Execute shell command in sandbox (cwd locked to sandbox)
-    shell: (command: string, args: string[] = [], options?: { timeout?: number }) =>
+    shell: (command: string, args: string[] = [], options?: { timeout?: number; noOutputTimeout?: number }) =>
       ipcRenderer.invoke('sandbox:shell', command, args, options) as Promise<{
         success: boolean
         stdout: string

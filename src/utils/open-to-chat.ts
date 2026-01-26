@@ -10,7 +10,7 @@ import type {
   UniversalResult,
   OpenToChatContext,
   AgentId,
-} from '@/types/search'
+} from '@/pages/types/search'
 
 import {
   isVideoResult,
@@ -23,7 +23,7 @@ import {
   isAcademicResult,
   isImageResult,
   isCodeResult,
-} from '@/types/search'
+} from '@/pages/types/search'
 
 /**
  * Helper function to safely extract a display title from any result type

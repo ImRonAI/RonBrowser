@@ -19,13 +19,14 @@ import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought
 import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
 import type { TextAttachment } from '@/components/ai-elements/types'
 
-// Orchestration Tasks
-import {
-  GraphOrchestrationTask,
-  WorkflowOrchestrationTask,
-  SwarmOrchestrationTask,
-} from '@/components/ai-elements/orchestration-tasks'
+// Orchestration visualization
+import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
 import { useOrchestrationStore } from '@/stores/orchestrationStore'
+import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
+
+// Preview Panel
+import { PreviewPanel } from '@/components/ai-elements/preview-panel'
+import { usePreviewStore } from '@/stores/previewStore'
 
 // Context
 import { ContextPicker, type ContextItem } from '@/components/agent-panel/ContextPicker'
@@ -51,13 +52,16 @@ export function SuperAgentInterface() {
     `superagent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   )
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, clearError } = useChat({
     transport: new DefaultChatTransport({
       api: SUPERAGENT_API,
       body: () => ({
         session_id: sessionIdRef.current,
       }),
     }),
+    onData: (dataPart) => {
+      handleOrchestrationDataPart(dataPart as { type: string; data?: any })
+    },
   })
 
   // State
@@ -75,11 +79,19 @@ export function SuperAgentInterface() {
   // Orchestration store
   const { graphNodes, workflowTasks, swarmNodes } = useOrchestrationStore()
   const hasOrchestration = graphNodes.length > 0 || workflowTasks.length > 0 || swarmNodes.length > 0
+  const formationType: 'workflow' | 'swarm' | 'graph' =
+    workflowTasks.length > 0 ? 'workflow' :
+    swarmNodes.length > 0 ? 'swarm' :
+    'graph'
+
+  // Preview store (for browser/project automation previews)
+  const isPreviewOpen = usePreviewStore(state => state.isOpen)
 
   const isTyping = status === 'streaming' || status === 'submitted'
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const isEmpty = messages.length === 0
+  const isAmbientActive = isTyping || hasOrchestration
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -147,7 +159,12 @@ export function SuperAgentInterface() {
 
   const handleSubmit = async (text?: string) => {
     const messageText = text || input.trim()
-    if ((!messageText && textAttachments.length === 0) || status !== 'ready') return
+    const canSend = status === 'ready' || status === 'error'
+    if ((!messageText && textAttachments.length === 0) || !canSend) return
+
+    if (status === 'error') {
+      clearError()
+    }
 
     setInput('')
     
@@ -298,8 +315,7 @@ export function SuperAgentInterface() {
 
   return (
     <div className="h-full flex flex-col relative overflow-hidden bg-surface-0 dark:bg-surface-900">
-      {/* Ambient Layer */}
-      <NeuralGridBackground isActive={isTyping} />
+      <NeuralGridBackground isActive={isAmbientActive} />
       <AmbientBreathingGlow />
 
       {/* Header */}
@@ -307,16 +323,13 @@ export function SuperAgentInterface() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="relative z-10 flex-shrink-0 px-6 py-4 flex items-center justify-between"
+        className="relative z-10 flex-shrink-0 px-6 py-4 flex items-center justify-between border-b border-surface-100 dark:border-surface-800 bg-surface-0/90 dark:bg-surface-900/90 backdrop-blur"
       >
         <div className="flex items-center gap-3">
-          <div 
-            className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center"
-            style={{ boxShadow: '0 0 24px rgba(139, 92, 246, 0.35)' }}
-          >
-            <LayersIcon className="w-4 h-4 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center border border-surface-200 dark:border-surface-700">
+            <LayersIcon className="w-4 h-4 text-ink dark:text-ink-inverse" />
           </div>
-          <span className="text-body-md font-medium text-ink dark:text-ink-inverse">
+          <span className="text-body-md font-semibold text-ink dark:text-ink-inverse">
             SuperAgent
           </span>
         </div>
@@ -360,16 +373,20 @@ export function SuperAgentInterface() {
                   <TypingIndicator />
                 )}
 
-                {/* Orchestration visualization */}
+                {/* 70/30 Orchestration Visualization */}
                 {hasOrchestration && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
+                    className="mt-4"
                   >
-                    {orchestrationMode === 'graph' && <GraphOrchestrationTask defaultExpanded={true} />}
-                    {orchestrationMode === 'workflow' && <WorkflowOrchestrationTask defaultExpanded={true} />}
-                    {orchestrationMode === 'swarm' && <SwarmOrchestrationTask defaultExpanded={true} />}
+                    <AgentFormationAccordion
+                      formationType={formationType}
+                      isFormationActive={isTyping}
+                      isFormationComplete={!isTyping}
+                      defaultExpanded={true}
+                    />
                   </motion.div>
                 )}
                 
@@ -415,17 +432,12 @@ export function SuperAgentInterface() {
               <div 
                 className={cn(
                   "command-nexus relative rounded-2xl transition-all duration-300",
-                  "bg-surface-50/80 dark:bg-surface-800/80 backdrop-blur-sm",
+                  "bg-surface-50 dark:bg-surface-850",
                   "border",
                   input 
-                    ? "border-violet-300/60 dark:border-violet-500/40" 
+                    ? "border-accent/40 dark:border-accent-light/40 shadow-sm" 
                     : "border-surface-200 dark:border-surface-700",
                 )}
-                style={{
-                  boxShadow: input 
-                    ? '0 0 60px rgba(139, 92, 246, 0.15)' 
-                    : '0 0 40px rgba(139, 92, 246, 0.08)',
-                }}
               >
                 <div className="flex items-center gap-2 px-4 py-3">
                   <ContextPicker
@@ -453,7 +465,7 @@ export function SuperAgentInterface() {
                   
                   <motion.button
                     onClick={() => handleSubmit()}
-                    disabled={(!input.trim() && textAttachments.length === 0) || status !== 'ready'}
+                    disabled={(!input.trim() && textAttachments.length === 0) || (status !== 'ready' && status !== 'error')}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className={cn(
@@ -464,11 +476,6 @@ export function SuperAgentInterface() {
                         ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white"
                         : "bg-surface-200 dark:bg-surface-700 text-ink-muted/40"
                     )}
-                    style={{
-                      boxShadow: (input.trim() || textAttachments.length > 0) && status === 'ready'
-                        ? '0 0 16px rgba(139, 92, 246, 0.4)'
-                        : 'none',
-                    }}
                   >
                     <ArrowUpIcon className="w-4 h-4" />
                   </motion.button>
@@ -482,7 +489,7 @@ export function SuperAgentInterface() {
           </div>
         </div>
 
-        {/* Preview Panel */}
+        {/* Preview Panel - Old style (for backward compatibility) */}
         <AnimatePresence>
           {previewContent && (
             <motion.aside
@@ -517,6 +524,13 @@ export function SuperAgentInterface() {
                 </div>
               </div>
             </motion.aside>
+          )}
+        </AnimatePresence>
+
+        {/* New AI Preview Panel (for browser automation & project previews) */}
+        <AnimatePresence>
+          {isPreviewOpen && !previewContent && (
+            <PreviewPanel variant="sliding" />
           )}
         </AnimatePresence>
       </div>
@@ -612,9 +626,6 @@ function EmptyState({ onSuggestionClick, orchestrationMode, onModeChange }: Empt
       exit={{ opacity: 0 }}
       className="flex-1 flex flex-col items-center justify-center px-6 pb-32"
     >
-      {/* Holographic Tagline */}
-      <HolographicTagline />
-
       {/* Orchestration Mode Selector */}
       <OrchestrationModeSelector mode={orchestrationMode} onModeChange={onModeChange} />
 
@@ -624,12 +635,12 @@ function EmptyState({ onSuggestionClick, orchestrationMode, onModeChange }: Empt
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35 }}
       >
-        <Suggestions layout="wrap" className="max-w-xl justify-center">
-          <Suggestion suggestion="Research a topic in depth" onClick={onSuggestionClick} icon="🔬" />
-          <Suggestion suggestion="Analyze and summarize documents" onClick={onSuggestionClick} icon="📄" />
-          <Suggestion suggestion="Build a workflow automation" onClick={onSuggestionClick} icon="⚡" />
-          <Suggestion suggestion="Help me code something" onClick={onSuggestionClick} icon="💻" />
-        </Suggestions>
+          <Suggestions layout="wrap" className="max-w-xl justify-center">
+            <Suggestion suggestion="Research a topic in depth" onClick={onSuggestionClick} icon="🔬" />
+            <Suggestion suggestion="Analyze and summarize documents" onClick={onSuggestionClick} icon="📄" />
+            <Suggestion suggestion="Build a workflow automation" onClick={onSuggestionClick} icon="⚡" />
+            <Suggestion suggestion="Help me code something" onClick={onSuggestionClick} icon="💻" />
+          </Suggestions>
       </motion.div>
     </motion.div>
   )
@@ -638,31 +649,6 @@ function EmptyState({ onSuggestionClick, orchestrationMode, onModeChange }: Empt
 // ─────────────────────────────────────────────────────────────────────────────
 // Holographic Tagline
 // ─────────────────────────────────────────────────────────────────────────────
-
-const HolographicTagline = memo(function HolographicTagline() {
-  return (
-    <motion.p
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15 }}
-      className="mb-8 holographic-text"
-      style={{
-        fontFamily: "'Raleway', sans-serif",
-        fontWeight: 300,
-        fontSize: '1.25rem',
-        letterSpacing: '0.15em',
-        background: 'linear-gradient(90deg, rgba(139,92,246,0.7) 0%, rgba(168,85,247,0.7) 25%, rgba(99,102,241,0.7) 50%, rgba(139,92,246,0.7) 75%, rgba(168,85,247,0.7) 100%)',
-        backgroundSize: '200% 100%',
-        animation: 'shimmer 4s linear infinite',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text',
-      }}
-    >
-      The Collaborative Agent Browser OS...
-    </motion.p>
-  )
-})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Orchestration Mode Selector
@@ -688,7 +674,7 @@ const OrchestrationModeSelector = memo(function OrchestrationModeSelector({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 }}
-      className="flex items-center gap-2 mb-8"
+      className="flex items-center gap-2 mb-6"
     >
       {modes.map((m) => (
         <motion.button
@@ -699,12 +685,9 @@ const OrchestrationModeSelector = memo(function OrchestrationModeSelector({
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300",
             mode === m.id
-              ? "bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-300/40 dark:border-violet-500/30"
+              ? "bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse border border-surface-200 dark:border-surface-700"
               : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
           )}
-          style={{
-            boxShadow: mode === m.id ? '0 0 20px rgba(139, 92, 246, 0.2)' : 'none'
-          }}
         >
           {m.icon}
           <span className="text-body-sm font-medium">{m.label}</span>
@@ -726,13 +709,13 @@ function DeepResearchToggle({ enabled, onChange }: { enabled: boolean; onChange:
         "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-200",
         "text-[11px] font-medium tracking-wide",
         enabled
-          ? "bg-violet-500/15 text-violet-600 dark:text-violet-400"
+          ? "bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse"
           : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse"
       )}
     >
       <div className={cn(
         "w-2 h-2 rounded-full transition-colors",
-        enabled ? "bg-violet-500" : "bg-ink-muted/30 dark:bg-ink-inverse-muted/30"
+        enabled ? "bg-ink dark:bg-ink-inverse" : "bg-ink-muted/30 dark:bg-ink-inverse-muted/30"
       )} />
       Deep Research
     </button>

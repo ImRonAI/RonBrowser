@@ -1,10 +1,12 @@
 """Desktop Sandbox Agent - Strands agent with use_computer exposed via A2A."""
 import json
 import logging
+import os
 from typing import Any, Callable
 
 from strands import Agent
-from strands.models import BedrockModel
+from ron_gemini import RonGeminiModel
+from google import genai
 from strands.multiagent.a2a import A2AServer
 from strands.multiagent.a2a.executor import StrandsA2AExecutor
 from a2a.server.tasks import TaskUpdater, InMemoryTaskStore
@@ -244,15 +246,19 @@ class ReasoningA2AServer(A2AServer):
 
 def create_sandbox_agent() -> Agent:
     """Create the sandbox agent with use_computer."""
-    model = BedrockModel(
-        model_id="us.anthropic.claude-opus-4-5-20250101-v1:0",
-        temperature=1,
-        additional_request_fields={
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 32768
-            },
-            "anthropic_beta": ["interleaved-thinking-2025-05-14", "computer-use-2025-01-24"]
+    # Gemini 3 Flash Preview with high reasoning
+    model = RonGeminiModel(
+        model_id="gemini-3-flash-preview",
+        client_args={
+            "api_key": os.getenv("GOOGLE_API_KEY"),
+        },
+        params={
+            "temperature": 1.0,
+            "max_output_tokens": 65536,
+            "thinking_config": genai.types.ThinkingConfig(
+                thinking_level="HIGH",  # Maximum reasoning depth
+                include_thoughts=True   # Expose reasoning tokens
+            )
         }
     )
 

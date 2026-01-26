@@ -41,3 +41,49 @@ Ron Browser uses the **Strands** framework pattern for multi-agent orchestration
 - [x] Onboarding Data (Personalization Context)
 - [ ] Agent Logic Implementation
 - [ ] Tool definitions
+
+## Agent Loop + Streaming Contract
+
+### UIMessageStream v1 Protocol (CRITICAL)
+The UI uses AI SDK `useChat` + `DefaultChatTransport` and expects **UIMessageStream v1** events.
+
+**MANDATORY REQUIREMENT**: Every stream MUST emit terminal events (`finish` and `[DONE]`) even on:
+- Successful completion
+- Errors or exceptions
+- Timeouts
+- Early exits or cancellation
+
+If terminal events are missing, the UI stays in a non-ready `status` ('streaming' or 'submitted') 
+and **blocks the user from sending new messages**.
+
+### Implementation Details
+
+#### Backend (`agent/api/main.py`)
+The `/superagent/stream` endpoint implements these safeguards:
+
+1. **Overall Timeout**: Configurable via `AGENT_TIMEOUT_SECONDS` env var (default: 300s/5min)
+2. **Terminal Event Fallback**: After agent execution completes (success, error, or timeout),
+   the endpoint checks if `finish` and `[DONE]` were emitted and emits them if missing
+3. **Guaranteed Yield**: Terminal events are yielded to the client before the generator returns
+4. **Error Handling**: All exception paths emit error + terminal events
+
+#### Callback Handler (`agent/aisdk_stream.py`)
+The `AISDKCallbackHandler` class:
+
+1. Emits terminal events when Strands calls it with `result=AgentResult(...)`
+2. Tracks state with `_finished` flag to prevent duplicate terminal events
+3. Provides `finalize(finish_reason)` method to force terminal events if `result=` was never received
+4. Provides `is_finished` property to check if terminal events were already emitted
+
+### Event Flow
+```
+start → start-step → [content/reasoning/tool events] → finish-step → finish → [DONE]
+```
+
+### Debugging Non-Responsive UI
+If the agent panel appears stuck:
+1. Check browser console for `[AgentPanel] API Error` messages
+2. Check backend logs for `Stream complete` with `Finish: True, Done: True`
+3. If `Finish: False` or `Done: False`, terminal events weren't received
+4. Check for agent timeout (look for "Agent execution timed out" in logs)
+5. Verify backend is running: `npm run dev:backend` on port 8765

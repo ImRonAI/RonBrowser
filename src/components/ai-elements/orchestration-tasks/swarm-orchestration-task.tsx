@@ -1,12 +1,11 @@
 /**
  * Swarm Orchestration Task Wrapper
  *
- * Wraps AgentSwarmCanvas with CollapsibleTask accordion for task UI integration.
- * Derives status from orchestrationStore swarm state.
+ * Wraps AgentSwarmCanvas with a 70/30 split layout and subagent panel.
+ * Derives active/complete state from orchestrationStore swarm data.
  */
 
-import { CollapsibleTask, type TaskStatus } from '@/components/ai-elements/task';
-import { AgentSwarmCanvas } from '@/components/ai-elements/agent-swarm-canvas';
+import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion';
 import { useOrchestrationStore } from '@/stores/orchestrationStore';
 import type { StrandsSwarmNode, HandoffMessage } from '@/components/ai-elements/strands-orchestration/types';
 
@@ -33,47 +32,27 @@ export function SwarmOrchestrationTask({
 }: SwarmOrchestrationTaskProps) {
   const { swarmNodes } = useOrchestrationStore();
 
-  // Derive task status from swarm state
-  const status = deriveSwarmStatus(swarmNodes);
+  const hasNodes = swarmNodes.length > 0;
+  const hasActive = swarmNodes.some((node) =>
+    node.data.status === 'running' || node.data.status === 'handoff'
+  );
+  const hasPending = swarmNodes.some(
+    (node) => node.data.status === 'pending' || node.data.status === 'idle'
+  );
+  const isFormationActive = hasActive;
+  const isFormationComplete = hasNodes && !hasActive && !hasPending;
 
   return (
-    <CollapsibleTask
+    <AgentFormationAccordion
+      formationType="swarm"
+      isFormationActive={isFormationActive}
+      isFormationComplete={isFormationComplete}
       title={title}
       description={description}
-      status={status}
       defaultExpanded={defaultExpanded}
       className={className}
-    >
-      <div className="h-[280px] w-full rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
-        <AgentSwarmCanvas
-          onNodeClick={onNodeClick}
-          onHandoffClick={onHandoff}
-          showStatusPanel={false}
-          showControls={false}
-          showMiniMap={false}
-          showHandoffHistory={false}
-          showEntryBadges={false}
-        />
-      </div>
-    </CollapsibleTask>
+      onSwarmNodeClick={onNodeClick}
+      onSwarmHandoff={onHandoff}
+    />
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function deriveSwarmStatus(nodes: StrandsSwarmNode[]): TaskStatus {
-  if (!nodes || nodes.length === 0) {
-    return 'pending';
-  }
-
-  const hasRunning = nodes.some((n) => n.data.status === 'running' || n.data.status === 'handoff');
-  const hasError = nodes.some((n) => n.data.status === 'error');
-  const allCompleted = nodes.every((n) => n.data.status === 'completed');
-
-  if (hasError) return 'error';
-  if (hasRunning) return 'running';
-  if (allCompleted) return 'success';
-  return 'pending';
 }

@@ -33,7 +33,7 @@ module.exports = {
   mac: {
     category: 'public.app-category.productivity',
     target: ['dmg', 'zip'],
-    icon: 'build/icon.icns',
+    icon: 'public/favicon.png',
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: 'build/entitlements.mac.plist',
@@ -43,7 +43,7 @@ module.exports = {
   // Windows configuration
   win: {
     target: ['nsis', 'zip'],
-    icon: 'build/icon.ico'
+    icon: 'public/favicon.png'
   },
   
   // Linux configuration

@@ -18,6 +18,8 @@ import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/
 
 // Source Card for citations
 import { SourceCard, type SourceData } from './SourceCard'
+import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion'
+import { useOrchestrationStore } from '@/stores/orchestrationStore'
 
 // Chain of Thought Component
 import {
@@ -26,6 +28,11 @@ import {
   ChainOfThoughtContent,
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from '@/components/ai-elements/reasoning'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -64,7 +71,78 @@ const SUGGESTIONS = [
   { text: 'Deep dive into details', icon: '∑' },
 ]
 
-const API_BASE_URL = import.meta.env.VITE_PERPLEXITY_API_URL || 'http://localhost:8765'
+const API_BASE_URL = import.meta.env.VITE_SEARCH_API_URL || 'http://localhost:8765'
+
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+function normalizeSources(raw: any): SourceData[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .map((item, index) => {
+      if (!item) return null
+      const url = item.url || item.link || item.source || ''
+      if (!url) return null
+
+      const title = item.title || item.name || getDomainFromUrl(url)
+      const snippet = item.snippet || item.description || item.quote || ''
+      const domain = item.domain || getDomainFromUrl(url)
+      const type = item.type || 'web'
+
+      return {
+        id: item.id || `source-${index}-${domain}`,
+        url,
+        title,
+        snippet,
+        domain,
+        type,
+        favicon: item.favicon,
+      } as SourceData
+    })
+    .filter((item): item is SourceData => Boolean(item))
+}
+
+function mergeSources(existing: SourceData[], incoming: SourceData[]): SourceData[] {
+  if (incoming.length === 0) return existing
+  const existingUrls = new Set(existing.map((source) => source.url))
+  const merged = [...existing]
+  for (const source of incoming) {
+    if (!existingUrls.has(source.url)) {
+      merged.push(source)
+    }
+  }
+  return merged
+}
+
+function buildInitialContext(
+  searchResult: SearchChatProps['searchResult'],
+  userQuery: string
+): string {
+  const answer = searchResult.answer?.trim()
+  const sources = searchResult.sources || []
+  const sourcesText = sources
+    .map((source, index) => `${index + 1}. ${source.title} - ${source.url}`)
+    .join('\n')
+
+  if (!answer && sources.length === 0) {
+    return userQuery
+  }
+
+  return [
+    'You are continuing an in-depth discussion based on the initial search.',
+    answer ? `Initial answer:\n${answer}` : null,
+    sources.length > 0 ? `Initial sources:\n${sourcesText}` : null,
+    `User follow-up:\n${userQuery}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
@@ -77,9 +155,25 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
   const [isTyping, setIsTyping] = useState(false)
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [hasSentContext, setHasSentContext] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Connect to orchestrationStore for 70/30 split visualization
+  const {
+    workflowTasks,
+    swarmNodes,
+    graphNodes,
+    activeAgentIds,
+    agentStreamingData
+  } = useOrchestrationStore()
+
+  const hasOrchestration = workflowTasks.length > 0 || swarmNodes.length > 0 || graphNodes.length > 0
+  const formationType: 'workflow' | 'swarm' | 'graph' =
+    workflowTasks.length > 0 ? 'workflow' :
+    swarmNodes.length > 0 ? 'swarm' :
+    'graph'
 
   const isEmpty = messages.length === 0
 
@@ -87,16 +181,43 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Initial search on mount
+  // Seed chat with initial search result or fetch if missing
   useEffect(() => {
-    if (query) {
-      handleSubmit(query)
+    if (!query) return
+
+    if (searchResult.answer || (searchResult.sources && searchResult.sources.length > 0)) {
+      setMessages([
+        {
+          id: `msg-${Date.now()}-user`,
+          role: 'user',
+          content: query,
+          timestamp: Date.now(),
+        },
+        {
+          id: `msg-${Date.now()}-assistant`,
+          role: 'assistant',
+          content: searchResult.answer || '',
+          timestamp: Date.now(),
+          isStreaming: false,
+          reasoning: [],
+          isReasoningComplete: true,
+          searchResults: searchResult.sources || [],
+        },
+      ])
+      return
     }
+
+    handleSubmit(query, { includeContext: true })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSubmit = useCallback(async (text?: string) => {
+  const handleSubmit = useCallback(async (text?: string, options?: { includeContext?: boolean }) => {
     const messageText = text || input.trim()
     if (!messageText) return
+
+    const shouldIncludeContext = options?.includeContext ?? (!hasSentContext && Boolean(searchResult.answer || searchResult.sources?.length))
+    const requestText = shouldIncludeContext
+      ? buildInitialContext(searchResult, messageText)
+      : messageText
 
     // Cancel any ongoing request
     if (abortControllerRef.current) {
@@ -128,30 +249,21 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
     try {
       abortControllerRef.current = new AbortController()
 
-      // Initialize session if needed
+      // Initialize session id if needed
       let currentSessionId = sessionId
       if (!currentSessionId) {
-        const startResponse = await fetch(`${API_BASE_URL}/chat/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-          signal: abortControllerRef.current.signal,
-        })
-
-        if (!startResponse.ok) throw new Error('Failed to start session')
-        const startData = await startResponse.json()
-        currentSessionId = startData.session_id
+        currentSessionId = crypto.randomUUID()
         setSessionId(currentSessionId)
       }
 
-      // Stream response from backend using correct endpoint
-      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+      // Stream response from search agent
+      const response = await fetch(`${API_BASE_URL}/api/search-agent/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: currentSessionId,
-          query: messageText,
-          model: 'sonar-reasoning-pro'
+          persist_session: true,
+          query: requestText,
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -164,9 +276,8 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
       const decoder = new TextDecoder()
       let buffer = ''
       let currentContent = ''
-      let currentReasoning: ReasoningStep[] = []
+      let reasoningText = ''
       let searchResults: SourceData[] = []
-      let images: string[] = []
 
       while (true) {
         const { done, value } = await reader.read()
@@ -177,74 +288,103 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          if (line.startsWith(':')) continue
           if (!line.startsWith('data: ')) continue
 
           const data = line.slice(6).trim()
           if (data === '[DONE]') break
 
           try {
-            const chunk = JSON.parse(data)
+            const event = JSON.parse(data)
 
-            // Handle 4 chunk types based on backend
-            if (chunk.object === 'chat.reasoning') {
-              // Reasoning steps
-              if (chunk.delta?.reasoning_steps) {
-                currentReasoning = chunk.delta.reasoning_steps
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantMessage.id
-                    ? { ...m, reasoning: currentReasoning }
-                    : m
-                ))
-              }
-            } else if (chunk.object === 'chat.reasoning.done') {
-              // Reasoning complete with search results
-              if (chunk.search_results) {
-                searchResults = chunk.search_results.map((r: any, i: number) => ({
-                  id: `source-${i}`,
-                  url: r.url,
-                  title: r.title,
-                  snippet: r.snippet || r.description || '',
-                  domain: new URL(r.url).hostname,
-                  type: 'web' as const,
-                  favicon: r.favicon,
-                }))
-              }
-              if (chunk.images) {
-                images = chunk.images
-              }
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMessage.id
-                  ? { ...m, isReasoningComplete: true, searchResults, images }
-                  : m
-              ))
-            } else if (chunk.object === 'chat.completion.chunk') {
-              // Content streaming
-              if (chunk.delta?.content) {
-                currentContent += chunk.delta.content
+            switch (event.type) {
+              case 'text-delta':
+                currentContent += event.delta || ''
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMessage.id
                     ? { ...m, content: currentContent }
                     : m
                 ))
+                break
+
+              case 'reasoning-delta':
+                reasoningText += event.delta || ''
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMessage.id
+                    ? {
+                        ...m,
+                        reasoning: reasoningText
+                          ? [{ thought: reasoningText, type: 'analysis' }]
+                          : [],
+                      }
+                    : m
+                ))
+                break
+
+              case 'tool-input-available':
+                if (event.input) {
+                  searchResults = mergeSources(searchResults, normalizeSources(event.input?.sources || event.input?.search_results || []))
+                }
+                break
+
+              case 'tool-output-available':
+                if (event.output) {
+                  searchResults = mergeSources(searchResults, normalizeSources(event.output?.sources || event.output?.search_results || event.output?.results || []))
+                }
+                break
+
+              case 'source-url': {
+                const url = event.url || event.sourceId || ''
+                if (url) {
+                  searchResults = mergeSources(searchResults, normalizeSources([{ url }]))
+                }
+                break
               }
-            } else if (chunk.object === 'chat.completion.done') {
-              // Stream complete
-              if (chunk.search_results && searchResults.length === 0) {
-                searchResults = chunk.search_results.map((r: any, i: number) => ({
-                  id: `source-${i}`,
-                  url: r.url,
-                  title: r.title,
-                  snippet: r.snippet || r.description || '',
-                  domain: new URL(r.url).hostname,
-                  type: 'web' as const,
-                  favicon: r.favicon,
-                }))
+
+              case 'source-document': {
+                const url = event.sourceId || event.url || ''
+                const title = event.title || getDomainFromUrl(url)
+                if (url) {
+                  searchResults = mergeSources(searchResults, normalizeSources([{ url, title }]))
+                }
+                break
               }
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMessage.id
-                  ? { ...m, isStreaming: false, searchResults: searchResults.length > 0 ? searchResults : m.searchResults }
-                  : m
-              ))
+
+              case 'workflow_visualization':
+                setWorkflowParts((prev) => [
+                  ...prev,
+                  {
+                    type: 'workflow_visualization',
+                    title: event.title,
+                    nodes: event.nodes || [],
+                    edges: event.edges || [],
+                    activeAgents: event.activeAgents || [],
+                  },
+                ])
+                break
+
+              case 'finish':
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMessage.id
+                    ? {
+                        ...m,
+                        isStreaming: false,
+                        isReasoningComplete: true,
+                        searchResults: searchResults.length > 0 ? searchResults : m.searchResults,
+                      }
+                    : m
+                ))
+                setHasSentContext(true)
+                break
+
+              case 'error':
+                throw new Error(event.errorText || 'Search agent error')
+
+              case 'abort':
+                throw new Error(event.reason || 'Stream aborted')
+
+              default:
+                break
             }
           } catch (e) {
             console.error('Failed to parse chunk:', e)
@@ -261,7 +401,7 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
       setIsTyping(false)
       abortControllerRef.current = null
     }
-  }, [input, messages, sessionId])
+  }, [input, messages, sessionId, searchResult, hasSentContext])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -307,7 +447,11 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
             <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6">
               <div className="max-w-3xl mx-auto space-y-6">
                 {messages.map((msg) => (
-                  <MessageBubble key={msg.id} message={msg} />
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    workflowParts={workflowParts}
+                  />
                 ))}
                 {isTyping && messages[messages.length - 1]?.role === 'user' && (
                   <TypingIndicator />
@@ -488,7 +632,7 @@ function EmptyState({ query, onSubmit }: { query: string; onSubmit: (text: strin
 // MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, workflowParts }: { message: Message; workflowParts: WorkflowVisualizationUIPart[] }) {
   const isUser = message.role === 'user'
 
   return (
@@ -506,19 +650,29 @@ function MessageBubble({ message }: { message: Message }) {
             transition={{ delay: 0.1, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             className="mb-3"
           >
-            <ChainOfThought defaultOpen={false}>
+            <ChainOfThought defaultOpen={!message.isReasoningComplete}>
               <ChainOfThoughtHeader>
-                Reasoning ({message.reasoning.length} steps)
+                Reasoning
               </ChainOfThoughtHeader>
               <ChainOfThoughtContent>
-                {message.reasoning.map((step, i) => (
-                  <ChainOfThoughtStep
-                    key={i}
-                    label={step.thought}
-                    description={step.type}
-                    status={message.isReasoningComplete ? 'complete' : 'running'}
-                  />
-                ))}
+                <ChainOfThoughtStep
+                  label="Thinking"
+                  status={message.isReasoningComplete ? 'complete' : 'running'}
+                >
+                  <Reasoning
+                    isStreaming={!message.isReasoningComplete}
+                    defaultOpen={!message.isReasoningComplete}
+                  >
+                    <ReasoningTrigger />
+                    <ReasoningContent>
+                      <ResponseMarkdown
+                        content={message.reasoning.map((step) => step.thought).join('\n\n')}
+                        isStreaming={!message.isReasoningComplete}
+                        className="text-body-sm"
+                      />
+                    </ReasoningContent>
+                  </Reasoning>
+                </ChainOfThoughtStep>
               </ChainOfThoughtContent>
             </ChainOfThought>
           </motion.div>
@@ -529,7 +683,7 @@ function MessageBubble({ message }: { message: Message }) {
           "px-4 py-3 rounded-2xl",
           isUser
             ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20 rounded-br-md [&_*]:text-white [&_code]:bg-white/20 [&_code]:text-white [&_a]:text-white [&_a]:underline"
-            : "bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse rounded-bl-md"
+            : "glass-card text-ink dark:text-ink-inverse rounded-bl-md border border-white/10"
         )}>
           <ResponseMarkdown
             content={message.content}
@@ -554,6 +708,23 @@ function MessageBubble({ message }: { message: Message }) {
                 className="h-full"
               />
             ))}
+          </motion.div>
+        )}
+
+        {/* 70/30 Orchestration Visualization */}
+        {!isUser && hasOrchestration && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-6"
+          >
+            <AgentFormationAccordion
+              formationType={formationType}
+              isFormationActive={isTyping}
+              isFormationComplete={!isTyping}
+              defaultExpanded={true}
+            />
           </motion.div>
         )}
       </div>

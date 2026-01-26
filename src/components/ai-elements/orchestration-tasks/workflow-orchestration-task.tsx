@@ -1,12 +1,11 @@
 /**
  * Workflow Orchestration Task Wrapper
  *
- * Wraps AgentWorkflowCanvas with CollapsibleTask accordion for task UI integration.
- * Derives status from orchestrationStore workflow state.
+ * Wraps AgentWorkflowCanvas with a 70/30 split layout and subagent panel.
+ * Derives active/complete state from orchestrationStore workflow data.
  */
 
-import { CollapsibleTask, type TaskStatus } from '@/components/ai-elements/task';
-import { AgentWorkflowCanvas } from '@/components/ai-elements/agent-workflow-canvas';
+import { AgentFormationAccordion } from '@/components/ai-elements/formation-components/AgentFormationAccordion';
 import { useOrchestrationStore } from '@/stores/orchestrationStore';
 import type { WorkflowTask } from '@/components/ai-elements/strands-orchestration/types';
 
@@ -29,50 +28,25 @@ export function WorkflowOrchestrationTask({
   defaultExpanded = true,
   className,
   onNodeClick,
-  onTaskComplete,
 }: WorkflowOrchestrationTaskProps) {
   const { workflowTasks } = useOrchestrationStore();
 
-  // Derive task status from workflow state
-  const status = deriveWorkflowStatus(workflowTasks);
+  const hasTasks = workflowTasks.length > 0;
+  const hasRunning = workflowTasks.some((task) => task.status === 'running');
+  const hasPending = workflowTasks.some((task) => task.status === 'pending');
+  const isFormationActive = hasRunning;
+  const isFormationComplete = hasTasks && !hasRunning && !hasPending;
 
   return (
-    <CollapsibleTask
+    <AgentFormationAccordion
+      formationType="workflow"
+      isFormationActive={isFormationActive}
+      isFormationComplete={isFormationComplete}
       title={title}
       description={description}
-      status={status}
       defaultExpanded={defaultExpanded}
       className={className}
-    >
-      <div className="h-[280px] w-full rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
-        <AgentWorkflowCanvas
-          onNodeClick={onNodeClick}
-          onTaskComplete={onTaskComplete}
-          showStepBadges={false}
-          showControls={false}
-          showMiniMap={false}
-          showProgressBar={false}
-        />
-      </div>
-    </CollapsibleTask>
+      onWorkflowNodeClick={onNodeClick}
+    />
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function deriveWorkflowStatus(tasks: WorkflowTask[]): TaskStatus {
-  if (!tasks || tasks.length === 0) {
-    return 'pending';
-  }
-
-  const hasRunning = tasks.some((t) => t.status === 'running');
-  const hasError = tasks.some((t) => t.status === 'error');
-  const allCompleted = tasks.every((t) => t.status === 'completed');
-
-  if (hasError) return 'error';
-  if (hasRunning) return 'running';
-  if (allCompleted) return 'success';
-  return 'pending';
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X as XIcon, Plus as PlusIcon } from 'lucide-react'
-import { TaskPriority } from '@/types/task'
+import { TaskPriority } from '@/pages/types/task'
 import { cn } from '@/utils/cn'
 
 interface SubtaskCreationModalProps {

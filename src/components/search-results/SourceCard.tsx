@@ -30,6 +30,8 @@ export interface SourceData {
 interface SourceCardProps {
   source: SourceData
   citationNumber?: number
+  selected?: boolean
+  onSelectionChange?: (selected: boolean) => void
   onVisitSite?: () => void
   onSendToRon?: () => void
   onSendToCoding?: () => void
@@ -70,6 +72,8 @@ function getTypeAccent(type: SourceData['type']): string {
 export function SourceCard({
   source,
   citationNumber,
+  selected = false,
+  onSelectionChange,
   onVisitSite,
   onSendToRon,
   onSendToCoding,
@@ -95,10 +99,11 @@ export function SourceCard({
     <div
       className={`
         group relative w-full
-        glass-card
         rounded-xl overflow-hidden
-        transition-all duration-500 ease-out
-        hover:elevated
+        border border-surface-200 dark:border-surface-700
+        bg-surface-0 dark:bg-surface-800
+        transition-all duration-300 ease-out
+        hover:shadow-md hover:border-surface-300 dark:hover:border-surface-600
         cursor-pointer
         ${className}
       `}
@@ -106,13 +111,41 @@ export function SourceCard({
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
     >
-      {/* Ambient Glow Overlay */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 bg-gradient-to-tr from-accent/5 via-transparent to-accent-light/5 pointer-events-none" />
+      {/* Ambient Highlight Overlay */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-tr from-surface-100/60 via-transparent to-surface-200/40 dark:from-surface-700/30 dark:to-surface-800/20 pointer-events-none" />
+
+      {/* Checkbox for Let's Chat context selection - Top Right */}
+      {onSelectionChange && (
+        <div className="absolute top-2 right-2 z-20">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => {
+              e.stopPropagation()
+              onSelectionChange(e.target.checked)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="
+              w-5 h-5 rounded
+              border-2 border-white/30
+              bg-white/10 backdrop-blur-md
+              checked:bg-gradient-to-br checked:from-purple-500 checked:to-purple-700
+              checked:border-purple-400
+              transition-all duration-200
+              cursor-pointer
+              hover:border-white/50
+              focus:outline-none focus:ring-2 focus:ring-purple-500/50
+            "
+            title="Select for Let's Chat context"
+          />
+        </div>
+      )}
+
       {/* Citation badge */}
       {citationNumber !== undefined && (
         <div
           className="
-            absolute -top-1 -right-1 z-10
+            absolute top-2 left-2 z-10
             w-5 h-5 flex items-center justify-center
             bg-gradient-to-br from-purple-500 to-purple-700
             text-white text-[10px] font-bold
@@ -129,7 +162,7 @@ export function SourceCard({
         {/* Header: favicon + domain */}
         <div className="flex items-center gap-2 mb-2">
           {/* Favicon */}
-          <div className="w-5 h-5 rounded flex items-center justify-center glass-subtle overflow-hidden">
+          <div className="w-5 h-5 rounded flex items-center justify-center bg-surface-100 dark:bg-surface-700 overflow-hidden">
             {!faviconError ? (
               <img 
                 src={source.favicon || getFaviconUrl(source.domain)}
@@ -149,19 +182,19 @@ export function SourceCard({
             <span className={`text-xs font-medium truncate ${getTypeAccent(source.type)}`}>
               {source.domain}
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 glass-subtle rounded text-slate-400">
+            <span className="text-[10px] px-1.5 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-ink-muted dark:text-ink-inverse-muted">
               {source.type}
             </span>
           </div>
         </div>
 
         {/* Title */}
-        <h4 className="text-sm font-medium text-white/90 line-clamp-2 mb-1.5 leading-tight">
+        <h4 className="text-sm font-semibold text-ink dark:text-ink-inverse line-clamp-2 mb-1 leading-tight">
           {source.title}
         </h4>
 
         {/* Snippet */}
-        <p className="text-xs text-white/50 line-clamp-2 leading-relaxed">
+        <p className="text-xs text-ink-secondary dark:text-ink-inverse-secondary line-clamp-2 leading-relaxed">
           {source.snippet}
         </p>
       </div>
@@ -170,7 +203,7 @@ export function SourceCard({
       <div
         className={`
           absolute inset-0 z-20 flex items-center justify-center gap-1.5
-          glass-bold backdrop-blur-glass
+          bg-surface-0/95 dark:bg-surface-800/95
           transition-opacity duration-200
           ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}
         `}
@@ -181,10 +214,10 @@ export function SourceCard({
             e.stopPropagation()
             window.open(source.url, '_blank', 'noopener,noreferrer')
           }}
-          className="p-2 rounded-lg glass-subtle hover:bg-white/20 transition-colors"
+          className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600 transition-colors"
           title="Visit Site"
         >
-          <ArrowTopRightOnSquareIcon className="w-4 h-4 text-white/80" />
+          <ArrowTopRightOnSquareIcon className="w-4 h-4 text-ink dark:text-ink-inverse" />
         </button>
 
         {/* Send to Ron */}
@@ -194,7 +227,7 @@ export function SourceCard({
               e.stopPropagation()
               onSendToRon()
             }}
-            className="p-2 rounded-lg glass-subtle hover:bg-teal-500/30 transition-colors"
+            className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 hover:bg-teal-500/20 transition-colors"
             title="Send to Ron"
           >
             <ChatBubbleLeftRightIcon className="w-4 h-4 text-teal-400" />
@@ -208,7 +241,7 @@ export function SourceCard({
               e.stopPropagation()
               onSendToCoding()
             }}
-            className="p-2 rounded-lg glass-subtle hover:bg-blue-500/30 transition-colors"
+            className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 hover:bg-blue-500/20 transition-colors"
             title="Send to Coding Agent"
           >
             <CodeBracketIcon className="w-4 h-4 text-blue-400" />
@@ -222,7 +255,7 @@ export function SourceCard({
               e.stopPropagation()
               onAttachToTask()
             }}
-            className="p-2 rounded-lg glass-subtle hover:bg-amber-500/30 transition-colors"
+            className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 hover:bg-amber-500/20 transition-colors"
             title="Attach to Task"
           >
             <PaperClipIcon className="w-4 h-4 text-amber-400" />
@@ -236,7 +269,7 @@ export function SourceCard({
               e.stopPropagation()
               onStartTask()
             }}
-            className="p-2 rounded-lg glass-subtle hover:bg-purple-500/30 transition-colors"
+            className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 hover:bg-purple-500/20 transition-colors"
             title="Start Task"
           >
             <PlayIcon className="w-4 h-4 text-purple-400" />

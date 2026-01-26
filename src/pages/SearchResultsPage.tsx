@@ -11,7 +11,7 @@ import { useSearchStore } from '@/stores/searchStore'
 import type {
   SearchResponse,
   UniversalResult,
-} from '@/types/search'
+} from '@/pages/types/search'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOCK DATA - Complete search response with all result types
@@ -507,13 +507,12 @@ export function SearchResultsPage() {
       setError(null)
 
       try {
-        const response = await fetch('/api/sonar-reasoning-pro/stream', {
+        const response = await fetch('http://localhost:8765/api/search-agent/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            messages: [{ role: 'user', content: searchQuery }],
-            reasoning_effort: 'high',
-            temperature: 0.2
+            query: searchQuery,
+            session_id: 'search-page'
           })
         })
 

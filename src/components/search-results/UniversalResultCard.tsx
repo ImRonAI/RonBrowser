@@ -20,7 +20,7 @@ import type {
   ImageResult,
   CodeResult,
   ResultType,
-} from '@/types/search'
+} from '@/pages/types/search'
 import {
   isVideoResult,
   isAudioResult,
@@ -32,7 +32,7 @@ import {
   isAcademicResult,
   isImageResult,
   isCodeResult,
-} from '@/types/search'
+} from '@/pages/types/search'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -61,7 +61,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useState } from 'react'
-import { ResultTypeLabels } from '@/types/search'
+import { ResultTypeLabels } from '@/pages/types/search'
 
 /**
  * Props for the UniversalResultCard component

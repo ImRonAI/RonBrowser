@@ -1,6 +1,7 @@
 """Ron Superagent - Strands-based orchestration agent with MCP/A2A capabilities."""
 import json
 import os
+import hashlib
 from pathlib import Path
 from typing import Optional, Any, Dict, Callable, List
 from dotenv import load_dotenv
@@ -18,8 +19,8 @@ import sys
 sys.path.append(str(Path(__file__).parent / "tools" / "src"))
 
 from strands import Agent, tool
-from strands import Agent, tool
-from strands.models.bedrock import BedrockModel
+from ron_gemini import RonGeminiModel
+from google import genai
 
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
@@ -40,6 +41,7 @@ from strands_tools import (
     graph,
     image_reader,
 )
+from strands_tools.utils.models.model import create_model, get_provider_config
 from strands_tools.electron_sandbox_tools import ElectronSandboxTools
 from strands_tools.a2a_client import A2AClientToolProvider
 from strands_tools.browser import LocalChromiumBrowser
@@ -48,12 +50,51 @@ from strands_tools.code_interpreter.electron_code_interpreter import ElectronCod
 
 from aisdk_stream import AISDKCallbackHandler
 from strands.session import FileSessionManager
+from strands.agent.conversation_manager import SummarizingConversationManager
+from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent, HookProvider, HookRegistry
+from lancedb_session_repository import LanceDBSessionManager
+import time
+
+# Tool timeout in seconds - if a tool takes longer, it gets logged as slow
+TOOL_TIMEOUT_SECONDS = int(os.getenv("TOOL_TIMEOUT_SECONDS", "15"))
+
+
+class ToolTimeoutHook(HookProvider):
+    """Track tool execution times and log slow tools using Strands hooks."""
+    
+    def __init__(self, timeout: float = TOOL_TIMEOUT_SECONDS):
+        self.timeout = timeout
+        self._start_times: dict[str, float] = {}
+    
+    def register_hooks(self, registry: HookRegistry) -> None:
+        registry.add_callback(BeforeToolCallEvent, self._on_before_tool)
+        registry.add_callback(AfterToolCallEvent, self._on_after_tool)
+    
+    def _on_before_tool(self, event: BeforeToolCallEvent) -> None:
+        tool_id = event.tool_use.get("toolUseId", "unknown")
+        tool_name = event.tool_use.get("name", "unknown")
+        self._start_times[tool_id] = time.time()
+        logger.debug(f"Tool '{tool_name}' (ID: {tool_id}) started")
+    
+    def _on_after_tool(self, event: AfterToolCallEvent) -> None:
+        tool_id = event.tool_use.get("toolUseId", "unknown")
+        tool_name = event.tool_use.get("name", "unknown")
+        start_time = self._start_times.pop(tool_id, None)
+        
+        if start_time:
+            duration = time.time() - start_time
+            if duration > self.timeout:
+                logger.warning(f"SLOW TOOL: '{tool_name}' took {duration:.2f}s (threshold: {self.timeout}s)")
+            else:
+                logger.debug(f"Tool '{tool_name}' completed in {duration:.2f}s")
 
 
 # Global state for MCP clients and agent reference
 _mcp_clients: Dict[str, Dict[str, Any]] = {}
 _current_agent: Optional[Agent] = None
 _SUPER_AGENT: Optional[Agent] = None  # The ONE permanent agent
+_SESSION_AGENTS: Dict[str, Agent] = {}
+_SESSION_BROWSER_NAMES: Dict[str, str] = {}
 _global_browser: Optional[LocalChromiumBrowser] = None  # Access to the browser instance
 logger = logging.getLogger(__name__)
 MCP_SERVERS_DIR = Path(__file__).parent / "tools" / "mcp"
@@ -64,7 +105,16 @@ AVAILABLE_MCP_SERVERS = {
     "telnyx": (str(VENV_PYTHON), ["-m", "telnyx_mcp_server"]),
     "datacommons": (str(Path(__file__).parent.parent / "venv" / "bin" / "datacommons-mcp"), ["serve", "stdio"]),
     "cms-coverage": (str(VENV_PYTHON), ["-m", "openapi_mcp_server", "--openapi-spec-path", str(MCP_SERVERS_DIR / "cms-coverage-mcp-server" / "coverageapi.json"), "--api-base-url", "https://api.cms.gov/mcd"]),
-    "playwright": ("node", [str(MCP_SERVERS_DIR / "playwright-electron-mcp" / "dist" / "index.js")]),
+    "playwright": (
+        "node",
+        [
+            str(MCP_SERVERS_DIR / "mcp-playwright" / "dist" / "index.js"),
+            "--electron-mode", "electron",
+            "--electron-bridge-url", "http://127.0.0.1:9231",
+            "--electron-iframe-selector", "iframe[data-active='true']",
+            "--electron-iframe-type", "iframe",
+        ],
+    ),
     "pophive": ("node", [str(MCP_SERVERS_DIR / "pophive-mcp-server" / "server" / "index.js")]),
     "healthcare": ("node", [str(MCP_SERVERS_DIR / "healthcare-mcp-public" / "server" / "index.js")]),
     "agent-sops": (str(VENV_PYTHON), [str(MCP_SERVERS_DIR / "agent-sop-mcp-server" / "server.py")]),
@@ -199,11 +249,63 @@ async def load_openapi_server(spec_path: str, api_base_url: str = None, server_i
 SUPERAGENT_SYSTEM_PROMPT = """You are Ron Superagent, a powerful orchestration agent built on Strands.
 
 ## BROWSER & APP NATIVE CONTROL
-You are integrated natively into the Ron Browser App via a direct CDP bridge.
-- **Smart Routing**:
-  - To manage tabs (create, switch, close, navigate), use standard browser actions (`new_tab`, `switch_tab`, `navigate`). These trigger the App's native UI handler.
-  - To interact with content (click, type, read), use standard browser actions. These automatically target the *Active Tab* content.
-- **Persistence**: You are permanently connected to the Main Window Shell. Do not attempt to launch new browsers or contexts. Use the provided tools.
+## PRIMARY BROWSER AUTOMATION (MANDATORY)
+Use the Playwright/Electron MCP Server as the FIRST and PRIMARY toolset for
+any browser or app automation. Do not use any other browser tool unless this
+MCP is unavailable.
+
+When connecting to the MCP (stdio), use one of these exact argument sets:
+
+- UI (focused tab):
+  command: node
+  args: [
+    "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/index.js",
+    "--electron-mode", "electron",
+    "--electron-bridge-url", "http://127.0.0.1:9231"
+  ]
+
+- UI + iframe (visible automation inside app):
+  command: node
+  args: [
+    "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/index.js",
+    "--electron-mode", "electron",
+    "--electron-bridge-url", "http://127.0.0.1:9231",
+    "--electron-iframe-selector", "iframe[data-preview='browser'][data-active='true']",
+    "--electron-iframe-type", "iframe"
+  ]
+
+- UI + iframe (project preview inside app):
+  command: node
+  args: [
+    "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/index.js",
+    "--electron-mode", "electron",
+    "--electron-bridge-url", "http://127.0.0.1:9231",
+    "--electron-iframe-selector", "iframe[data-preview='project'][data-active='true']",
+    "--electron-iframe-type", "iframe"
+  ]
+
+- UI + iframe (fallback when only one selector can be passed):
+  command: node
+  args: [
+    "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/index.js",
+    "--electron-mode", "electron",
+    "--electron-bridge-url", "http://127.0.0.1:9231",
+    "--electron-iframe-selector", "iframe[data-active='true']",
+    "--electron-iframe-type", "iframe"
+  ]
+
+- Headless (no visible UI):
+  command: node
+  args: [
+    "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/index.js",
+    "--electron-mode", "headless",
+    "--electron-headless-target", "electron",
+    "--electron-bridge-url", "http://127.0.0.1:9231"
+  ]
+
+Security defaults:
+- Never pass --electron-allow-destructive-cdp unless explicitly allowed.
+- Unsafe eval and full Electron APIs are OFF unless explicitly enabled.
 
 ## BROWSER INTERACTION PROTOCOL (MANDATORY)
 When browsing the web, ALWAYS follow this exact workflow:
@@ -214,7 +316,7 @@ When browsing the web, ALWAYS follow this exact workflow:
 
 ### Step 2: Capture & Understand
 - Take a screenshot using `browser` with `screenshot` action (saves file to disk)
-  - Use `session_name='default'` for all browser interactions unless a specific session is needed.
+  - Use the session name specified in the SESSION SCOPE section for all browser interactions.
 - IMMEDIATELY use `image_reader(image_path="<path>")` to send the screenshot to the model
 - NEVER proceed without visually confirming the current state via image_reader
 
@@ -650,6 +752,111 @@ Parameters:
 - metadata = optional dict like {"category": "preferences", "source": "onboarding"}
 """
 
+SUMMARIZATION_SYSTEM_PROMPT = """You are a diff-aware state compaction agent for an autonomous, tool-using SuperAgent.
+
+Your output is used to:
+- Update the rolling conversation state
+- Compute a structured diff vs the previous summary
+- Prevent regression, task drift, and tool thrashing
+
+You must preserve intent, execution state, and failure memory.
+
+INPUTS YOU MUST ASSUME
+- previous_summary — the last persisted summary state
+- recent_turns — new conversation turns since last compaction
+
+You must reconcile both.
+
+MANDATORY OUTPUT (EXACT SHAPE)
+summary:
+  primary_objective:
+  active_subtasks:
+  recent_changes:
+  decisions_locked:
+  tools_status:
+    working:
+    degraded:
+    broken:
+  constraints_and_do_not:
+  key_data_and_artifacts:
+  open_questions_and_blockers:
+
+diff:
+  added:
+  modified:
+  removed:
+
+Emit both summary and diff.
+If no changes exist, diff must explicitly say none.
+
+SUMMARY MERGE RULES (STRICT)
+- Start from previous_summary
+- Apply changes derived only from recent_turns
+- Preserve unchanged sections verbatim
+- Never regenerate the full summary from scratch unless explicitly instructed
+
+DIFF SEMANTICS (NON-NEGOTIABLE)
+diff.added:
+- New objectives, constraints, tools, data, or subtasks
+- Newly discovered failures or blockers
+
+diff.modified:
+- Changes in intent
+- Status transitions (e.g., tool working → broken)
+- Updated constraints or requirements
+- Reprioritized subtasks
+
+diff.removed:
+- Completed subtasks
+- Invalidated assumptions
+- Deprecated tools, approaches, or data
+
+Each diff entry must include:
+- section name
+- item identifier (or exact value if no ID)
+- reason for change
+
+CONFLICT RESOLUTION RULES
+- Recent turns override previous summary
+- If conflict cannot be resolved, record it in:
+  - summary.open_questions_and_blockers
+  - diff.modified with reason conflict_detected
+- Do not guess.
+
+TOOL FAILURE HANDLING (CRITICAL)
+Any tool error, timeout, or incompatibility:
+- Must appear in summary.tools_status.broken or degraded
+- Must appear in diff.added or diff.modified
+- Tools marked broken must never be suggested or retried downstream unless explicitly cleared by the user
+
+DO-NOT RULE ENFORCEMENT
+Anything in constraints_and_do_not:
+- Persists across summaries
+- Can only be removed via explicit user instruction
+- Removal must appear in diff.removed with citation
+
+ABSOLUTE PROHIBITIONS
+You must NOT:
+- Collapse multiple changes into one diff entry
+- Rewrite unchanged content
+- Infer completion without explicit evidence
+- Silence regressions
+- Optimize for brevity over correctness
+
+SUCCESS CONDITION
+A downstream agent, given:
+- previous_summary
+- your summary
+- your diff
+
+must be able to:
+- understand exactly what changed
+- continue execution without rework
+- avoid repeating failures
+- maintain user intent
+
+Failure to meet this condition is an error."""
+
 
 class UICallbackHandler:
     """
@@ -678,19 +885,76 @@ class CLICallbackHandler:
             print(data, end="", flush=True)
 
 
-def create_bedrock_model() -> BedrockModel:
-    """Create Bedrock model with Opus 4.5, extended thinking, and interleaved thinking."""
-    return BedrockModel(
-        model_id="us.anthropic.claude-opus-4-5-20251101-v1:0",
-        temperature=1,
-        additional_request_fields={
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 32768
-            },
-            "anthropic_beta": ["interleaved-thinking-2025-05-14"]
+def create_gemini_model() -> RonGeminiModel:
+    """Create Gemini 3 Flash Preview model with high reasoning."""
+    return RonGeminiModel(
+        model_id="gemini-3-flash-preview",
+        client_args={
+            "api_key": os.getenv("GOOGLE_API_KEY"),
+        },
+        params={
+            "temperature": 1.0,
+            "max_output_tokens": 65536,
+            "thinking_config": genai.types.ThinkingConfig(
+                thinking_level="high",  # Maximum reasoning depth (must be lowercase)
+                include_thoughts=True   # Expose reasoning tokens / thought summaries
+            )
         }
+        # NOTE: gemini_tools (GoogleSearch, CodeExecution, UrlContext) removed
+        # due to potential conflicts with Strands function calling tools.
+        # These can be added back if needed for specific use cases.
     )
+
+
+def create_primary_model():
+    """Create the main model for SuperAgent, defaulting to Gemini for reasoning."""
+    provider = os.getenv("SUPERAGENT_PROVIDER", "google")
+    model_override = os.getenv("SUPERAGENT_MODEL_ID")
+    if provider == "google":
+        model_id = model_override or "gemini-3-flash-preview"
+        return RonGeminiModel(
+            model_id=model_id,
+            client_args={
+                "api_key": os.getenv("GOOGLE_API_KEY"),
+            },
+            params={
+                "temperature": 1.0,
+                "max_output_tokens": 65536,
+                "thinking_config": genai.types.ThinkingConfig(
+                    thinking_level="high",  # Maximum reasoning depth (must be lowercase)
+                    include_thoughts=True   # Expose reasoning tokens / thought summaries
+                )
+            }
+        )
+    config = get_provider_config(provider)
+    if model_override:
+        config["model_id"] = model_override
+    return create_model(provider=provider, config=config)
+
+
+def create_summarization_model():
+    """Create a summarization model for SuperAgent."""
+    provider = os.getenv("SUPERAGENT_SUMMARIZER_PROVIDER") or os.getenv("SUPERAGENT_PROVIDER", "google")
+    model_override = os.getenv("SUPERAGENT_SUMMARIZER_MODEL_ID") or os.getenv("SUPERAGENT_MODEL_ID")
+    if provider == "google":
+        model_id = model_override or "gemini-3-flash-preview"
+        return RonGeminiModel(
+            model_id=model_id,
+            client_args={
+                "api_key": os.getenv("GOOGLE_API_KEY"),
+            },
+            params={
+                "temperature": 0.3,
+                "thinking_config": genai.types.ThinkingConfig(
+                    thinking_level="LOW",  # Fast summarization
+                    include_thoughts=False
+                )
+            }
+        )
+    config = get_provider_config(provider)
+    if model_override:
+        config["model_id"] = model_override
+    return create_model(provider=provider, config=config)
 
 
 from tools.task_tools import TaskTools
@@ -746,9 +1010,59 @@ def create_file_tracking_wrapper(original_tool: Callable, task_tools_instance: T
     return wrapped_tool
 
 
+def _make_browser_session_name(session_id: str) -> str:
+    """Generate a stable, valid browser session name for a chat session."""
+    if not session_id:
+        session_id = "default"
+    digest = hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:24]
+    return f"chat-{digest}"
+
+
+def get_browser_session_name(session_id: str) -> str:
+    """Return cached browser session name for a chat session."""
+    if session_id in _SESSION_BROWSER_NAMES:
+        return _SESSION_BROWSER_NAMES[session_id]
+    name = _make_browser_session_name(session_id)
+    _SESSION_BROWSER_NAMES[session_id] = name
+    return name
+
+
+def get_or_create_session_agent(
+    session_id: str,
+    callback_handler: Optional[Callable[..., Any]] = None,
+    memory = None,
+    browser_session_name: Optional[str] = None
+) -> tuple[Agent, bool, str]:
+    """Get or create a persistent agent for a specific chat session."""
+    global _SESSION_AGENTS, _current_agent
+
+    if browser_session_name:
+        _SESSION_BROWSER_NAMES[session_id] = browser_session_name
+    browser_session_name = get_browser_session_name(session_id)
+    if session_id not in _SESSION_AGENTS:
+        logger.info(f"Initializing session agent for: {session_id}")
+        agent = create_superagent(
+            session_id=session_id,
+            callback_handler=callback_handler,
+            memory=memory,
+            browser_session_name=browser_session_name
+        )
+        _SESSION_AGENTS[session_id] = agent
+        created = True
+    else:
+        agent = _SESSION_AGENTS[session_id]
+        if callback_handler:
+            agent.callback_handler = callback_handler
+        created = False
+
+    _current_agent = agent
+    return agent, created, browser_session_name
+
+
 def get_or_create_superagent(
     callback_handler: Optional[Callable[..., Any]] = None,
-    session_id: str = None
+    session_id: str = None,
+    memory = None
 ) -> Agent:
     """Get or create the PERMANENT super agent.
 
@@ -764,11 +1078,20 @@ def get_or_create_superagent(
     """
     global _SUPER_AGENT, _current_agent
     
+    if session_id:
+        agent, _, _ = get_or_create_session_agent(
+            session_id=session_id,
+            callback_handler=callback_handler,
+            memory=memory
+        )
+        return agent
+
     if _SUPER_AGENT is None:
         logger.info("Initializing Singleton SuperAgent...")
         _SUPER_AGENT = create_superagent(
             session_id=session_id,
-            callback_handler=callback_handler
+            callback_handler=callback_handler,
+            memory=memory
         )
     else:
         logger.info("Returning existing Singleton SuperAgent")
@@ -804,6 +1127,8 @@ def create_superagent(
     session_id: Optional[str] = None,
     history: Optional[List[Dict[str, Any]]] = None,
     callback_handler: Optional[Callable[..., Any]] = None,
+    memory = None,
+    browser_session_name: Optional[str] = None
 ) -> Agent:
     """Create a fresh Agent instance for a specific session."""
     
@@ -819,36 +1144,8 @@ def create_superagent(
     sandbox_tools = _sandbox_tools
     task_tools = _task_tools
 
-    # Pre-initialize 'default' browser session for agent native control
-    if browser:
-        async def _init_default_session():
-            """Helper to ensure default session exists without exposing tool call to LLM."""
-            # We use the internal _async_init_session method to avoid tool decorator overhead/metadata matching
-            # But we must construct the Action object
-            from strands_tools.browser.models import InitSessionAction
-            try:
-                # Check if session exists first (avoid error log)
-                if browser._sessions.get("default"):
-                     return
-                     
-                init_action = InitSessionAction(
-                    type="init_session", 
-                    session_name="default", 
-                    description="Agent Native Control Session"
-                )
-                await browser.init_session(init_action)
-                logger.info("Auto-initialized 'default' browser session for agent.")
-            except Exception as e:
-                logger.warning(f"Failed to auto-init default session: {e}")
-        
-        # Fire and forget - or we can't easily await here in synchronous create_superagent
-        # Ideally, this should be done in an async startup hook.
-        # Since we are in a synchronous function returning an Agent, we have limited options.
-        # HOWEVER, the Browser tool lazy loads platform on first use.
-        # So we might not need to do this HERE if the agent is instructed to init explicitly.
-        # But for 'native' feel, we want it pre-ready.
-        pass 
-    
+    # Browser session is now lazy-initialized on first use in ElectronSandboxTools
+
     # Re-construct tools list for this agent instance
     tools = [
         # Meta-tooling
@@ -873,22 +1170,7 @@ def create_superagent(
     a2a_provider = A2AClientToolProvider(known_agent_urls=[])
     tools.extend(a2a_provider.tools)
 
-    # Configured Claude Sonnet 4.5 (1M Context)
-    model = BedrockModel(
-        model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        temperature=1.0,
-        additional_request_fields={
-            "anthropic_beta": [
-                "context-1m-2025-08-07",
-                "interleaved-thinking-2025-05-14",
-                "computer-use-2024-10-22"
-            ],
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 32768
-            }
-        }
-    )
+    model = create_primary_model()
     
     if session_id is None:
         import time
@@ -896,18 +1178,50 @@ def create_superagent(
 
     logger.info(f"Creating new SuperAgent for session: {session_id}")
 
+    # Use LanceDBSessionManager if memory is provided, otherwise FileSessionManager
+    if memory:
+        session_manager = LanceDBSessionManager(
+            session_id=session_id,
+            memory=memory
+        )
+    else:
+        session_manager = FileSessionManager(
+            session_id=session_id,
+            storage_dir=str(Path(__file__).parent.parent / ".sessions")
+        )
+
+    summarization_model = create_summarization_model()
+
+    summarization_agent = Agent(
+        model=summarization_model,
+        system_prompt=SUMMARIZATION_SYSTEM_PROMPT,
+        load_tools_from_directory=False
+    )
+
+    system_prompt = SUPERAGENT_SYSTEM_PROMPT
+    if browser_session_name:
+        system_prompt = (
+            f"{SUPERAGENT_SYSTEM_PROMPT}\n\n"
+            "## SESSION SCOPE\n"
+            f"- Use browser session name: {browser_session_name}\n"
+            "- Always set this session_name for browser actions in this chat.\n"
+        )
+
     agent = Agent(
         model=model,
         tools=tools,
         callback_handler=callback_handler or CLICallbackHandler(),
-        system_prompt=SUPERAGENT_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         agent_id="ron-superagent",
         name="Ron Superagent",
         description="Orchestrator",
-        session_manager=FileSessionManager(
-            session_id=session_id,
-            storage_dir=str(Path(__file__).parent.parent / ".sessions")
-        )
+        session_manager=session_manager,
+        conversation_manager=SummarizingConversationManager(
+            summary_ratio=0.3,
+            preserve_recent_messages=10,
+            summarization_agent=summarization_agent
+        ),
+        hooks=[ToolTimeoutHook()]
     )
     
     if history:

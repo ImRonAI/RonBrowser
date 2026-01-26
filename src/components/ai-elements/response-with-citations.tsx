@@ -50,24 +50,17 @@ function parseInlineCitations(content: string, citations: Citation[]) {
     return content
   }
 
-  // Split by APA-style citations: (Author, Year) or (Organization, Year)
-  // Matches patterns like: (Smith et al., 2024) or (Tech Institute, 2024)
-  const parts = content.split(/(\([^)]+,\s*\d{4}\))/)
+  // Split by numbered citations: [1], [2], [3], etc.
+  const parts = content.split(/(\[\d+\])/)
 
   return parts.map((part, index) => {
     // Check if this part matches citation pattern
-    const citationMatch = part.match(/\(([^)]+),\s*(\d{4})\)/)
+    const citationMatch = part.match(/\[(\d+)\]/)
 
     if (citationMatch) {
-      const authorOrg = citationMatch[1].trim()
-      const year = citationMatch[2]
-
-      // Try to find matching citation by comparing author/org name or URL
-      // This is fuzzy matching - agent might not have exact source metadata
-      const citation = citations.find(c =>
-        c.title.toLowerCase().includes(authorOrg.toLowerCase()) ||
-        c.url.toLowerCase().includes(authorOrg.toLowerCase().replace(/\s+/g, ''))
-      )
+      const citationNumber = citationMatch[1]
+      // Find citation by number (1-indexed)
+      const citation = citations.find(c => c.number === citationNumber)
 
       if (citation) {
         return (

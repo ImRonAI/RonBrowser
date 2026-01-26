@@ -5,7 +5,7 @@
  * Includes large paste detection (2000+ chars) that auto-converts to text attachments.
  */
 
-import React, { useState, useRef, forwardRef } from 'react'
+import React, { useState, useRef, forwardRef, createContext, useContext, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Loader } from './loader'
@@ -18,6 +18,29 @@ import type { ChatStatus, AIModel, PromptInputMessage, TextAttachment } from './
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PromptInputContextValue {
+  onSubmit: () => void
+  onFileAdd: (files: File[]) => void
+  disabled?: boolean
+  hasValue: boolean
+  value: string
+  onChange: (value: string) => void
+}
+
+const PromptInputContext = createContext<PromptInputContextValue | null>(null)
+
+export function usePromptInput() {
+  const context = useContext(PromptInputContext)
+  if (!context) {
+    throw new Error('usePromptInput must be used within PromptInput')
+  }
+  return context
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PromptInput
@@ -140,77 +163,66 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
 
     const hasAttachments = files.length > 0 || textAttachments.length > 0
 
+    const contextValue = useMemo(() => ({
+      onSubmit: handleSubmit,
+      onFileAdd: handleFileAdd,
+      disabled,
+      hasValue: !!value.trim() || hasAttachments,
+      value,
+      onChange: handleChange,
+    }), [handleSubmit, handleFileAdd, disabled, value, hasAttachments, handleChange])
+
     return (
-      <div className={cn(
-        'bg-surface-50 dark:bg-surface-800',
-        'border border-surface-200 dark:border-surface-700',
-        'rounded-2xl',
-        'focus-within:border-accent dark:focus-within:border-accent-light',
-        'focus-within:ring-2 focus-within:ring-accent/20 dark:focus-within:ring-accent-light/20',
-        'transition-all duration-200',
-        className
-      )}>
-        {/* Attachments preview */}
-        {hasAttachments && (
-          <PromptInputAttachments>
-            {/* Regular file attachments */}
-            {files.map((file, index) => (
-              <PromptInputAttachment 
-                key={`file-${index}`} 
-                file={file} 
-                onRemove={() => handleFileRemove(index)} 
-              />
-            ))}
-            {/* Text attachments with special handling */}
-            {textAttachments.map((attachment) => (
-              <TextAttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                onRemove={handleTextAttachmentRemove}
-                onUpdate={handleTextAttachmentUpdate}
-              />
-            ))}
-          </PromptInputAttachments>
-        )}
+      <PromptInputContext.Provider value={contextValue}>
+        <div className={cn(
+          'bg-surface-50 dark:bg-surface-800',
+          'border border-surface-200 dark:border-surface-700',
+          'rounded-2xl',
+          'focus-within:border-accent dark:focus-within:border-accent-light',
+          'focus-within:ring-2 focus-within:ring-accent/20 dark:focus-within:ring-accent-light/20',
+          'transition-all duration-200',
+          className
+        )}>
+          {/* Attachments preview */}
+          {hasAttachments && (
+            <PromptInputAttachments>
+              {/* Regular file attachments */}
+              {files.map((file, index) => (
+                <PromptInputAttachment
+                  key={`file-${index}`}
+                  file={file}
+                  onRemove={() => handleFileRemove(index)}
+                />
+              ))}
+              {/* Text attachments with special handling */}
+              {textAttachments.map((attachment) => (
+                <TextAttachmentCard
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={handleTextAttachmentRemove}
+                  onUpdate={handleTextAttachmentUpdate}
+                />
+              ))}
+            </PromptInputAttachments>
+          )}
 
-        {/* Main textarea area */}
-        <PromptInputBody>
-          <textarea
-            ref={combinedRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={placeholder}
-            disabled={disabled}
-            rows={1}
-            className={cn(
-              'w-full px-4 py-3 bg-transparent',
-              'text-body-md text-ink dark:text-ink-inverse',
-              'placeholder:text-ink-muted dark:placeholder:text-ink-inverse-muted',
-              'resize-none focus:outline-none',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
-              'min-h-[48px] max-h-[200px]'
-            )}
-          />
-        </PromptInputBody>
+          {/* Main textarea area */}
+          <PromptInputBody>
+            <PromptInputTextarea
+              ref={combinedRef}
+              value={value}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={placeholder}
+              disabled={disabled}
+            />
+          </PromptInputBody>
 
-        {/* Render children (tools, footer, etc.) with context */}
-        {React.Children.map(children, child => {
-          if (React.isValidElement(child)) {
-            // Pass context to specific child types
-            if (child.type === PromptInputFooter || child.type === PromptInputTools) {
-              return React.cloneElement(child as React.ReactElement<any>, {
-                onSubmit: handleSubmit,
-                onFileAdd: handleFileAdd,
-                disabled,
-                hasValue: !!value.trim() || hasAttachments
-              })
-            }
-          }
-          return child
-        })}
-      </div>
+          {/* Children can access context */}
+          {children}
+        </div>
+      </PromptInputContext.Provider>
     )
   }
 )
@@ -268,13 +280,12 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
 
 interface PromptInputFooterProps {
   children?: React.ReactNode
-  onSubmit?: () => void
-  disabled?: boolean
-  hasValue?: boolean
   className?: string
 }
 
-export function PromptInputFooter({ children, onSubmit, disabled, hasValue, className }: PromptInputFooterProps) {
+export function PromptInputFooter({ children, className }: PromptInputFooterProps) {
+  const { onSubmit, disabled, hasValue } = usePromptInput()
+
   return (
     <div className={cn(
       'flex items-center justify-between gap-2',
@@ -285,12 +296,12 @@ export function PromptInputFooter({ children, onSubmit, disabled, hasValue, clas
       <div className="flex items-center gap-1">
         {children}
       </div>
-      
+
       {/* Default submit button if no custom one provided */}
       {!React.Children.toArray(children).some(
         child => React.isValidElement(child) && child.type === PromptInputSubmit
       ) && (
-        <PromptInputSubmit 
+        <PromptInputSubmit
           onClick={onSubmit}
           disabled={disabled || !hasValue}
         />

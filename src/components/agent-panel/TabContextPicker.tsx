@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import type { TabSummary } from '@/types/electron'
+import type { TabSummary } from '@/pages/types/electron'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

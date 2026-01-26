@@ -1,11 +1,33 @@
 import { useState, KeyboardEvent, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Lock, Sparkles } from 'lucide-react'
+import { Search, Lock } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { useSearchStore } from '@/stores/searchStore'
+
+const SEARCH_PROTOCOL_PREFIX = 'ron://search'
+
+export function getSearchQueryFromRonUrl(value: string): string | null {
+  if (!value.startsWith(SEARCH_PROTOCOL_PREFIX)) return null
+  try {
+    const parsed = new URL(value)
+    const query = parsed.searchParams.get('q')
+    return query ?? ''
+  } catch {
+    return null
+  }
+}
+
+function looksLikeUrl(value: string): boolean {
+  if (/^(https?:\/\/|ron:\/\/|file:\/\/|about:)/i.test(value)) return true
+  if (/^localhost(:\d+)?(\/.*)?$/i.test(value)) return true
+  if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/.*)?$/.test(value)) return true
+  return value.includes('.') && !/\s/.test(value)
+}
 
 export function UrlBar() {
   const [url, setUrl] = useState('ron://home')
   const [isFocused, setIsFocused] = useState(false)
+  const { search, clearSearch } = useSearchStore()
 
   // Sync URL from browser when it changes
   useEffect(() => {
@@ -18,32 +40,49 @@ export function UrlBar() {
     }
   }, [])
 
+  const commitInput = async (rawValue: string) => {
+    const trimmed = rawValue.trim()
+    if (!trimmed) return
+
+    const ronQuery = getSearchQueryFromRonUrl(trimmed)
+    const query = ronQuery ?? trimmed
+    const shouldNavigate = ronQuery === null && looksLikeUrl(trimmed)
+
+    if (typeof window !== 'undefined' && window.electron?.browser) {
+      try {
+        if (shouldNavigate) {
+          clearSearch()
+          await window.electron.browser.navigate(trimmed)
+          console.log('Navigation initiated')
+        } else {
+          search(query)
+          if (ronQuery !== null) {
+            await window.electron.browser.navigate(trimmed)
+          } else {
+            await window.electron.browser.search(query)
+          }
+          console.log('Search initiated:', query)
+        }
+      } catch (error) {
+        console.error('Url bar action error:', error)
+      }
+      return
+    }
+
+    if (!shouldNavigate) {
+      search(query)
+      setUrl(`ron://search?q=${encodeURIComponent(query)}`)
+    }
+  }
+
   const handleSubmit = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      console.log('Navigate to:', url)
-      
-      // Normalize and navigate to the URL
-      if (typeof window !== 'undefined' && window.electron?.browser) {
-        try {
-          await window.electron.browser.navigate(url)
-          console.log('Navigation initiated')
-        } catch (error) {
-          console.error('Navigation error:', error)
-        }
-      }
+      await commitInput(url)
     }
   }
 
   const handleSearchClick = async () => {
-    // Treat current URL as a search query
-    if (typeof window !== 'undefined' && window.electron?.browser) {
-      try {
-        await window.electron.browser.search(url)
-        console.log('Search initiated:', url)
-      } catch (error) {
-        console.error('Search error:', error)
-      }
-    }
+    await commitInput(url)
   }
 
   const isSecure = url.startsWith('https://') || url.startsWith('ron://')
@@ -93,7 +132,7 @@ export function UrlBar() {
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <Sparkles className="w-4 h-4 text-accent dark:text-accent-light" />
+            <img src="/favicon.png" alt="Ron" className="w-4 h-4" />
             <span className="text-label text-accent dark:text-accent-light tracking-wider">
               ron
             </span>

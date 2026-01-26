@@ -4,799 +4,799 @@
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 98.03699274155557,
-    "sample_size": 2429,
+    "coverage_rate": 86.22778089991296,
+    "sample_size": 1875,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 85.37741932290113,
-    "sample_size": 1126,
+    "coverage_rate": 91.10883080863174,
+    "sample_size": 2203,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 91.5112183523419,
-    "sample_size": 2263,
+    "coverage_rate": 94.64524344620088,
+    "sample_size": 1672,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 91.67360603310676,
-    "sample_size": 2102,
+    "coverage_rate": 94.43065507200953,
+    "sample_size": 709,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 95.16831886901718,
-    "sample_size": 2000,
+    "coverage_rate": 95.28016522530758,
+    "sample_size": 2410,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 94.1219639093286,
-    "sample_size": 1784,
+    "coverage_rate": 89.749156909201,
+    "sample_size": 1399,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 85.70379949140946,
-    "sample_size": 1356,
+    "coverage_rate": 88.21666255210302,
+    "sample_size": 993,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "US",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 95.99389526664402,
-    "sample_size": 2188,
+    "coverage_rate": 98.82365980706331,
+    "sample_size": 2492,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 93.91409453656057,
-    "sample_size": 1609,
+    "coverage_rate": 93.69331568979626,
+    "sample_size": 2314,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 94.67278723238192,
-    "sample_size": 2065,
+    "coverage_rate": 97.88482544602365,
+    "sample_size": 895,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 92.19500260249006,
-    "sample_size": 2181,
+    "coverage_rate": 99.79257061986016,
+    "sample_size": 1190,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 98.08854421774195,
-    "sample_size": 2252,
+    "coverage_rate": 86.07452102669943,
+    "sample_size": 2486,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 85.37422935422664,
-    "sample_size": 2214,
+    "coverage_rate": 89.57247191602599,
+    "sample_size": 2120,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 98.12589628408746,
-    "sample_size": 584,
+    "coverage_rate": 97.51954376347508,
+    "sample_size": 987,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 99.47376331622357,
-    "sample_size": 1421,
+    "coverage_rate": 96.9620409409832,
+    "sample_size": 1368,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "CA",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 91.07695918482948,
-    "sample_size": 1997,
+    "coverage_rate": 90.16211327459683,
+    "sample_size": 1604,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 96.25780539619504,
-    "sample_size": 824,
+    "coverage_rate": 87.64145011301402,
+    "sample_size": 2136,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 90.53042838193447,
-    "sample_size": 2125,
+    "coverage_rate": 90.08739531052018,
+    "sample_size": 2274,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 98.30885188670635,
-    "sample_size": 1285,
+    "coverage_rate": 97.62524435316679,
+    "sample_size": 597,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 99.51139707144655,
-    "sample_size": 1125,
+    "coverage_rate": 94.18659319534702,
+    "sample_size": 2053,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 88.97193114557604,
-    "sample_size": 1593,
+    "coverage_rate": 93.08028667231845,
+    "sample_size": 2435,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 86.94070680926939,
-    "sample_size": 2398,
+    "coverage_rate": 85.14570561362602,
+    "sample_size": 784,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 97.97059427452271,
-    "sample_size": 747,
+    "coverage_rate": 88.51904231713758,
+    "sample_size": 1255,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "TX",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 88.99998282096654,
-    "sample_size": 977,
+    "coverage_rate": 98.08505746507217,
+    "sample_size": 1644,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 97.07656869288684,
-    "sample_size": 1883,
+    "coverage_rate": 88.46549713283716,
+    "sample_size": 510,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 96.1438717028209,
-    "sample_size": 883,
+    "coverage_rate": 90.80561521496124,
+    "sample_size": 1042,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 87.5653266504846,
-    "sample_size": 2267,
+    "coverage_rate": 94.77314085286055,
+    "sample_size": 2139,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 88.16123363886956,
-    "sample_size": 1366,
+    "coverage_rate": 96.6788757237848,
+    "sample_size": 699,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 88.64401589923379,
-    "sample_size": 989,
+    "coverage_rate": 88.43565027510776,
+    "sample_size": 2260,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 93.48428409785713,
-    "sample_size": 2370,
+    "coverage_rate": 94.13714572866849,
+    "sample_size": 1176,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 97.00711017958395,
-    "sample_size": 1867,
+    "coverage_rate": 90.44730824583077,
+    "sample_size": 1392,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "FL",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 99.17931658700502,
-    "sample_size": 2119,
+    "coverage_rate": 91.77431648458744,
+    "sample_size": 1717,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 86.80030038810685,
-    "sample_size": 744,
+    "coverage_rate": 86.00540180660387,
+    "sample_size": 604,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 92.49875097092236,
-    "sample_size": 2176,
+    "coverage_rate": 94.19289857610966,
+    "sample_size": 1195,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 93.12482441623658,
-    "sample_size": 1222,
+    "coverage_rate": 85.34092262518563,
+    "sample_size": 791,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 89.90525696621151,
-    "sample_size": 927,
+    "coverage_rate": 91.3805502027775,
+    "sample_size": 1144,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 95.87659870739276,
-    "sample_size": 2347,
+    "coverage_rate": 86.84702479130043,
+    "sample_size": 516,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 89.33007081170788,
-    "sample_size": 1233,
+    "coverage_rate": 85.24897354862874,
+    "sample_size": 1936,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NY",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 96.46502168573303,
-    "sample_size": 2180,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "NY",
-    "year": 2024,
-    "vaccine": "Rotavirus",
-    "age_group": "19-35 months",
-    "coverage_rate": 90.8415373536727,
-    "sample_size": 2373,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "DTaP",
-    "age_group": "19-35 months",
-    "coverage_rate": 86.24646651488364,
-    "sample_size": 1699,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "MMR",
-    "age_group": "19-35 months",
-    "coverage_rate": 92.93550499530265,
-    "sample_size": 1516,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "Polio",
-    "age_group": "19-35 months",
-    "coverage_rate": 95.91385974925417,
-    "sample_size": 1900,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "Hib",
-    "age_group": "19-35 months",
-    "coverage_rate": 90.08919901895186,
-    "sample_size": 2436,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "PCV",
-    "age_group": "19-35 months",
-    "coverage_rate": 86.31887027668121,
-    "sample_size": 1163,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "Hepatitis B",
-    "age_group": "19-35 months",
-    "coverage_rate": 87.01499052393116,
-    "sample_size": 2419,
-    "source": "CDC NIS",
-    "last_updated": "2026-01-13"
-  },
-  {
-    "geography": "PA",
-    "year": 2024,
-    "vaccine": "Varicella",
-    "age_group": "19-35 months",
-    "coverage_rate": 87.41106986296478,
+    "coverage_rate": 99.3513010939342,
     "sample_size": 1720,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "NY",
+    "year": 2024,
+    "vaccine": "Rotavirus",
+    "age_group": "19-35 months",
+    "coverage_rate": 97.75705938340053,
+    "sample_size": 2148,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "DTaP",
+    "age_group": "19-35 months",
+    "coverage_rate": 96.43133482206923,
+    "sample_size": 1338,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "MMR",
+    "age_group": "19-35 months",
+    "coverage_rate": 86.0821099171797,
+    "sample_size": 2001,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "Polio",
+    "age_group": "19-35 months",
+    "coverage_rate": 86.68125833602011,
+    "sample_size": 1025,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "Hib",
+    "age_group": "19-35 months",
+    "coverage_rate": 97.50067390609442,
+    "sample_size": 1059,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "PCV",
+    "age_group": "19-35 months",
+    "coverage_rate": 87.81494015916108,
+    "sample_size": 581,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "Hepatitis B",
+    "age_group": "19-35 months",
+    "coverage_rate": 88.94745613309905,
+    "sample_size": 1245,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
+  },
+  {
+    "geography": "PA",
+    "year": 2024,
+    "vaccine": "Varicella",
+    "age_group": "19-35 months",
+    "coverage_rate": 93.40234620978649,
+    "sample_size": 694,
+    "source": "CDC NIS",
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "PA",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 98.1917285840038,
-    "sample_size": 1030,
+    "coverage_rate": 88.61270248594431,
+    "sample_size": 1877,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 85.24429318652561,
-    "sample_size": 760,
+    "coverage_rate": 95.29710972437871,
+    "sample_size": 1597,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 87.66309028541015,
-    "sample_size": 819,
+    "coverage_rate": 93.73657831118355,
+    "sample_size": 2347,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 90.74822677082746,
-    "sample_size": 501,
+    "coverage_rate": 91.9117505225449,
+    "sample_size": 985,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 99.7695653754698,
-    "sample_size": 1905,
+    "coverage_rate": 93.00554590735351,
+    "sample_size": 1481,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 97.57333147347772,
-    "sample_size": 2027,
+    "coverage_rate": 87.5829097897611,
+    "sample_size": 2006,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 98.94497091034651,
-    "sample_size": 736,
+    "coverage_rate": 89.40159020807465,
+    "sample_size": 1397,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 90.67526204814307,
-    "sample_size": 695,
+    "coverage_rate": 85.55295203302481,
+    "sample_size": 882,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "IL",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 99.52328126864234,
-    "sample_size": 2341,
+    "coverage_rate": 94.94090419384013,
+    "sample_size": 2209,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 98.29481600683965,
-    "sample_size": 873,
+    "coverage_rate": 97.5183641641506,
+    "sample_size": 806,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 94.58936649287003,
-    "sample_size": 557,
+    "coverage_rate": 98.52107479346056,
+    "sample_size": 717,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 85.21135029887925,
-    "sample_size": 1269,
+    "coverage_rate": 85.48345021860665,
+    "sample_size": 1196,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 92.58779742228093,
-    "sample_size": 1660,
+    "coverage_rate": 93.49271373056514,
+    "sample_size": 1279,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 95.57472818668217,
-    "sample_size": 654,
+    "coverage_rate": 89.34369574370636,
+    "sample_size": 774,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 89.87494341753815,
-    "sample_size": 803,
+    "coverage_rate": 86.7164840480174,
+    "sample_size": 592,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 90.27377400431664,
-    "sample_size": 598,
+    "coverage_rate": 98.66823494318888,
+    "sample_size": 1969,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "OH",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 93.77900558146902,
-    "sample_size": 1606,
+    "coverage_rate": 94.82560744734174,
+    "sample_size": 1336,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 97.51026945577408,
-    "sample_size": 779,
+    "coverage_rate": 96.54983011238954,
+    "sample_size": 2330,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 96.80362984002754,
-    "sample_size": 2075,
+    "coverage_rate": 91.0633878985565,
+    "sample_size": 580,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 85.25161090678336,
-    "sample_size": 1434,
+    "coverage_rate": 85.84436366749917,
+    "sample_size": 2358,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 85.36160908949063,
-    "sample_size": 1003,
+    "coverage_rate": 86.13175262414768,
+    "sample_size": 1290,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 87.86544763500615,
-    "sample_size": 1645,
+    "coverage_rate": 91.45251529627896,
+    "sample_size": 911,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 88.98340204054256,
-    "sample_size": 1811,
+    "coverage_rate": 98.30624352447406,
+    "sample_size": 1633,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 87.05118318428069,
-    "sample_size": 2018,
+    "coverage_rate": 96.8474830137919,
+    "sample_size": 951,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "GA",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 96.79487137133106,
-    "sample_size": 746,
+    "coverage_rate": 94.66267825362738,
+    "sample_size": 597,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "DTaP",
     "age_group": "19-35 months",
-    "coverage_rate": 95.33200574041273,
-    "sample_size": 652,
+    "coverage_rate": 95.2748489922092,
+    "sample_size": 1681,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "MMR",
     "age_group": "19-35 months",
-    "coverage_rate": 86.3491935248978,
-    "sample_size": 1872,
+    "coverage_rate": 90.7568884247264,
+    "sample_size": 1619,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "Polio",
     "age_group": "19-35 months",
-    "coverage_rate": 93.18652069474469,
-    "sample_size": 1080,
+    "coverage_rate": 86.28429169492475,
+    "sample_size": 672,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "Hib",
     "age_group": "19-35 months",
-    "coverage_rate": 90.46748032367867,
-    "sample_size": 1219,
+    "coverage_rate": 91.70183439869021,
+    "sample_size": 2247,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "PCV",
     "age_group": "19-35 months",
-    "coverage_rate": 90.45260791884995,
-    "sample_size": 873,
+    "coverage_rate": 86.83667426820458,
+    "sample_size": 2351,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "Hepatitis B",
     "age_group": "19-35 months",
-    "coverage_rate": 91.3244737955154,
-    "sample_size": 660,
+    "coverage_rate": 91.96719977952517,
+    "sample_size": 1642,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "Varicella",
     "age_group": "19-35 months",
-    "coverage_rate": 93.78000542292176,
-    "sample_size": 2474,
+    "coverage_rate": 95.39336920076519,
+    "sample_size": 857,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   },
   {
     "geography": "NC",
     "year": 2024,
     "vaccine": "Rotavirus",
     "age_group": "19-35 months",
-    "coverage_rate": 97.06828590195721,
-    "sample_size": 1410,
+    "coverage_rate": 89.63070659775988,
+    "sample_size": 2481,
     "source": "CDC NIS",
-    "last_updated": "2026-01-13"
+    "last_updated": "2026-01-22"
   }
 ]

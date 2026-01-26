@@ -5,8 +5,8 @@
  * Compatible with Strands Agent Framework streaming patterns.
  */
 
-import { API_BASE_URL, API_ENDPOINTS, type ApiError } from '@/types/api'
-import type { AgentStreamEvent, ChatRequest } from '@/types/agent'
+import { API_BASE_URL, API_ENDPOINTS, type ApiError } from '@/pages/types/api'
+import type { AgentStreamEvent, ChatRequest } from '@/pages/types/agent'
 import { getAccessToken } from './supabase'
 
 // ============================================

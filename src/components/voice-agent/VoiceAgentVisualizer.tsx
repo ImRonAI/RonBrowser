@@ -275,7 +275,7 @@ function EnergyRings({ audioData }: VoiceOrbProps) {
     if (ringsRef.current) {
       const time = state.clock.getElapsedTime()
 
-      ringsRef.current.children.forEach((ring, i) => {
+      ringsRef.current.children.forEach((ring: THREE.Object3D, i: number) => {
         // Rotate each ring differently
         ring.rotation.x = time * 0.2 * (i % 2 === 0 ? 1 : -1)
         ring.rotation.z = time * 0.15 * (i % 2 === 0 ? -1 : 1)
