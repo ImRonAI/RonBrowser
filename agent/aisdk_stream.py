@@ -90,7 +90,7 @@ class AISDKStreamEmitter:
             return f'data: {json.dumps({"type": "tool-input-available", "toolCallId": tool_call_id, "toolName": tool_name, "input": input_data})}\n\n'
         except (TypeError, ValueError) as e:
             logger.warning(f"Tool input serialization failed for {tool_call_id}: {e}")
-            return f'data: {json.dumps({"type": "tool-input-available", "toolCallId": tool_call_id, "toolName": tool_name, "input": {"error": "input_not_serializable"}}})}\n\n'
+            return f'data: {json.dumps({"type": "tool-input-available", "toolCallId": tool_call_id, "toolName": tool_name, "input": {"error": "input_not_serializable"}})}\n\n'
 
     @staticmethod
     def emit_tool_output_available(tool_call_id: str, output: Any) -> str:

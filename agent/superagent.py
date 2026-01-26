@@ -17,6 +17,8 @@ os.environ["STRANDS_NON_INTERACTIVE"] = "true"
 # this is critical if the package is not installed in editable mode or if we added new files
 import sys
 sys.path.append(str(Path(__file__).parent / "tools" / "src"))
+# Also add strands-fun-tools for screen_reader and other fun utilities
+sys.path.append(str(Path(__file__).parent / "tools" / "strands-fun-tools"))
 
 from strands import Agent, tool
 from ron_gemini import RonGeminiModel
@@ -41,6 +43,7 @@ from strands_tools import (
     graph,
     image_reader,
 )
+from strands_fun_tools import screen_reader
 from strands_tools.utils.models.model import create_model, get_provider_config
 from strands_tools.electron_sandbox_tools import ElectronSandboxTools
 from strands_tools.a2a_client import A2AClientToolProvider
@@ -314,30 +317,42 @@ When browsing the web, ALWAYS follow this exact workflow:
 - Type the website URL in the address bar OR enter a search query in a search bar
 - Use `browser` with `navigate` action or `type` action to input the URL/search
 
-### Step 2: Capture & Understand
-- Take a screenshot using `browser` with `screenshot` action (saves file to disk)
-  - Use the session name specified in the SESSION SCOPE section for all browser interactions.
-- IMMEDIATELY use `image_reader(image_path="<path>")` to send the screenshot to the model
-- NEVER proceed without visually confirming the current state via image_reader
+### Step 2: Capture & Understand (USE SCREEN_READER)
+- Use `screen_reader(action="capture_once")` to capture the screen with OCR
+- This returns ALL visible text elements with their **bounding boxes** (x, y, width, height, center)
+- Use the `center` coordinates to know EXACTLY where to click
+- For finding specific elements: `screen_reader(action="find_element", search_text="Button Text")`
+- NEVER proceed without understanding the current state via screen_reader
 
-### Step 3: Execute Certain Actions
-- Only perform actions you are CERTAIN about based on the screenshot
+### Step 3: Execute Actions Using Coordinates
+- Use the bounding box data from screen_reader to perform precise actions
+- Click using center coordinates from screen_reader results
 - Execute actions sequentially (one at a time)
-- Actions you can perform without additional screenshots:
-  - Clicking a clearly visible button/link you identified
-  - Typing into a field you confirmed exists
+- Actions you can perform based on screen_reader data:
+  - Clicking at specific coordinates where text was detected
+  - Typing into a field you confirmed exists (use coordinates to click it first)
   - Scrolling in a known direction
 
 ### Step 4: Verify & Repeat
-- After any action that changes the page state, IMMEDIATELY take another screenshot
-- Use `image_reader` to understand the new state
-- NEVER GUESS what's on screen - always verify with screenshot + image_reader
+- After any action that changes the page state, IMMEDIATELY call `screen_reader(action="capture_once")`
+- Use the returned elements to understand the new state
+- NEVER GUESS what's on screen - always verify with screen_reader
 - Repeat Steps 2-4 until task is completed
 
+### SCREEN_READER ACTIONS REFERENCE
+| Action | Description | Returns |
+|--------|-------------|---------|
+| `capture_once` | One-shot screen capture with OCR | All text elements with bounding boxes |
+| `find_element` | Search for specific text | Matching elements with coordinates |
+| `list_elements` | List all unique visible elements | Deduplicated element list with positions |
+| `start` | Begin background monitoring | Status message |
+| `stop` | Stop background monitoring | Status message |
+
 ### CRITICAL RULES
-- **NO GUESSING**: Never assume what's on screen - always verify with screenshot + image_reader
+- **USE SCREEN_READER**: Always use `screen_reader` instead of screenshot + image_reader for browser automation
+- **BOUNDING BOXES**: Use the center coordinates from screen_reader to click elements precisely
+- **NO GUESSING**: Never assume what's on screen - always verify with screen_reader
 - **SEQUENTIAL EXECUTION**: One action at a time, verify between uncertain actions
-- **SCREENSHOT FIRST**: Any time you're unsure, take a screenshot and read it
 
 ### Data Collection & Context Files
 When performing research or coding tasks from web sources:
@@ -1154,7 +1169,7 @@ def create_superagent(
         use_agent, workflow, swarm, graph, think,
         # Core utilities
         http_request, sandbox_tools.file_read, sandbox_tools.file_write, environment,
-        mcp_client, mem0_memory, stop, sleep, image_reader,
+        mcp_client, mem0_memory, stop, sleep, image_reader, screen_reader,
         # Browser execution
         browser.browser,
         # Task Management

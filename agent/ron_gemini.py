@@ -13,6 +13,8 @@ class RonGeminiModel(GeminiModel):
 
     def _format_request_content(self, messages: Messages) -> list[genai.types.Content]:
         contents: list[genai.types.Content] = []
+        # Gemini FunctionResponses require tool name mapping
+        tool_use_id_to_name: dict[str, str] = {}
 
         for message in messages:
             signature: Optional[str | bytes] = None
@@ -33,18 +35,23 @@ class RonGeminiModel(GeminiModel):
                     else:
                         thought_signature = signature.encode("utf-8")
                     tool_use = content["toolUse"]
+                    # Track tool use ID to name mapping for tool results
+                    tool_use_id = tool_use.get("toolUseId")
+                    tool_name = tool_use.get("name")
+                    if tool_use_id and tool_name:
+                        tool_use_id_to_name[tool_use_id] = tool_name
                     parts.append(
                         genai.types.Part(
                             function_call=genai.types.FunctionCall(
                                 args=tool_use.get("input"),
-                                id=tool_use.get("toolUseId"),
-                                name=tool_use.get("name"),
+                                id=tool_use_id,
+                                name=tool_name,
                             ),
                             thought_signature=thought_signature,
                         )
                     )
                 else:
-                    parts.append(self._format_request_content_part(content))
+                    parts.append(self._format_request_content_part(content, tool_use_id_to_name))
 
             contents.append(
                 genai.types.Content(
