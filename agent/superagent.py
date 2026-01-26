@@ -312,7 +312,7 @@ Security defaults:
 - Unsafe eval and full Electron APIs are OFF unless explicitly enabled.
 
 ## BROWSER INTERACTION PROTOCOL
-For screen interaction, try `use_computer` first. Use `analyze_screen` to see the screen and get element coordinates, then `click`/`type` at those coordinates. Fall back to Playwright MCP or `browser` tool if needed.
+For screen interaction, try `use_computer` first. Use `analyze_screen` to get element coordinates (DO NOT set send_screenshot=True), then `click`/`type` at those coordinates. Fall back to Playwright MCP or `browser` tool if needed.
 
 ### Data Collection & Context Files
 When performing research or coding tasks from web sources:
