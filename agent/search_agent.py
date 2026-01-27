@@ -12,7 +12,7 @@ Integrates multiple search tools:
 import logging
 import os
 from strands import Agent
-from ron_gemini import RonGeminiModel
+from strands.models.gemini import GeminiModel
 from google import genai
 from strands.session.file_session_manager import FileSessionManager
 
@@ -67,9 +67,24 @@ SEARCH_AGENT_PROMPT = """You are Ron's Search Agent. You coordinate comprehensiv
 - graph/workflow/use_agent: Orchestrate complex multi-step search workflows
 - Code execution: Process data, create visualizations, analyze results
 
+**Gateway Search Mandate:**
+- The Docker MCP Gateway is available; use its tools for every user search.
+- Run multi-source searches in parallel across:
+  * Perplexity Search APIs: perplexity_deep_research + perplexity_sonar_pro
+  * Brave Search MCP suite (all six): brave_web_search, brave_news_search, brave_image_search, brave_video_search, brave_local_search, brave_summarizer
+  * Apify scrapers (discover via list_tools if needed, then call relevant actors)
+  * Bright Data tools (use when available for SERP or site extraction)
+- If unsure of tool names, call mcp_client(action="list_tools") and proceed.
+
 **CITATION PROTOCOL (MANDATORY):**
 Every single fact MUST have inline citations [1][2][3]. No exceptions.
 Example: "The study found 87% efficacy[1] with minimal side effects[2]."
+
+**UI OUTPUT CONTRACT (AI Elements):**
+- Use inline citations like [1], [2], [3] that match the order of sources you return.
+- When you have a plan, append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
+- When you have a task queue or checklist, append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
+- Do NOT wrap <plan>/<queue> blocks in code fences.
 
 **Optimal Workflow:**
 1. Start perplexity_deep_research IMMEDIATELY (it runs async in background)
@@ -127,7 +142,7 @@ def create_search_agent(callback_handler=None, session_id="search"):
     tools = [t for t in tools if t is not None]
 
     # Gemini 3 Flash Preview with high reasoning
-    model = RonGeminiModel(
+    model = GeminiModel(
         model_id="gemini-3-pro-preview",
         client_args={
             "api_key": os.getenv("GOOGLE_API_KEY"),

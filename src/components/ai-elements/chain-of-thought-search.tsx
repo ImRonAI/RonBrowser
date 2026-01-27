@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { Image } from './image'
 import { Loader } from './loader'
-import { InlineCitation } from './sources'
+import { InlineCitation, InlineCitationText } from './inline-citation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -216,11 +216,11 @@ function SearchResultCard({
         <div className="flex items-start gap-3">
           {/* Citation Number */}
           <div className="flex-shrink-0 mt-0.5">
-            <InlineCitation
-              index={index}
-              href={result.url}
-              title={result.title}
-            />
+            <InlineCitation className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+              <InlineCitationText className="leading-none">
+                {index}
+              </InlineCitationText>
+            </InlineCitation>
           </div>
 
           {/* Favicon/Thumbnail */}

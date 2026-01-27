@@ -5,7 +5,7 @@ import os
 from typing import Any, Callable
 
 from strands import Agent
-from ron_gemini import RonGeminiModel
+from strands.models.gemini import GeminiModel
 from google import genai
 from strands.multiagent.a2a import A2AServer
 from strands.multiagent.a2a.executor import StrandsA2AExecutor
@@ -247,7 +247,7 @@ class ReasoningA2AServer(A2AServer):
 def create_sandbox_agent() -> Agent:
     """Create the sandbox agent with use_computer."""
     # Gemini 3 Flash Preview with high reasoning
-    model = RonGeminiModel(
+    model = GeminiModel(
         model_id="gemini-3-pro-preview",
         client_args={
             "api_key": os.getenv("GOOGLE_API_KEY"),

@@ -51,7 +51,7 @@ function mapSessionToUser(session: Session, additionalData?: Partial<User>): Use
     avatar: supabaseUser.user_metadata?.avatar_url,
     tenantId: supabaseUser.id, // User-based tenancy: tenant = user
     preferences: {
-      theme: 'system',
+      theme: 'dark',
       interactionMode: 'type',
       searchMode: 'ai-web',
       contentDensity: 'comfortable',

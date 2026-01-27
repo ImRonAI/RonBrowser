@@ -719,7 +719,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
         className="flex justify-end"
       >
         <div className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white">
-          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
+          <p className="text-body-sm leading-relaxed whitespace-pre-wrap text-white">
             {textParts.map(p => p.text).join('')}
           </p>
         </div>

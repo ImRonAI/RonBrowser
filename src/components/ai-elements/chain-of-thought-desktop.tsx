@@ -149,7 +149,7 @@ export function ChainOfThoughtDesktopPreview({
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600" title="Finder" />
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500" title="Safari" />
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-teal-500" title="Messages" />
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500" title="Music" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500" title="Music" />
         </div>
       )}
 
@@ -383,5 +383,4 @@ function CameraIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-
 

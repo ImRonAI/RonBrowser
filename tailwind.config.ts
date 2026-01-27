@@ -15,82 +15,101 @@ const config: Config = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
-  		colors: {
-  			background: 'hsl(var(--background))',
-  			foreground: 'hsl(var(--foreground))',
-  			card: {
-  				DEFAULT: 'hsl(var(--card))',
-  				foreground: 'hsl(var(--card-foreground))'
-  			},
-  			popover: {
-  				DEFAULT: 'hsl(var(--popover))',
-  				foreground: 'hsl(var(--popover-foreground))'
-  			},
-  			primary: {
-  				DEFAULT: 'hsl(var(--primary))',
-  				foreground: 'hsl(var(--primary-foreground))'
-  			},
-  			secondary: {
-  				DEFAULT: 'hsl(var(--secondary))',
-  				foreground: 'hsl(var(--secondary-foreground))'
-  			},
-  			muted: {
-  				DEFAULT: 'hsl(var(--muted))',
-  				foreground: 'hsl(var(--muted-foreground))'
-  			},
-  			destructive: {
-  				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
-  			},
-  			border: 'hsl(var(--border))',
-  			input: 'hsl(var(--input))',
-  			ring: 'hsl(var(--ring))',
-  			accent: {
-  				DEFAULT: 'hsl(var(--accent))',
-  				foreground: 'hsl(var(--accent-foreground))'
-  			},
-  			'accent-indigo': '#3730A3',
-  			'accent-light': '#6366F1',
-  			'accent-muted': '#818CF8',
-  			'accent-subtle': '#C7D2FE',
-  			surface: {
-  				'0': '#FFFFFF',
-  				'50': '#FAFAFA',
-  				'100': '#F5F5F5',
-  				'200': '#E5E5E5',
-  				'300': '#D4D4D4',
-  				'400': '#A3A3A3',
-  				'500': '#525252',
-  				'600': '#404040',
-  				'700': '#262626',
-  				'800': '#171717',
-  				'850': '#121212',
-  				'900': '#0A0A0A'
-  			},
-  			ink: {
-  				DEFAULT: '#0A0A0A',
-  				secondary: '#525252',
-  				muted: '#A3A3A3',
-  				ghost: '#D4D4D4',
-  				inverse: '#FAFAFA',
-  				'inverse-secondary': '#A3A3A3',
-  				'inverse-muted': '#737373'
-  			},
-  			success: '#059669',
-  			warning: '#D97706',
-  			danger: '#DC2626',
-  			info: '#0284C7',
-  			royal: {
-  				DEFAULT: '#3730A3',
-  				light: '#6366F1',
-  				dark: '#312E81',
-  				purple: '#4C1D95'
-  			},
-  			'ron-white': '#FFFFFF',
-  			'ron-text': '#0A0A0A',
-  			'ron-black': '#0A0A0A',
-  			'ron-smoke': '#121212'
-  		},
+      colors: {
+        // shadcn/ui color tokens
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        // Sophisticated Minimal Palette - Bold yet refined
+        // Light Mode: Warm whites and deep charcoals
+        // Dark Mode: Rich blacks with warm undertones
+        
+        // Primary Accent - Deep Indigo with warmth (merged with shadcn/ui CSS variable support)
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+          // Custom accent variants (use accent-indigo, accent-light, etc. for these)
+        },
+        // Ron's custom accent colors (for non-shadcn components)
+        'accent-indigo': '#3730A3', // Indigo-800 - Bold, confident
+        'accent-light': '#6366F1',   // Indigo-500 - Vibrant 
+        'accent-muted': '#818CF8',   // Indigo-400 - Soft
+        'accent-subtle': '#C7D2FE', // Indigo-200 - Whisper
+        
+        // Surface Colors - The foundation
+        surface: {
+          // Light mode
+          0: '#FFFFFF',       // Pure white
+          50: '#FAFAFA',      // Off-white
+          100: '#F5F5F5',     // Light gray
+          200: '#E5E5E5',     // Border gray
+          300: '#D4D4D4',     // Scrollbar hover gray
+          400: '#A3A3A3',     // Medium gray
+          // Dark mode
+          900: '#0A0A0A',     // Near black
+          850: '#121212',     // Elevated black
+          800: '#171717',     // Card black
+          700: '#262626',     // Border dark
+          600: '#404040',     // Scrollbar hover dark
+          500: '#525252',     // Medium dark
+        },
+        
+        // Text Colors - Crisp and readable
+        ink: {
+          DEFAULT: '#0A0A0A', // Near black
+          secondary: '#525252', // Gray-600
+          muted: '#A3A3A3',   // Gray-400
+          ghost: '#D4D4D4',   // Gray-300
+          // Dark mode inversions
+          inverse: '#FAFAFA',
+          'inverse-secondary': '#A3A3A3',
+          'inverse-muted': '#737373',
+        },
+        
+        // Semantic Colors - Status indicators
+        success: '#059669',   // Emerald-600
+        warning: '#D97706',   // Amber-600
+        danger: '#DC2626',    // Red-600
+        info: '#0284C7',      // Sky-600
+        
+        // Legacy support
+        royal: {
+          DEFAULT: '#3730A3',
+          light: '#6366F1',
+          dark: '#312E81',
+          purple: '#4C1D95',
+        },
+        'ron-white': '#FFFFFF',
+        'ron-text': '#0A0A0A',
+        'ron-black': '#0A0A0A',
+        'ron-smoke': '#121212',
+      },
   		fontFamily: {
   			display: [
   				'Playfair Display"',

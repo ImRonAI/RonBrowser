@@ -5,498 +5,274 @@
  * Fetches live results from sonar-reasoning-pro API.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { UIMessage } from '@ai-sdk/react'
 import { SearchLayout } from '@/components/search-results'
 import { useSearchStore } from '@/stores/searchStore'
 import type {
   SearchResponse,
   UniversalResult,
 } from '@/pages/types/search'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MOCK DATA - Complete search response with all result types
-// ─────────────────────────────────────────────────────────────────────────────
-
-const MOCK_SEARCH_RESPONSE: SearchResponse = {
-  id: 'search-123',
-  query: 'artificial intelligence and machine learning',
-  timestamp: Date.now(),
-  isComplete: true,
-  totalCount: 20,
-  duration: 234,
-  
-  sonarReasoning: {
-    reasoning: 'The search for "artificial intelligence and machine learning" returned diverse results across multiple content types. The analysis indicates strong interest in both theoretical foundations and practical applications. Key themes include neural networks, deep learning, large language models, and real-world implementations.',
-    
-    chainOfThought: {
-      steps: [
-        {
-          id: 'step-1',
-          label: 'Initial Query Analysis',
-          description: 'Breaking down search terms and identifying key concepts',
-          status: 'complete',
-          timestamp: Date.now() - 5000,
-          reasoning: 'Analyzing query for AI, machine learning, and related concepts.',
-          searchResults: [],
-        },
-        {
-          id: 'step-2',
-          label: 'Multi-Source Search',
-          description: 'Searching across video, academic, and web sources',
-          status: 'complete',
-          timestamp: Date.now() - 3000,
-          reasoning: 'Executing parallel searches across multiple data sources.',
-          tools: ['brave_web_search', 'semantic_scholar_search', 'youtube_search'],
-        },
-        {
-          id: 'step-3',
-          label: 'Result Synthesis',
-          description: 'Combining and ranking results by relevance',
-          status: 'complete',
-          timestamp: Date.now(),
-          reasoning: 'Merging results and applying relevance scoring.',
-        },
-      ],
-    },
-    
-    confidence: 0.89,
-    qualityScore: 0.92,
-    
-    sources: [
-      {
-        id: 'source-1',
-        url: 'https://arxiv.org/abs/1706.03762',
-        title: 'Attention Is All You Need',
-        snippet: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks.',
-        relevanceScore: 0.95,
-        type: 'academic',
-        domain: 'arxiv.org',
-        confidence: 0.97,
-        credibilityScore: 0.98,
-      },
-      {
-        id: 'source-2',
-        url: 'https://youtube.com/watch?v=aircAruvnKk',
-        title: 'But what is a neural network?',
-        snippet: 'Deep learning is an exciting subfield of machine learning.',
-        relevanceScore: 0.92,
-        type: 'video',
-        domain: 'youtube.com',
-      },
-    ],
-    
-    summary: 'Found comprehensive resources spanning academic papers, video tutorials, podcasts, and code examples covering AI and ML fundamentals.',
-    
-    relatedQueries: [
-      'deep learning fundamentals',
-      'neural network architecture',
-      'LLM applications',
-      'AI ethics',
-    ],
-    
-    modelUsed: 'sonar-reasoning-pro-v2',
-    tokensUsed: 1234,
-  },
-  
-  results: [
-    // ─── VIDEO RESULTS (2) ────────────────────────────────────────────────────
-    {
-      id: 'video-1',
-      type: 'video',
-      title: 'But what is a neural network? | Deep learning chapter 1',
-      url: 'https://youtube.com/watch?v=aircAruvnKk',
-      thumbnail: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=400&h=225&fit=crop',
-      duration: 1215,
-      embedUrl: 'https://youtube.com/embed/aircAruvnKk',
-      embedType: 'youtube',
-      platform: 'youtube',
-      uploader: '3Blue1Brown',
-      uploaderUrl: 'https://youtube.com/@3blue1brown',
-      viewCount: 15700000,
-      publishedAt: '2017-10-05T00:00:00Z',
-      relevanceScore: 0.95,
-    },
-    {
-      id: 'video-2',
-      type: 'video',
-      title: 'Introduction to Machine Learning | MIT 6.S191',
-      url: 'https://youtube.com/watch?v=IPkBbjo9rR8',
-      thumbnail: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=400&h=225&fit=crop',
-      duration: 3600,
-      embedUrl: 'https://youtube.com/embed/IPkBbjo9rR8',
-      embedType: 'youtube',
-      platform: 'youtube',
-      uploader: 'MIT OpenCourseWare',
-      uploaderUrl: 'https://youtube.com/@mitocw',
-      viewCount: 890000,
-      publishedAt: '2022-02-15T00:00:00Z',
-      relevanceScore: 0.88,
-    },
-    
-    // ─── AUDIO RESULTS (2) ──────────────────────────────────────────────────────
-    {
-      id: 'audio-1',
-      type: 'audio',
-      title: 'Neural Networks Explained',
-      url: 'https://example.com/neural-networks-explained',
-      audioUrl: 'https://example.com/audio/neural-networks.mp3',
-      duration: 1800,
-      artwork: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=200&h=200&fit=crop',
-      artist: 'Tech Explained',
-      album: 'AI Series',
-      genre: 'Technology',
-      platform: 'spotify',
-      relevanceScore: 0.82,
-    },
-    {
-      id: 'audio-2',
-      type: 'audio',
-      title: 'Machine Learning Fundamentals',
-      url: 'https://example.com/ml-fundamentals',
-      audioUrl: 'https://example.com/audio/ml-fundamentals.mp3',
-      duration: 2400,
-      artwork: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=200&h=200&fit=crop',
-      artist: 'Data Science Weekly',
-      album: 'Learning Series',
-      genre: 'Education',
-      platform: 'spotify',
-      relevanceScore: 0.79,
-    },
-    
-    // ─── PODCAST RESULTS (2) ────────────────────────────────────────────────────
-    {
-      id: 'podcast-1',
-      type: 'podcast',
-      title: 'The Future of AI with Andrew Ng',
-      url: 'https://podcasts.example.com/episode/ai-future',
-      audioUrl: 'https://podcasts.example.com/audio/episode-123.mp3',
-      duration: 3240,
-      artwork: 'https://images.unsplash.com/photo-1535303311164-664fc9ec6532?w=200&h=200&fit=crop',
-      episodeNumber: 42,
-      seasonNumber: 3,
-      publishedAt: '2024-01-15T00:00:00Z',
-      showTitle: 'AI Today',
-      showUrl: 'https://podcasts.example.com/show/ai-today',
-      host: 'Sarah Chen',
-      hostUrl: 'https://twitter.com/sarahchen',
-      platform: 'spotify',
-      relevanceScore: 0.91,
-    },
-    {
-      id: 'podcast-2',
-      type: 'podcast',
-      title: 'Building Machine Learning Systems at Scale',
-      url: 'https://podcasts.example.com/episode/ml-scale',
-      audioUrl: 'https://podcasts.example.com/audio/episode-124.mp3',
-      duration: 2700,
-      artwork: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=200&fit=crop',
-      episodeNumber: 23,
-      publishedAt: '2024-01-10T00:00:00Z',
-      showTitle: 'Engineering Deep Dive',
-      showUrl: 'https://podcasts.example.com/show/engineering',
-      host: 'Mike Roberts',
-      platform: 'apple-podcasts',
-      relevanceScore: 0.85,
-    },
-    
-    // ─── WEB RESULTS (2) ────────────────────────────────────────────────────────
-    {
-      id: 'web-1',
-      type: 'web',
-      title: 'Deep Learning | MIT Technology Review',
-      url: 'https://www.technologyreview.com/2024/01/10/1086408/deep-learning-explained/',
-      snippet: 'Deep learning is a subset of machine learning that uses neural networks with multiple layers to progressively extract higher-level features.',
-      favicon: 'https://www.technologyreview.com/favicon.ico',
-      domain: 'technologyreview.com',
-      author: 'Will Knight',
-      publishDate: '2024-01-10',
-      relevanceScore: 0.94,
-      credibilityScore: 0.88,
-    },
-    {
-      id: 'web-2',
-      type: 'web',
-      title: 'Understanding Machine Learning: A Comprehensive Guide',
-      url: 'https://towardsdatascience.com/understanding-machine-learning-a-comprehensive-guide',
-      snippet: 'Machine learning is a field of artificial intelligence that uses statistical techniques to give computer systems the ability to learn from data.',
-      favicon: 'https://towardsdatascience.com/favicon.ico',
-      domain: 'towardsdatascience.com',
-      author: 'Jason Brownlee',
-      publishDate: '2023-11-20',
-      relevanceScore: 0.87,
-    },
-    
-    // ─── ARTICLE RESULTS (2) ────────────────────────────────────────────────────
-    {
-      id: 'article-1',
-      type: 'article',
-      title: 'The Rise of Generative AI: A New Era of Creativity',
-      url: 'https://www.wired.com/story/generative-ai-new-era-creativity',
-      snippet: 'Generative AI is reshaping industries from art to healthcare, creating new possibilities while raising important questions about copyright and ethics.',
-      favicon: 'https://www.wired.com/favicon.ico',
-      thumbnail: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&h=400&fit=crop',
-      author: 'Charlotte Jee',
-      authorUrl: 'https://www.wired.com/author/charlotte-jee',
-      publishDate: '2024-01-05',
-      publication: 'WIRED',
-      publicationUrl: 'https://www.wired.com',
-      readingTime: 8,
-      wordCount: 2100,
-      relevanceScore: 0.89,
-    },
-    {
-      id: 'article-2',
-      type: 'article',
-      title: 'Large Language Models: Understanding the Technology Behind ChatGPT',
-      url: 'https://www.theverge.com/23675672/llm-large-language-models-explained',
-      snippet: 'Large language models are transforming how we interact with computers, but how do they actually work under the hood?',
-      favicon: 'https://www.theverge.com/favicon.ico',
-      thumbnail: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop',
-      author: 'James Vincent',
-      authorUrl: 'https://www.theverge.com/authors/james-vincent',
-      publishDate: '2023-12-18',
-      publication: 'The Verge',
-      publicationUrl: 'https://www.theverge.com',
-      readingTime: 6,
-      relevanceScore: 0.86,
-    },
-    
-    // ─── SOCIAL MEDIA RESULTS (2) ──────────────────────────────────────────────
-    {
-      id: 'social-1',
-      type: 'social',
-      content: 'Just published our new research on transformer architectures! The attention mechanism is truly revolutionary. #AI #MachineLearning',
-      url: 'https://twitter.com/researchlab/status/174567890123456',
-      thumbnail: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=400&h=300&fit=crop',
-      mediaType: 'none',
-      platform: 'twitter',
-      handle: '@researchlab',
-      author: 'AI Research Lab',
-      authorUrl: 'https://twitter.com/researchlab',
-      avatar: 'https://pbs.twimg.com/profile_images/1234567890/avatar.jpg',
-      likes: 24500,
-      shares: 8900,
-      comments: 1200,
-      publishedAt: '2024-01-08T10:30:00Z',
-      isVerified: true,
-      relevanceScore: 0.81,
-    },
-    {
-      id: 'social-2',
-      type: 'social',
-      content: '🚀 Exciting to see how neural networks are being applied in healthcare! Early detection systems are saving lives.',
-      url: 'https://linkedin.com/posts/ai-innovations/healthcare-ai',
-      thumbnail: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
-      mediaType: 'image',
-      platform: 'linkedin',
-      handle: 'ai-innovations',
-      author: 'Dr. Sarah Mitchell',
-      authorUrl: 'https://linkedin.com/in/sarah-mitchell',
-      avatar: 'https://media.licdn.com/dms/image/C5603AQHwZwZkY5kXQ/profile-displayphoto-shrink_100_100/0/1234567890',
-      likes: 3400,
-      comments: 280,
-      publishedAt: '2024-01-07T14:20:00Z',
-      isVerified: true,
-      relevanceScore: 0.76,
-    },
-    
-    // ─── TRAVEL RESULTS (2) ──────────────────────────────────────────────────────
-    {
-      id: 'travel-1',
-      type: 'travel',
-      title: 'AI Conference 2024 - San Francisco',
-      url: 'https://events.example.com/ai-conference-2024',
-      thumbnail: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop',
-      price: 899,
-      currency: 'USD',
-      originalPrice: 1199,
-      destination: 'San Francisco, CA',
-      origin: undefined,
-      dates: {
-        departure: '2024-06-15',
-        return: '2024-06-18',
-      },
-      airline: undefined,
-      flightNumber: undefined,
-      duration: undefined,
-      bookingUrl: 'https://booking.example.com/ai-conference-2024',
-      provider: 'expedia',
-      propertyType: 'hotel',
-      bedrooms: undefined,
-      rating: 4.5,
-      reviews: 234,
-      images: [
-        'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400',
-        'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400',
-      ],
-      relevanceScore: 0.72,
-    },
-    {
-      id: 'travel-2',
-      type: 'travel',
-      title: 'Machine Learning Summit - London',
-      url: 'https://summit.example.com/ml-london',
-      thumbnail: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400&h=300&fit=crop',
-      price: 650,
-      currency: 'GBP',
-      destination: 'London, UK',
-      dates: {
-        departure: '2024-05-20',
-        return: '2024-05-22',
-      },
-      bookingUrl: 'https://booking.example.com/ml-summit-london',
-      provider: 'generic',
-      rating: 4.7,
-      reviews: 189,
-      relevanceScore: 0.68,
-    },
-    
-    // ─── ACADEMIC RESULTS (2) ────────────────────────────────────────────────────
-    {
-      id: 'academic-1',
-      type: 'academic',
-      title: 'Attention Is All You Need',
-      url: 'https://arxiv.org/abs/1706.03762',
-      snippet: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder.',
-      abstract: 'We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.',
-      authors: [
-        'Ashish Vaswani',
-        'Noam Shazeer',
-        'Niki Parmar',
-        'Jakob Uszkoreit',
-        'Llion Jones',
-        'Aidan N. Gomez',
-        'Łukasz Kaiser',
-        'Illia Polosukhin',
-      ],
-      journal: 'Advances in Neural Information Processing Systems',
-      venue: 'NeurIPS',
-      publishDate: '2017-06-12',
-      arxivId: '1706.03762',
-      citationCount: 124500,
-      year: 2017,
-      pdfUrl: 'https://arxiv.org/pdf/1706.03762.pdf',
-      hasOpenAccess: true,
-      relevanceScore: 0.98,
-    },
-    {
-      id: 'academic-2',
-      type: 'academic',
-      title: 'Deep Residual Learning for Image Recognition',
-      url: 'https://arxiv.org/abs/1512.03385',
-      snippet: 'Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously.',
-      abstract: 'We reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions.',
-      authors: [
-        'Kaiming He',
-        'Xiangyu Zhang',
-        'Shaoqing Ren',
-        'Jian Sun',
-      ],
-      journal: 'IEEE Conference on Computer Vision and Pattern Recognition',
-      venue: 'CVPR',
-      publishDate: '2016-12-10',
-      arxivId: '1512.03385',
-      citationCount: 189000,
-      year: 2016,
-      pdfUrl: 'https://arxiv.org/pdf/1512.03385.pdf',
-      hasOpenAccess: true,
-      relevanceScore: 0.94,
-    },
-    
-    // ─── IMAGE RESULTS (2) ──────────────────────────────────────────────────────
-    {
-      id: 'image-1',
-      type: 'image',
-      title: 'Neural Network Visualization',
-      url: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485',
-      thumbnail: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=400&h=300&fit=crop',
-      width: 1920,
-      height: 1080,
-      format: 'jpg',
-      sourceUrl: 'https://unsplash.com/photos/neural-network',
-      source: 'Unsplash',
-      author: 'Alex Knight',
-      altText: 'Abstract visualization of neural network connections',
-      tags: ['neural network', 'AI', 'machine learning', 'technology'],
-      colors: ['#6366f1', '#8b5cf6', '#a855f7'],
-      relevanceScore: 0.85,
-    },
-    {
-      id: 'image-2',
-      type: 'image',
-      title: 'Robot Hand with AI Chip',
-      url: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e',
-      thumbnail: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=300&fit=crop',
-      width: 2048,
-      height: 1365,
-      format: 'jpg',
-      sourceUrl: 'https://unsplash.com/photos/robot-ai',
-      source: 'Unsplash',
-      author: 'Franki Chamaki',
-      altText: 'Robot hand holding an artificial intelligence chip',
-      tags: ['robot', 'AI', 'technology', 'future'],
-      colors: ['#0ea5e9', '#0284c7', '#0369a1'],
-      relevanceScore: 0.79,
-    },
-    
-    // ─── CODE RESULTS (2) ───────────────────────────────────────────────────────
-    {
-      id: 'code-1',
-      type: 'code',
-      title: 'tensorflow/tensorflow',
-      url: 'https://github.com/tensorflow/tensorflow',
-      snippet: 'An Open Source Machine Learning Framework for Everyone',
-      repository: 'tensorflow/tensorflow',
-      repositoryUrl: 'https://github.com/tensorflow/tensorflow',
-      packageName: 'tensorflow',
-      version: '2.15.0',
-      author: 'TensorFlow',
-      authorUrl: 'https://github.com/tensorflow',
-      language: 'Python',
-      languageIcon: 'python',
-      stars: 182000,
-      forks: 93000,
-      lastUpdated: '2024-01-10T15:30:00Z',
-      codePreview: 'import tensorflow as tf\n\nmodel = tf.keras.Sequential([\n  tf.keras.layers.Dense(128, activation="relu"),\n  tf.keras.layers.Dense(10, activation="softmax")\n])',
-      lineCount: 150000,
-      relevanceScore: 0.96,
-    },
-    {
-      id: 'code-2',
-      type: 'code',
-      title: 'pytorch/pytorch',
-      url: 'https://github.com/pytorch/pytorch',
-      snippet: 'Tensors and Dynamic neural networks in Python with strong GPU acceleration',
-      repository: 'pytorch/pytorch',
-      repositoryUrl: 'https://github.com/pytorch/pytorch',
-      packageName: 'torch',
-      version: '2.1.0',
-      author: 'PyTorch',
-      authorUrl: 'https://github.com/pytorch',
-      language: 'Python',
-      languageIcon: 'python',
-      stars: 78000,
-      forks: 21000,
-      lastUpdated: '2024-01-08T12:45:00Z',
-      codePreview: 'import torch\nimport torch.nn as nn\n\nclass NeuralNetwork(nn.Module):\n  def __init__(self):\n    super().__init__()\n    self.flatten = nn.Flatten()',
-      lineCount: 98000,
-      relevanceScore: 0.93,
-    },
-  ],
-}
+import type { Citation } from '@/components/ai-elements/response-with-citations'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
+type MessagePart = UIMessage['parts'][number]
+
+type ToolExecution = {
+  id: string
+  name: string
+  state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+  input?: unknown
+  output?: unknown
+  errorText?: string
+}
+
+type SourceData = {
+  id: string
+  url: string
+  title: string
+  snippet: string
+  domain?: string
+  type?: string
+  favicon?: string
+}
+
+function buildSearchAgentParts({
+  answerText,
+  reasoningText,
+  toolExecutions,
+  isStreaming,
+}: {
+  answerText: string
+  reasoningText: string
+  toolExecutions: ToolExecution[]
+  isStreaming: boolean
+}): MessagePart[] {
+  const parts: MessagePart[] = []
+
+  if (reasoningText || isStreaming) {
+    parts.push({
+      type: 'reasoning',
+      text: reasoningText || 'Thinking...',
+      state: isStreaming ? 'streaming' : 'done',
+    } as MessagePart)
+  }
+
+  toolExecutions.forEach((tool) => {
+    parts.push({
+      type: 'dynamic-tool',
+      toolName: tool.name,
+      toolCallId: tool.id,
+      state: tool.state,
+      input: tool.input,
+      output: tool.output,
+      errorText: tool.errorText,
+    } as MessagePart)
+  })
+
+  const finalText = answerText || (isStreaming ? 'Generating answer...' : '')
+  if (finalText) {
+    parts.push({
+      type: 'text',
+      text: finalText,
+      state: isStreaming ? 'streaming' : 'done',
+    } as MessagePart)
+  }
+
+  return parts
+}
+
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+function normalizeCitations(raw: any): Citation[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .map((item, index) => {
+      if (!item) return null
+      if (typeof item === 'string') {
+        const url = item
+        return {
+          number: String(index + 1),
+          url,
+          title: getDomainFromUrl(url),
+          snippet: undefined,
+        }
+      }
+
+      const url = item.url || item.link || item.source || ''
+      const title = item.title || item.name || getDomainFromUrl(url)
+      const snippet = item.snippet || item.description || item.quote
+      const number = item.number ? String(item.number) : String(index + 1)
+
+      return {
+        number,
+        url,
+        title,
+        snippet,
+      }
+    })
+    .filter((item): item is Citation => Boolean(item && item.url))
+}
+
+function mergeCitations(existing: Citation[], incoming: Citation[]): Citation[] {
+  if (incoming.length === 0) return existing
+
+  const seen = new Map<string, Citation>()
+  for (const citation of existing) {
+    seen.set(citation.url, citation)
+  }
+  for (const citation of incoming) {
+    if (!seen.has(citation.url)) {
+      seen.set(citation.url, citation)
+    }
+  }
+
+  return Array.from(seen.values()).map((citation, index) => ({
+    ...citation,
+    number: String(index + 1),
+  }))
+}
+
+function normalizeSources(raw: any): SourceData[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .map((item, index) => {
+      if (!item) return null
+      const url = item.url || item.link || item.source || ''
+      if (!url) return null
+
+      const title = item.title || item.name || getDomainFromUrl(url)
+      const snippet = item.snippet || item.description || item.quote || ''
+      const domain = item.domain || getDomainFromUrl(url)
+
+      return {
+        id: item.id || `source-${index}-${domain}`,
+        url,
+        title,
+        snippet,
+        domain,
+        type: item.type || 'web',
+        favicon: item.favicon,
+      } as SourceData
+    })
+    .filter((item): item is SourceData => Boolean(item))
+}
+
+function sourcesToWebResults(sources: SourceData[]): UniversalResult[] {
+  return sources.map((source, index) => ({
+    id: source.id || `web-${index}`,
+    type: 'web',
+    title: source.title || source.url,
+    url: source.url,
+    snippet: source.snippet || '',
+    favicon: source.favicon,
+    domain: source.domain,
+  }))
+}
+
+function mergeResults(existing: UniversalResult[], incoming: UniversalResult[]): UniversalResult[] {
+  if (incoming.length === 0) return existing
+  const seen = new Set(existing.map((result) => ('url' in result ? result.url : result.id)))
+  const merged = [...existing]
+  for (const result of incoming) {
+    const key = 'url' in result ? result.url : result.id
+    if (!seen.has(key)) {
+      merged.push(result)
+      seen.add(key)
+    }
+  }
+  return merged
+}
+
+function normalizeToolOutput(
+  output: any,
+  existingCitations: Citation[],
+  existingResults: UniversalResult[]
+): { citations: Citation[]; results: UniversalResult[] } {
+  const citationsRaw = output?.citations || output?.sources || output?.links
+  const incomingCitations = normalizeCitations(citationsRaw)
+  const nextCitations = mergeCitations(existingCitations, incomingCitations)
+
+  const sourcesRaw = output?.sources || output?.search_results || output?.results || output?.items
+  const sources = normalizeSources(sourcesRaw)
+  const incomingResults = sourcesToWebResults(sources)
+  const nextResults = mergeResults(existingResults, incomingResults)
+
+  return { citations: nextCitations, results: nextResults }
+}
+
+function citationsToWebResults(citationList: Citation[]): UniversalResult[] {
+  return citationList.map((citation, index) => ({
+    id: `citation-${index + 1}`,
+    type: 'web',
+    title: citation.title || citation.url,
+    url: citation.url,
+    snippet: citation.snippet || '',
+    domain: getDomainFromUrl(citation.url),
+  }))
+}
+
 export function SearchResultsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [answerText, setAnswerText] = useState('')
+  const [reasoningText, setReasoningText] = useState('')
+  const [citations, setCitations] = useState<Citation[]>([])
+  const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
+  const [isAgentStreaming, setIsAgentStreaming] = useState(false)
+  const [agentError, setAgentError] = useState<string | null>(null)
   const { query: storeQuery, clearSearch } = useSearchStore()
 
   // Use the query from the store if available, otherwise use the mock data query
   const searchQuery = storeQuery || 'artificial intelligence and machine learning'
+
+  const upsertToolExecution = useCallback((toolCallId: string, update: Partial<ToolExecution>) => {
+    setToolExecutions((prev) => {
+      const next = [...prev]
+      const index = next.findIndex((tool) => tool.id === toolCallId)
+      if (index === -1) {
+        next.push({
+          id: toolCallId,
+          name: update.name || toolCallId,
+          state: update.state || 'input-streaming',
+          input: update.input,
+          output: update.output,
+          errorText: update.errorText,
+        })
+      } else {
+        next[index] = {
+          ...next[index],
+          ...update,
+          name: update.name || next[index].name,
+        }
+      }
+      return next
+    })
+  }, [])
+
+  const agentState = useMemo(() => ({
+    parts: buildSearchAgentParts({
+      answerText,
+      reasoningText,
+      toolExecutions,
+      isStreaming: isAgentStreaming,
+    }),
+    citations,
+    isStreaming: isAgentStreaming,
+    error: agentError,
+  }), [answerText, reasoningText, toolExecutions, isAgentStreaming, citations, agentError])
 
   // Fetch search results on mount and when query changes
   useEffect(() => {
@@ -504,7 +280,14 @@ export function SearchResultsPage() {
 
     const fetchResults = async () => {
       setIsLoading(true)
+      setIsAgentStreaming(true)
+      setAgentError(null)
       setError(null)
+      setSearchResponse(null)
+      setAnswerText('')
+      setReasoningText('')
+      setCitations([])
+      setToolExecutions([])
 
       try {
         const response = await fetch('http://localhost:8765/api/search-agent/stream', {
@@ -524,9 +307,8 @@ export function SearchResultsPage() {
         const decoder = new TextDecoder()
 
         let content = ''
-        let citations: any[] = []
-        let images: any[] = []
-        let searchResults: any[] = []
+        let localCitations: Citation[] = []
+        let localResults: UniversalResult[] = []
 
         while (reader) {
           const { done, value } = await reader.read()
@@ -544,16 +326,133 @@ export function SearchResultsPage() {
                 const parsed = JSON.parse(data)
 
                 switch (parsed.type) {
-                  case 'content':
-                    content += parsed.content
+                  case 'content': {
+                    const delta = parsed.content || ''
+                    content += delta
+                    setAnswerText((prev) => prev + delta)
                     break
-                  case 'reasoning':
-                    // Reasoning content handled separately
+                  }
+
+                  case 'text-start':
                     break
+
+                  case 'text-delta': {
+                    const delta = parsed.delta || ''
+                    content += delta
+                    setAnswerText((prev) => prev + delta)
+                    break
+                  }
+
+                  case 'text-end':
+                    break
+
+                  case 'reasoning-start':
+                    break
+
+                  case 'reasoning-delta': {
+                    const delta = parsed.delta || ''
+                    setReasoningText((prev) => prev + delta)
+                    break
+                  }
+
+                  case 'reasoning-end':
+                    break
+
+                  case 'tool-input-start':
+                    if (parsed.toolCallId) {
+                      upsertToolExecution(parsed.toolCallId, {
+                        name: parsed.toolName || parsed.toolCallId,
+                        state: 'input-streaming',
+                      })
+                    }
+                    break
+
+                  case 'tool-input-available':
+                    if (parsed.toolCallId) {
+                      upsertToolExecution(parsed.toolCallId, {
+                        name: parsed.toolName || parsed.toolCallId,
+                        state: 'input-available',
+                        input: parsed.input,
+                      })
+                    }
+                    if (parsed.input) {
+                      const outputData = normalizeToolOutput(parsed.input, localCitations, localResults)
+                      localCitations = outputData.citations
+                      localResults = outputData.results
+                      setCitations(localCitations)
+                    }
+                    break
+
+                  case 'tool-output-available':
+                    if (parsed.toolCallId) {
+                      upsertToolExecution(parsed.toolCallId, {
+                        name: parsed.toolName,
+                        state: 'output-available',
+                        output: parsed.output,
+                      })
+                    }
+                    if (parsed.output) {
+                      const outputData = normalizeToolOutput(parsed.output, localCitations, localResults)
+                      localCitations = outputData.citations
+                      localResults = outputData.results
+                      setCitations(localCitations)
+                    }
+                    break
+
+                  case 'tool-output-error':
+                    if (parsed.toolCallId) {
+                      upsertToolExecution(parsed.toolCallId, {
+                        name: parsed.toolName,
+                        state: 'output-error',
+                        errorText: parsed.errorText,
+                      })
+                    }
+                    setAgentError(parsed.errorText || 'Tool error')
+                    break
+
+                  case 'source-url': {
+                    const url = parsed.url || parsed.sourceId || ''
+                    if (url) {
+                      const incoming = normalizeCitations([{ url }])
+                      localCitations = mergeCitations(localCitations, incoming)
+                      setCitations(localCitations)
+                    }
+                    break
+                  }
+
+                  case 'source-document': {
+                    const url = parsed.sourceId || parsed.url || ''
+                    const title = parsed.title || getDomainFromUrl(url)
+                    if (url) {
+                      const incoming = normalizeCitations([{ url, title }])
+                      localCitations = mergeCitations(localCitations, incoming)
+                      setCitations(localCitations)
+                    }
+                    break
+                  }
+
+                  case 'finish':
+                    if (Array.isArray(parsed.citations)) {
+                      const incoming = normalizeCitations(parsed.citations)
+                      localCitations = mergeCitations(localCitations, incoming)
+                      setCitations(localCitations)
+                    }
+                    setIsAgentStreaming(false)
+                    break
+
                   case 'metadata':
-                    citations = parsed.citations || []
-                    images = parsed.images || []
-                    searchResults = parsed.search_results || []
+                    if (Array.isArray(parsed.citations)) {
+                      const incoming = normalizeCitations(parsed.citations)
+                      localCitations = mergeCitations(localCitations, incoming)
+                      setCitations(localCitations)
+                    }
+                    break
+
+                  case 'error':
+                    setAgentError(parsed.errorText || parsed.error || 'Search error')
+                    break
+
+                  default:
                     break
                 }
               } catch (e) {
@@ -563,30 +462,23 @@ export function SearchResultsPage() {
           }
         }
 
+        const finalResults = localResults.length > 0 ? localResults : citationsToWebResults(localCitations)
         // Build SearchResponse from streamed data
         setSearchResponse({
           id: `search-${Date.now()}`,
           query: searchQuery,
           timestamp: Date.now(),
           isComplete: true,
-          totalCount: citations.length + images.length,
+          totalCount: finalResults.length,
           duration: 0,
           sonarReasoning: {
             reasoning: content,
             chainOfThought: {
-              steps: searchResults.map((sr: any, i: number) => ({
-                id: `step-${i}`,
-                label: sr.title || `Search ${i + 1}`,
-                description: sr.snippet || '',
-                status: 'complete',
-                timestamp: Date.now(),
-                reasoning: sr.snippet || '',
-                searchResults: []
-              }))
+              steps: []
             },
             confidence: 0.85,
             qualityScore: 0.9,
-            sources: citations.map((c: any, i: number) => ({
+            sources: localCitations.map((c, i) => ({
               id: `source-${i}`,
               url: c.url || '',
               title: c.title || '',
@@ -600,12 +492,15 @@ export function SearchResultsPage() {
             modelUsed: 'sonar-reasoning-pro',
             tokensUsed: 0
           },
-          results: MOCK_SEARCH_RESPONSE.results
+          results: finalResults
         })
         setIsLoading(false)
+        setIsAgentStreaming(false)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
+        setAgentError(err instanceof Error ? err.message : 'Unknown error')
         setIsLoading(false)
+        setIsAgentStreaming(false)
       }
     }
 
@@ -697,6 +592,7 @@ export function SearchResultsPage() {
           searchQuery={searchQuery}
           isLoading={isLoading}
           error={error}
+          agentState={agentState}
           onResultClick={handleResultClick}
           onFilterChange={handleFilterChange}
         />

@@ -44,8 +44,8 @@ interface RonTabProps {
   task: FullTask
 }
 
-// API endpoint for superagent
-const SUPERAGENT_API = 'http://localhost:8765/superagent/stream'
+// API endpoint for task agent (project manager flavor)
+const TASK_AGENT_API = 'http://localhost:8765/task-agent/stream'
 
 // Sleek, minimal suggestions
 const SUGGESTIONS = [
@@ -95,7 +95,7 @@ export function RonTab({ task }: RonTabProps) {
   
   const { messages, setMessages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
-      api: SUPERAGENT_API,
+      api: TASK_AGENT_API,
       body: () => ({
         session_id: activeConversationId
           ? `task-${task.id}-${activeConversationId}`

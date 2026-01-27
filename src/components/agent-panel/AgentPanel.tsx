@@ -255,7 +255,7 @@ export function AgentPanel() {
         >
           <div className="relative ml-auto w-[420px] h-full pointer-events-auto">
             {/* Panel Container */}
-            <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-850 border-l border-surface-200 dark:border-surface-700 shadow-dramatic">
+            <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-850 border-l border-indigo-300/40 dark:border-surface-700 shadow-dramatic">
               
               {/* Header - Ultra Minimal */}
               <motion.div 
@@ -265,9 +265,9 @@ export function AgentPanel() {
                 className="flex-shrink-0 px-5 py-4 flex items-center justify-between border-b border-surface-100 dark:border-surface-800"
               >
                 <div className="flex items-center gap-3">
-                  {/* Minimal Ron Logo */}
-                  <div className="w-8 h-8 rounded-xl bg-ink dark:bg-ink-inverse flex items-center justify-center">
-                    <span className="text-sm font-display font-light text-surface-0 dark:text-surface-900">R</span>
+                  {/* Minimal Ron Logo with violet accent */}
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center shadow-sm shadow-indigo-700/25">
+                    <span className="text-sm font-display font-light text-white">R</span>
                   </div>
                   <h2 className="text-body-md font-medium text-ink dark:text-ink-inverse">
                     Ron
@@ -822,7 +822,7 @@ function MessageBubble({ message }: { message: { id: string; role: string; parts
         animate={{ opacity: 1, y: 0 }}
         className="flex justify-end"
       >
-        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gradient-to-br from-accent to-accent-light text-white rounded-br-md">
+        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-br-md shadow-lg shadow-indigo-700/25">
           <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
             {textParts.map(p => p.text).join('')}
           </p>

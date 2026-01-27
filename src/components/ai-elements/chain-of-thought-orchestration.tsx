@@ -23,13 +23,26 @@ interface ChainOfThoughtOrchestrationProps {
   className?: string;
 }
 
+const ORCHESTRATION_TOOLS = ['workflow', 'swarm', 'graph'] as const;
+type OrchestrationToolName = typeof ORCHESTRATION_TOOLS[number];
+
+function getOrchestrationToolName(toolName?: string): OrchestrationToolName | null {
+  if (!toolName) return null;
+  const normalized = toolName.toLowerCase();
+  const segments = normalized.split(/[./:\\\s-]+/g).filter(Boolean);
+  const match = segments.find((segment) =>
+    ORCHESTRATION_TOOLS.includes(segment as OrchestrationToolName)
+  );
+  return (match as OrchestrationToolName) || null;
+}
+
 export const ChainOfThoughtOrchestration = memo(function ChainOfThoughtOrchestration({
   tool,
   className,
 }: ChainOfThoughtOrchestrationProps) {
-  const toolName = (tool.toolName || "").toLowerCase();
+  const toolName = getOrchestrationToolName(tool.toolName);
 
-  if (toolName.includes("workflow")) {
+  if (toolName === "workflow") {
     return (
       <WorkflowOrchestrationTask
         defaultExpanded={true}
@@ -38,7 +51,7 @@ export const ChainOfThoughtOrchestration = memo(function ChainOfThoughtOrchestra
     );
   }
 
-  if (toolName.includes("swarm")) {
+  if (toolName === "swarm") {
     return (
       <SwarmOrchestrationTask
         defaultExpanded={true}
@@ -47,7 +60,7 @@ export const ChainOfThoughtOrchestration = memo(function ChainOfThoughtOrchestra
     );
   }
 
-  if (toolName.includes("graph")) {
+  if (toolName === "graph") {
     return (
       <GraphOrchestrationTask
         defaultExpanded={true}

@@ -17,7 +17,7 @@ import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
 
 // Source Card for citations
-import { SourceCard, type SourceData } from './SourceCard'
+import type { SourceData } from './SourceCard'
 
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 
@@ -399,7 +399,7 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
               case 'tool-output-available':
                 if (event.toolCallId) {
                   upsertToolExecution(event.toolCallId, {
-                    name: event.toolName || event.toolCallId,
+                    name: event.toolName,
                     state: 'output-available',
                     output: event.output,
                   })
@@ -412,7 +412,7 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
               case 'tool-output-error':
                 if (event.toolCallId) {
                   upsertToolExecution(event.toolCallId, {
-                    name: event.toolName || event.toolCallId,
+                    name: event.toolName,
                     state: 'output-error',
                     errorText: event.errorText || 'Tool error',
                   })
@@ -755,24 +755,7 @@ function MessageBubble({ message }: { message: Message }) {
           />
         )}
 
-        {/* Source Cards Grid */}
-        {!isUser && message.searchResults && message.searchResults.length > 0 && !message.isStreaming && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mt-4 grid grid-cols-2 gap-3"
-          >
-            {message.searchResults.slice(0, 6).map((source, i) => (
-              <SourceCard
-                key={source.id}
-                source={source}
-                citationNumber={i + 1}
-                className="h-full"
-              />
-            ))}
-          </motion.div>
-        )}
+        {/* Sources are rendered by ChainOfThoughtMessage via AI Elements */}
       </div>
     </motion.div>
   )

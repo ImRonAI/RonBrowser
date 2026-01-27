@@ -177,11 +177,11 @@ export const Tool = memo(function Tool({
   return (
     <ToolContext.Provider value={contextValue}>
       <div className={cn(
-        'rounded-xl border border-surface-200/60 dark:border-surface-700/60',
-        'overflow-hidden',
+        'rounded-xl overflow-hidden shadow-sm',
+        'border border-violet-200/40 dark:border-surface-700/60',
+        'border-t-2 border-t-violet-400/60 dark:border-t-surface-600',
         'bg-gradient-to-br from-surface-0/80 to-surface-50/60',
         'dark:from-surface-900/80 dark:to-surface-850/60',
-        'shadow-sm',
         className
       )}>
         {children}
@@ -229,9 +229,9 @@ export const ToolHeader = memo(function ToolHeader({
       onClick={handleClick}
       className={cn(
         'w-full flex items-center gap-3 p-3',
-        'bg-surface-50/60 dark:bg-surface-800/60',
-        'hover:bg-surface-100/80 dark:hover:bg-surface-700/80',
-        'transition-colors duration-200',
+        'bg-gradient-to-r from-violet-50/50 to-surface-50/60 dark:from-surface-800/60 dark:to-surface-800/60',
+        'hover:from-violet-100/60 hover:to-surface-100/80 dark:hover:bg-surface-700/80',
+        'transition-all duration-200',
         'text-left',
         className
       )}

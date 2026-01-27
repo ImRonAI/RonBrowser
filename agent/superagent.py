@@ -21,7 +21,8 @@ sys.path.append(str(Path(__file__).parent / "tools" / "src"))
 sys.path.append(str(Path(__file__).parent / "tools" / "strands-fun-tools"))
 
 from strands import Agent, tool
-from ron_gemini import RonGeminiModel
+from strands.models.gemini import GeminiModel
+from strands.hooks import HookProvider, HookRegistry, AfterModelCallEvent
 from google import genai
 
 from strands.tools.mcp import MCPClient
@@ -55,7 +56,7 @@ from strands_tools.code_interpreter.electron_code_interpreter import ElectronCod
 from aisdk_stream import AISDKCallbackHandler
 from strands.session import FileSessionManager
 from strands.agent.conversation_manager import SummarizingConversationManager
-from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent, HookProvider, HookRegistry
+from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent
 from lancedb_session_repository import LanceDBSessionManager
 import time
 
@@ -91,6 +92,98 @@ class ToolTimeoutHook(HookProvider):
                 logger.warning(f"SLOW TOOL: '{tool_name}' took {duration:.2f}s (threshold: {self.timeout}s)")
             else:
                 logger.debug(f"Tool '{tool_name}' completed in {duration:.2f}s")
+
+
+class ToolErrorRecoveryHook(HookProvider):
+    """Modify failed tool results to encourage the model to continue.
+    
+    Per SDK docs: AfterToolCallEvent.result is writable. This hook modifies
+    error results to include recovery guidance so the model doesn't give up.
+    """
+    
+    def register_hooks(self, registry: HookRegistry) -> None:
+        registry.add_callback(AfterToolCallEvent, self._on_after_tool)
+    
+    def _on_after_tool(self, event: AfterToolCallEvent) -> None:
+        result = event.result
+        
+        # Check if this is an error result
+        if result.get("status") == "error":
+            tool_name = event.tool_use.get("name", "unknown")
+            logger.warning(f"ToolErrorRecoveryHook: Tool '{tool_name}' failed, modifying result to encourage continuation")
+            
+            # Get the original error content
+            original_content = result.get("content", [])
+            original_text = ""
+            for item in original_content:
+                if isinstance(item, dict) and "text" in item:
+                    original_text = item["text"]
+                    break
+            
+            # Modify the result to include recovery guidance
+            recovery_message = (
+                f"Tool '{tool_name}' encountered an error: {original_text}\n\n"
+                "ACTION REQUIRED: This error does not stop your task. You MUST continue working:\n"
+                "1. Try a different tool or approach\n"
+                "2. If this was a browser/web tool, try alternative sources\n"
+                "3. If this was a file tool, check the path or try a different file\n"
+                "4. DO NOT STOP - find another way to complete the task"
+            )
+            
+            # Update the result content (result is writable per SDK docs)
+            event.result = {
+                "status": "error",
+                "content": [{"text": recovery_message}]
+            }
+
+
+class EndTurnGuardHook(HookProvider):
+    """Reject premature end_turn when no substantial work was done.
+    
+    Per SDK docs: AfterModelCallEvent.retry is writable. When True, the current
+    response is discarded and the model is called again.
+    
+    This hook prevents the model from stopping early with just text when it
+    should be calling tools to make progress.
+    """
+    
+    def __init__(self, min_tool_calls: int = 3, max_retries: int = 5):
+        self.min_tool_calls = min_tool_calls
+        self.max_retries = max_retries
+        self._tool_call_count = 0
+        self._retry_count = 0
+    
+    def register_hooks(self, registry: HookRegistry) -> None:
+        registry.add_callback(BeforeToolCallEvent, self._on_before_tool)
+        registry.add_callback(AfterModelCallEvent, self._on_after_model)
+    
+    def _on_before_tool(self, event: BeforeToolCallEvent) -> None:
+        self._tool_call_count += 1
+    
+    def _on_after_model(self, event: AfterModelCallEvent) -> None:
+        # Skip if error or no stop response
+        if event.exception or not event.stop_response:
+            return
+        
+        # Only intervene on end_turn (model thinks it's done)
+        if event.stop_response.stop_reason != "end_turn":
+            return
+        
+        # If enough tools were called, allow the stop
+        if self._tool_call_count >= self.min_tool_calls:
+            logger.info(f"EndTurnGuardHook: Allowing stop after {self._tool_call_count} tool calls")
+            return
+        
+        # Check retry limit
+        if self._retry_count >= self.max_retries:
+            logger.warning(f"EndTurnGuardHook: Hit max retries ({self.max_retries}), allowing stop")
+            return
+        
+        # Block the premature stop - force retry
+        self._retry_count += 1
+        logger.info(f"EndTurnGuardHook: Blocking premature end_turn ({self._tool_call_count} tools, retry {self._retry_count}/{self.max_retries})")
+        event.retry = True
+
 
 
 # Global state for MCP clients and agent reference
@@ -139,6 +232,15 @@ async def load_mcp_server(server_id: str) -> str:
         return f"Unknown: {server_id}. Available: {list(AVAILABLE_MCP_SERVERS.keys())}"
 
     if server_id in _mcp_clients:
+        if _current_agent:
+            client = _mcp_clients[server_id]["client"]
+            tools_before = set(_current_agent.tool_registry.registry.keys())
+            _current_agent.tool_registry.process_tools([client])
+            tools_after = set(_current_agent.tool_registry.registry.keys())
+            added_tool_names = list(tools_after - tools_before)
+            existing_tools = set(_mcp_clients[server_id].get("tool_names", []))
+            _mcp_clients[server_id]["tool_names"] = list(existing_tools.union(added_tool_names))
+            return f"{server_id} already loaded. Added tools to current agent: {added_tool_names}"
         return f"{server_id} already loaded"
 
     cmd, args = AVAILABLE_MCP_SERVERS[server_id]
@@ -250,7 +352,48 @@ async def load_openapi_server(spec_path: str, api_base_url: str = None, server_i
     return "Error: Agent not initialized"
 
 
-SUPERAGENT_SYSTEM_PROMPT = """You are Ron Superagent, a powerful orchestration agent built on Strands.
+SUPERAGENT_SYSTEM_PROMPT = """You are Ron Superagent. Execute tasks decisively.
+
+## EXECUTION PROTOCOL
+1. Receive task → Reason over capabilities → Plan formation → Execute
+2. Never stop until all deliverables exist
+3. Always call tools - text-only responses are failures
+
+## PLANNING PHASE (do this first for complex tasks)
+Reason over:
+- Current tools in registry
+- MCP servers: loaded vs available (agent-sops, cms-coverage, datacommons, playwright, pophive, healthcare, telnyx, gateway)
+- OpenAPI specs in agent/tools/open-api-specs/ that could become tools
+- Tools loadable via load_tool from strands-fun-tools or custom_tools
+- Whether to create a new tool via editor + load_tool
+- Formation design: which agents, which prompts, which tools per agent
+
+Then: Load any missing tools before creating formations.
+
+## FORMATION USAGE (prefer over solo execution)
+Use formations for context efficiency and parallel work:
+- swarm: collaborative research teams
+- graph: dependent pipeline steps
+- use_agent: specialized one-off tasks
+- workflow: complex multi-step orchestration
+
+## SUBAGENT REQUIREMENTS
+Every subagent MUST receive these tools for runtime expansion:
+- load_tool, mcp_client, environment
+
+Include in every subagent system_prompt:
+"You can load additional tools: load_tool(path), mcp_client(action='connect'), environment(action='get'). 
+Tool locations: ~/Library/Application Support/RonBrowser/custom_tools/, agent/tools/strands-fun-tools/, agent/tools/open-api-specs/
+UI OUTPUT CONTRACT: Use inline citations [1][2] for sourced facts. When needed, append <plan>{...}</plan> and <queue>{...}</queue> JSON blocks. Do not wrap these tags in code fences."
+
+## STOP CONDITIONS
+Only stop when ALL deliverables from the original request are produced and verified.
+
+## UI OUTPUT CONTRACT (AI ELEMENTS)
+- Use inline citations like [1], [2], [3] when referencing sources. Citation numbers must align with the order of sources from tools.
+- When you have a plan, append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
+- When you have a task queue or checklist, append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
+- Do NOT wrap <plan>/<queue> blocks in code fences.
 
 ## BROWSER & APP NATIVE CONTROL
 ## PRIMARY BROWSER AUTOMATION (MANDATORY)
@@ -846,6 +989,15 @@ class UICallbackHandler:
     def __call__(self, **kwargs: Any) -> None:
         self._handler(**kwargs)
 
+    def finalize(self, finish_reason: str = "stop") -> None:
+        """Ensure terminal events are emitted for this stream."""
+        self._handler.finalize(finish_reason=finish_reason)
+
+    @property
+    def is_finished(self) -> bool:
+        """True if terminal events were already emitted."""
+        return self._handler.is_finished
+
 
 class CLICallbackHandler:
     """Simple CLI callback handler for terminal use."""
@@ -860,9 +1012,9 @@ class CLICallbackHandler:
             print(data, end="", flush=True)
 
 
-def create_gemini_model() -> RonGeminiModel:
+def create_gemini_model() -> GeminiModel:
     """Create Gemini 3 Flash Preview model with high reasoning."""
-    return RonGeminiModel(
+    return GeminiModel(
         model_id="gemini-3-pro-preview",
         client_args={
             "api_key": os.getenv("GOOGLE_API_KEY"),
@@ -887,7 +1039,7 @@ def create_primary_model():
     model_override = os.getenv("SUPERAGENT_MODEL_ID")
     if provider == "google":
         model_id = model_override or "gemini-3-pro-preview"
-        return RonGeminiModel(
+        return GeminiModel(
             model_id=model_id,
             client_args={
                 "api_key": os.getenv("GOOGLE_API_KEY"),
@@ -913,7 +1065,7 @@ def create_summarization_model():
     model_override = os.getenv("SUPERAGENT_SUMMARIZER_MODEL_ID") or os.getenv("SUPERAGENT_MODEL_ID")
     if provider == "google":
         model_id = model_override or "gemini-3-pro-preview"
-        return RonGeminiModel(
+        return GeminiModel(
             model_id=model_id,
             client_args={
                 "api_key": os.getenv("GOOGLE_API_KEY"),
@@ -1103,7 +1255,11 @@ def create_superagent(
     history: Optional[List[Dict[str, Any]]] = None,
     callback_handler: Optional[Callable[..., Any]] = None,
     memory = None,
-    browser_session_name: Optional[str] = None
+    browser_session_name: Optional[str] = None,
+    system_prompt_override: Optional[str] = None,
+    agent_id_override: Optional[str] = None,
+    name_override: Optional[str] = None,
+    description_override: Optional[str] = None,
 ) -> Agent:
     """Create a fresh Agent instance for a specific session."""
     
@@ -1173,10 +1329,10 @@ def create_superagent(
         load_tools_from_directory=False
     )
 
-    system_prompt = SUPERAGENT_SYSTEM_PROMPT
+    system_prompt = system_prompt_override or SUPERAGENT_SYSTEM_PROMPT
     if browser_session_name:
         system_prompt = (
-            f"{SUPERAGENT_SYSTEM_PROMPT}\n\n"
+            f"{system_prompt}\n\n"
             "## SESSION SCOPE\n"
             f"- Use browser session name: {browser_session_name}\n"
             "- Always set this session_name for browser actions in this chat.\n"
@@ -1187,16 +1343,16 @@ def create_superagent(
         tools=tools,
         callback_handler=callback_handler or CLICallbackHandler(),
         system_prompt=system_prompt,
-        agent_id="ron-superagent",
-        name="Ron Superagent",
-        description="Orchestrator",
+        agent_id=agent_id_override or "ron-superagent",
+        name=name_override or "Ron Superagent",
+        description=description_override or "Orchestrator",
         session_manager=session_manager,
         conversation_manager=SummarizingConversationManager(
             summary_ratio=0.3,
             preserve_recent_messages=10,
             summarization_agent=summarization_agent
         ),
-        hooks=[ToolTimeoutHook()]
+        hooks=[ToolTimeoutHook(), ToolErrorRecoveryHook(), EndTurnGuardHook(min_tool_calls=3, max_retries=5)]
     )
     
     if history:

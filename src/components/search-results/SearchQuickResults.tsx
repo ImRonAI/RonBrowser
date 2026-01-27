@@ -4,11 +4,11 @@
  * Main quick results view for search with:
  * - Collapsible Chain of Thought (auto-collapses when answer starts)
  * - Streamed answer display with Raleway typography
- * - Source cards in responsive grid
+ * - AI Elements sources list
  * - "See Full Results" and "Try Again" action buttons
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -19,23 +19,30 @@ import {
   SparklesIcon,
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
-import { SourcesGrid } from './SourcesGrid'
 import type { SourceData } from './SourceCard'
+import { Sources, SourcesContent, SourcesTrigger, Source } from '@/components/ai-elements/sources'
+import { ResponseWithCitations } from '@/components/ai-elements/response-with-citations'
 import {
-  InlineCitation,
-  InlineCitationText,
-  InlineCitationCard,
-  InlineCitationCardTrigger,
-  InlineCitationCardBody,
-  InlineCitationCarousel,
-  InlineCitationCarouselContent,
-  InlineCitationCarouselItem,
-  InlineCitationCarouselHeader,
-  InlineCitationCarouselIndex,
-  InlineCitationCarouselPrev,
-  InlineCitationCarouselNext,
-  InlineCitationSource
-} from '@/components/ai-elements/inline-citation'
+  Plan,
+  PlanContent,
+  PlanDescription,
+  PlanFooter,
+  PlanHeader,
+  PlanTitle,
+  PlanTrigger,
+} from '@/components/ai-elements/plan'
+import {
+  Queue,
+  QueueItem,
+  QueueItemContent,
+  QueueItemDescription,
+  QueueItemIndicator,
+  QueueList,
+  QueueSection,
+  QueueSectionContent,
+  QueueSectionLabel,
+  QueueSectionTrigger,
+} from '@/components/ai-elements/queue'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -72,52 +79,128 @@ interface SearchQuickResultsProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Citation Parsing Function
+// Structured Plan / Queue Parsing
 // ─────────────────────────────────────────────────────────────────────────────
-function parseInlineCitations(content: string, sources: SourceData[]) {
-  // Split by citation markers: [1], [2], [3], etc.
-  const parts = content.split(/(\[\d+\])/)
+type PlanStep = {
+  id?: string
+  title: string
+  description?: string
+  status?: 'pending' | 'running' | 'complete'
+}
 
-  return parts.map((part, index) => {
-    const citationMatch = part.match(/\[(\d+)\]/)
+type PlanData = {
+  title?: string
+  description?: string
+  steps?: PlanStep[]
+  footer?: string
+}
 
-    if (citationMatch) {
-      const citationNumber = citationMatch[1]
-      // Find source by index (1-indexed)
-      const sourceIndex = parseInt(citationNumber) - 1
-      const source = sources[sourceIndex]
+type QueueItemData = {
+  id?: string
+  title: string
+  description?: string
+  completed?: boolean
+}
 
-      if (source) {
-        return (
-          <InlineCitation key={index}>
-            <InlineCitationCard>
-              <InlineCitationCardTrigger sources={[source.url]} />
-              <InlineCitationCardBody>
-                <InlineCitationCarousel>
-                  <InlineCitationCarouselHeader>
-                    <InlineCitationCarouselPrev />
-                    <InlineCitationCarouselNext />
-                    <InlineCitationCarouselIndex />
-                  </InlineCitationCarouselHeader>
-                  <InlineCitationCarouselContent>
-                    <InlineCitationCarouselItem>
-                      <InlineCitationSource
-                        title={source.title}
-                        url={source.url}
-                        description={source.snippet}
-                      />
-                    </InlineCitationCarouselItem>
-                  </InlineCitationCarouselContent>
-                </InlineCitationCarousel>
-              </InlineCitationCardBody>
-            </InlineCitationCard>
-          </InlineCitation>
-        )
-      }
+type QueueData = {
+  label?: string
+  items: QueueItemData[]
+}
+
+const PLAN_TAG = /<plan>([\s\S]*?)<\/plan>/gi
+const QUEUE_TAG = /<queue>([\s\S]*?)<\/queue>/gi
+
+function parseJsonBlock(raw: string) {
+  try {
+    return JSON.parse(raw.trim())
+  } catch {
+    return null
+  }
+}
+
+function normalizePlanData(raw: any): PlanData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const stepsRaw = Array.isArray(raw.steps || raw.items) ? (raw.steps || raw.items) : []
+  const steps = stepsRaw
+    .map((step: any, index: number) => {
+      if (!step) return null
+      const title = String(step.title || step.name || step.task || `Step ${index + 1}`)
+      return {
+        id: step.id ? String(step.id) : undefined,
+        title,
+        description: step.description ? String(step.description) : undefined,
+        status: step.status,
+      } as PlanStep
+    })
+    .filter(Boolean) as PlanStep[]
+
+  return {
+    title: raw.title ? String(raw.title) : raw.name ? String(raw.name) : 'Plan',
+    description: raw.description ? String(raw.description) : undefined,
+    steps: steps.length > 0 ? steps : undefined,
+    footer: raw.footer ? String(raw.footer) : undefined,
+  }
+}
+
+function normalizeQueueData(raw: any): QueueData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const itemsRaw = Array.isArray(raw.items || raw.tasks || raw.todos)
+    ? raw.items || raw.tasks || raw.todos
+    : []
+  const items = itemsRaw
+    .map((item: any, index: number) => {
+      if (!item) return null
+      const title = String(item.title || item.name || item.task || `Item ${index + 1}`)
+      return {
+        id: item.id ? String(item.id) : undefined,
+        title,
+        description: item.description ? String(item.description) : undefined,
+        completed: Boolean(item.completed || item.done),
+      } as QueueItemData
+    })
+    .filter(Boolean) as QueueItemData[]
+
+  if (items.length === 0) return null
+  return {
+    label: raw.label ? String(raw.label) : raw.title ? String(raw.title) : 'Queue',
+    items,
+  }
+}
+
+function extractStructuredBlocks(text: string) {
+  const plans: PlanData[] = []
+  const queues: QueueData[] = []
+  let output = text
+
+  output = output.replace(PLAN_TAG, (match, json) => {
+    const parsed = parseJsonBlock(json)
+    const plan = normalizePlanData(parsed)
+    if (plan) {
+      plans.push(plan)
+      return ''
     }
-
-    return <InlineCitationText key={index}>{part}</InlineCitationText>
+    return match
   })
+
+  output = output.replace(QUEUE_TAG, (match, json) => {
+    const parsed = parseJsonBlock(json)
+    const queue = normalizeQueueData(parsed)
+    if (queue) {
+      queues.push(queue)
+      return ''
+    }
+    return match
+  })
+
+  return { cleaned: output.trim(), plans, queues }
+}
+
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,16 +252,26 @@ export function SearchQuickResults({
   onSeeFullResults,
   onTryAgain,
   onLetsChat,
-  onSendToRon,
-  onSendToCoding,
-  onAttachToTask,
-  onStartTask,
   className = '',
 }: SearchQuickResultsProps) {
   const [isReasoningExpanded, setIsReasoningExpanded] = useState(true)
   const [showFeedbackInput, setShowFeedbackInput] = useState(false)
   const [feedback, setFeedback] = useState('')
   const answerRef = useRef<HTMLDivElement>(null)
+  const { cleaned, plans, queues } = useMemo(
+    () => extractStructuredBlocks(result.answer),
+    [result.answer]
+  )
+  const citations = useMemo(
+    () =>
+      result.sources.map((source, index) => ({
+        number: String(index + 1),
+        title: source.title,
+        url: source.url,
+        snippet: source.snippet,
+      })),
+    [result.sources]
+  )
 
   // Auto-collapse reasoning when answer starts streaming
   useEffect(() => {
@@ -299,49 +392,146 @@ export function SearchQuickResults({
             scrollbar-thin
           "
         >
-          {result.answer ? (
+          {(plans.length > 0 || queues.length > 0) && (
+            <div className="mb-6 space-y-4">
+              {plans.map((plan, planIndex) => (
+                <Plan key={`${planIndex}-${plan.title || 'plan'}`} defaultOpen>
+                  <PlanHeader className="items-start gap-3">
+                    <div className="space-y-1">
+                      <PlanTitle>{plan.title || 'Plan'}</PlanTitle>
+                      {plan.description && (
+                        <PlanDescription>{plan.description}</PlanDescription>
+                      )}
+                    </div>
+                    <PlanTrigger />
+                  </PlanHeader>
+                  {plan.steps && plan.steps.length > 0 && (
+                    <PlanContent>
+                      <ol className="space-y-2">
+                        {plan.steps.map((step, index) => (
+                          <li key={step.id || `${planIndex}-${index}`} className="flex items-start gap-2">
+                            <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{step.title}</p>
+                              {step.description && (
+                                <p className="text-xs text-muted-foreground">{step.description}</p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </PlanContent>
+                  )}
+                  {plan.footer && (
+                    <PlanFooter>
+                      <p className="text-xs text-muted-foreground">{plan.footer}</p>
+                    </PlanFooter>
+                  )}
+                </Plan>
+              ))}
+
+              {queues.map((queue, queueIndex) => (
+                <Queue key={`${queueIndex}-${queue.label || 'queue'}`}>
+                  <QueueSection defaultOpen>
+                    <QueueSectionTrigger>
+                      <QueueSectionLabel count={queue.items.length} label={queue.label || 'Queue'} />
+                    </QueueSectionTrigger>
+                    <QueueSectionContent>
+                      <QueueList>
+                        {queue.items.map((item, index) => (
+                          <QueueItem key={item.id || `${queueIndex}-${index}`}>
+                            <div className="flex items-start gap-2">
+                              <QueueItemIndicator completed={item.completed} />
+                              <QueueItemContent completed={item.completed}>
+                                {item.title}
+                              </QueueItemContent>
+                            </div>
+                            {item.description && (
+                              <QueueItemDescription completed={item.completed}>
+                                {item.description}
+                              </QueueItemDescription>
+                            )}
+                          </QueueItem>
+                        ))}
+                      </QueueList>
+                    </QueueSectionContent>
+                  </QueueSection>
+                </Queue>
+              ))}
+            </div>
+          )}
+
+          {cleaned ? (
             <div className="prose prose-invert max-w-none">
-              <p
+              <div
                 className="
                   text-base leading-relaxed text-white/80
                   font-['Raleway',_sans-serif] font-light
                   whitespace-pre-wrap
                 "
               >
-                {parseInlineCitations(result.answer, result.sources)}
-                {/* Typing cursor */}
+                <ResponseWithCitations
+                  content={cleaned}
+                  citations={citations}
+                />
                 {isStreaming && (
                   <span className="inline-block w-0.5 h-5 bg-purple-400 ml-0.5 animate-pulse" />
                 )}
-              </p>
+              </div>
             </div>
-          ) : (
+          ) : isStreaming ? (
             <div className="flex items-center justify-center py-8">
               <div className="flex items-center gap-3 text-white/40">
                 <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
                 <span>Generating answer...</span>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
       {/* Sources Section */}
       {result.sources.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-white/60">
-              Sources ({result.sources.length})
-            </h2>
-          </div>
-          <SourcesGrid
-            sources={result.sources}
-            onSendToRon={onSendToRon}
-            onSendToCoding={onSendToCoding}
-            onAttachToTask={onAttachToTask}
-            onStartTask={onStartTask}
-          />
-        </div>
+        <Sources>
+          <SourcesTrigger count={result.sources.length} />
+          <SourcesContent>
+            {result.sources.map((source, index) => {
+              const domain = source.domain || getDomainFromUrl(source.url)
+              const favicon = source.favicon
+                ? source.favicon
+                : domain
+                ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+                : null
+
+              return (
+                <Source key={source.id || `${source.url}-${index}`} href={source.url}>
+                  <div className="flex items-start gap-3">
+                    {favicon ? (
+                      <img src={favicon} alt="" className="mt-0.5 h-4 w-4 rounded" />
+                    ) : (
+                      <span className="mt-0.5 h-4 w-4 rounded bg-muted" aria-hidden />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        [{index + 1}] {source.title}
+                      </p>
+                      {source.snippet && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {source.snippet}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground/80">
+                        {domain}
+                      </p>
+                    </div>
+                  </div>
+                </Source>
+              )
+            })}
+          </SourcesContent>
+        </Sources>
       )}
 
       {/* Related Queries */}

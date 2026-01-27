@@ -52,7 +52,7 @@ interface UserPreferencesState extends UserPreferences {
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  theme: 'system',
+  theme: 'dark',
   contentDensity: 'comfortable',
   showAnimations: true,
   reduceMotion: false,
@@ -84,21 +84,21 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
         // Apply theme to document
         if (typeof window !== 'undefined') {
           const root = document.documentElement
-          // Remove dark class first
-          root.classList.remove('dark')
+          // Remove theme classes first
+          root.classList.remove('dark', 'glass')
 
           if (theme === 'dark') {
             root.classList.add('dark')
             localStorage.setItem('theme', 'dark')
           } else if (theme === 'light') {
             localStorage.setItem('theme', 'light')
+          } else if (theme === 'glass') {
+            root.classList.add('dark', 'glass')
+            localStorage.setItem('theme', 'glass')
           } else {
-            // System preference
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-            if (isDark) {
-              root.classList.add('dark')
-            }
-            localStorage.setItem('theme', 'system')
+            // System preference fallback: default to dark to preserve Ron's DS
+            root.classList.add('dark')
+            localStorage.setItem('theme', 'dark')
           }
 
           // Notify Electron main process
@@ -141,7 +141,25 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       }
     }),
     {
-      name: 'user-preferences-storage'
+      name: 'user-preferences-storage',
+      onRehydrateStorage: () => (state, error) => {
+        if (error || !state || typeof window === 'undefined') return
+        const storedTheme = localStorage.getItem('theme') as Theme | null
+        if (storedTheme === 'dark') {
+          state.setTheme('dark')
+          return
+        }
+        if (storedTheme === 'light') {
+          state.setTheme('light')
+          return
+        }
+        if (storedTheme === 'glass') {
+          state.setTheme('glass')
+          return
+        }
+        // No stored theme or system: force dark
+        state.setTheme('dark')
+      }
     }
   )
 )
@@ -149,7 +167,16 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
 // Initialize theme on app load
 if (typeof window !== 'undefined') {
   const store = useUserPreferencesStore.getState()
-  store.setTheme(store.theme)
+  const storedTheme = localStorage.getItem('theme')
+  if (storedTheme === 'dark') {
+    store.setTheme('dark')
+  } else if (storedTheme === 'light') {
+    store.setTheme('light')
+  } else if (storedTheme === 'glass') {
+    store.setTheme('glass')
+  } else {
+    store.setTheme('dark')
+  }
 
   // Listen for system theme changes
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {

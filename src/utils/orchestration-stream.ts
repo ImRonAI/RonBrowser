@@ -566,11 +566,10 @@ function normalizeNodeId(event: OrchestrationStreamEvent): string | null {
 
 function normalizeToolName(toolName: string): string {
   const normalized = toolName.toLowerCase().trim();
-  if (normalized.includes("swarm")) return "swarm";
-  if (normalized.includes("workflow")) return "workflow";
-  if (normalized.includes("graph")) return "graph";
+  if (!normalized) return "";
   const parts = normalized.split(/[./:\\\s-]+/g).filter(Boolean);
-  return parts[parts.length - 1] || normalized;
+  const match = parts.find((part) => ORCHESTRATION_TOOLS.includes(part));
+  return match || parts[parts.length - 1] || normalized;
 }
 
 function buildToolUpdate(toolUse: Record<string, unknown>, status: AIToolExecution["status"]) {

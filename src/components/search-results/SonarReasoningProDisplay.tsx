@@ -5,7 +5,7 @@
  * using AI Elements components with streaming support.
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
 
@@ -13,6 +13,28 @@ import { cn } from '@/utils/cn'
 import { ChainOfThought, ChainOfThoughtHeader, ChainOfThoughtContent, ChainOfThoughtStep, ChainOfThoughtSearchResults, ChainOfThoughtSearchResult, ChainOfThoughtImage } from '@/components/ai-elements/chain-of-thought'
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
 import { Sources, SourcesTrigger, SourcesContent, Source } from '@/components/ai-elements/sources'
+import { ResponseWithCitations } from '@/components/ai-elements/response-with-citations'
+import {
+  Plan,
+  PlanContent,
+  PlanDescription,
+  PlanFooter,
+  PlanHeader,
+  PlanTitle,
+  PlanTrigger,
+} from '@/components/ai-elements/plan'
+import {
+  Queue,
+  QueueItem,
+  QueueItemContent,
+  QueueItemDescription,
+  QueueItemIndicator,
+  QueueList,
+  QueueSection,
+  QueueSectionContent,
+  QueueSectionLabel,
+  QueueSectionTrigger,
+} from '@/components/ai-elements/queue'
 
 // Types
 interface Citation {
@@ -55,6 +77,128 @@ interface StreamingState {
   error?: string
 }
 
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+type PlanStep = {
+  id?: string
+  title: string
+  description?: string
+  status?: 'pending' | 'running' | 'complete'
+}
+
+type PlanData = {
+  title?: string
+  description?: string
+  steps?: PlanStep[]
+  footer?: string
+}
+
+type QueueItemData = {
+  id?: string
+  title: string
+  description?: string
+  completed?: boolean
+}
+
+type QueueData = {
+  label?: string
+  items: QueueItemData[]
+}
+
+const PLAN_TAG = /<plan>([\s\S]*?)<\/plan>/gi
+const QUEUE_TAG = /<queue>([\s\S]*?)<\/queue>/gi
+
+function parseJsonBlock(raw: string) {
+  try {
+    return JSON.parse(raw.trim())
+  } catch {
+    return null
+  }
+}
+
+function normalizePlanData(raw: any): PlanData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const stepsRaw = Array.isArray(raw.steps || raw.items) ? (raw.steps || raw.items) : []
+  const steps = stepsRaw
+    .map((step: any, index: number) => {
+      if (!step) return null
+      const title = String(step.title || step.name || step.task || `Step ${index + 1}`)
+      return {
+        id: step.id ? String(step.id) : undefined,
+        title,
+        description: step.description ? String(step.description) : undefined,
+        status: step.status,
+      } as PlanStep
+    })
+    .filter(Boolean) as PlanStep[]
+
+  return {
+    title: raw.title ? String(raw.title) : raw.name ? String(raw.name) : 'Plan',
+    description: raw.description ? String(raw.description) : undefined,
+    steps: steps.length > 0 ? steps : undefined,
+    footer: raw.footer ? String(raw.footer) : undefined,
+  }
+}
+
+function normalizeQueueData(raw: any): QueueData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const itemsRaw = Array.isArray(raw.items || raw.tasks || raw.todos)
+    ? raw.items || raw.tasks || raw.todos
+    : []
+  const items = itemsRaw
+    .map((item: any, index: number) => {
+      if (!item) return null
+      const title = String(item.title || item.name || item.task || `Item ${index + 1}`)
+      return {
+        id: item.id ? String(item.id) : undefined,
+        title,
+        description: item.description ? String(item.description) : undefined,
+        completed: Boolean(item.completed || item.done),
+      } as QueueItemData
+    })
+    .filter(Boolean) as QueueItemData[]
+
+  if (items.length === 0) return null
+  return {
+    label: raw.label ? String(raw.label) : raw.title ? String(raw.title) : 'Queue',
+    items,
+  }
+}
+
+function extractStructuredBlocks(text: string) {
+  const plans: PlanData[] = []
+  const queues: QueueData[] = []
+  let output = text
+
+  output = output.replace(PLAN_TAG, (match, json) => {
+    const parsed = parseJsonBlock(json)
+    const plan = normalizePlanData(parsed)
+    if (plan) {
+      plans.push(plan)
+      return ''
+    }
+    return match
+  })
+
+  output = output.replace(QUEUE_TAG, (match, json) => {
+    const parsed = parseJsonBlock(json)
+    const queue = normalizeQueueData(parsed)
+    if (queue) {
+      queues.push(queue)
+      return ''
+    }
+    return match
+  })
+
+  return { cleaned: output.trim(), plans, queues }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +220,10 @@ export function SonarReasoningProDisplay({
   const [isStreaming, setIsStreaming] = useState(initialStreaming)
   const [reasoningDuration, setReasoningDuration] = useState<number | undefined>()
   const reasoningStartTime = useRef<number | null>(null)
+  const { cleaned, plans, queues } = useMemo(
+    () => extractStructuredBlocks(streamingState.content),
+    [streamingState.content]
+  )
 
   // Start streaming when component mounts or query changes
   useEffect(() => {
@@ -204,24 +352,6 @@ export function SonarReasoningProDisplay({
     streamResponse()
   }, [query])
 
-  // Format content with inline citations
-  const formatContentWithCitations = (content: string, citations: Citation[]) => {
-    if (!citations.length) return content
-
-    // Replace citation markers [1], [2], etc. with styled inline citations
-    let formattedContent = content
-    citations.forEach((citation, index) => {
-      const citationNumber = index + 1
-      const pattern = new RegExp(`\\[${citationNumber}\\]`, 'g')
-      formattedContent = formattedContent.replace(
-        pattern,
-        `<sup class="inline-citation" data-citation-id="${citation.id}">[${citationNumber}]</sup>`
-      )
-    })
-
-    return formattedContent
-  }
-
   return (
     <div className={cn(
       'w-full space-y-4',
@@ -292,58 +422,99 @@ export function SonarReasoningProDisplay({
       )}
 
       {/* Main Response Content with Inline Citations */}
-      {streamingState.content && (
+      {(cleaned || plans.length > 0 || queues.length > 0) && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
           className="relative"
         >
-          <div
-            className={cn(
-              "prose prose-sm dark:prose-invert max-w-none prose-inline-citations",
-              isStreaming && "animate-pulse"
-            )}
-            dangerouslySetInnerHTML={{
-              __html: formatContentWithCitations(streamingState.content, streamingState.citations)
-            }}
-          />
+          {(plans.length > 0 || queues.length > 0) && (
+            <div className="mb-6 space-y-4">
+              {plans.map((plan, planIndex) => (
+                <Plan key={`${planIndex}-${plan.title || 'plan'}`} defaultOpen>
+                  <PlanHeader className="items-start gap-3">
+                    <div className="space-y-1">
+                      <PlanTitle>{plan.title || 'Plan'}</PlanTitle>
+                      {plan.description && (
+                        <PlanDescription>{plan.description}</PlanDescription>
+                      )}
+                    </div>
+                    <PlanTrigger />
+                  </PlanHeader>
+                  {plan.steps && plan.steps.length > 0 && (
+                    <PlanContent>
+                      <ol className="space-y-2">
+                        {plan.steps.map((step, index) => (
+                          <li key={step.id || `${planIndex}-${index}`} className="flex items-start gap-2">
+                            <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{step.title}</p>
+                              {step.description && (
+                                <p className="text-xs text-muted-foreground">{step.description}</p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </PlanContent>
+                  )}
+                  {plan.footer && (
+                    <PlanFooter>
+                      <p className="text-xs text-muted-foreground">{plan.footer}</p>
+                    </PlanFooter>
+                  )}
+                </Plan>
+              ))}
 
-          {/* Inline citation hover tooltips */}
-          <style>{`
-            .prose-inline-citations :global(.inline-citation) {
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              min-width: 1.25rem;
-              height: 1.25rem;
-              padding: 0 0.25rem;
-              margin: 0 0.125rem;
-              border-radius: 9999px;
-              background: rgb(var(--accent) / 0.1);
-              color: rgb(var(--accent));
-              font-size: 0.75rem;
-              font-weight: 600;
-              cursor: pointer;
-              transition: all 0.2s;
-            }
+              {queues.map((queue, queueIndex) => (
+                <Queue key={`${queueIndex}-${queue.label || 'queue'}`}>
+                  <QueueSection defaultOpen>
+                    <QueueSectionTrigger>
+                      <QueueSectionLabel count={queue.items.length} label={queue.label || 'Queue'} />
+                    </QueueSectionTrigger>
+                    <QueueSectionContent>
+                      <QueueList>
+                        {queue.items.map((item, index) => (
+                          <QueueItem key={item.id || `${queueIndex}-${index}`}>
+                            <div className="flex items-start gap-2">
+                              <QueueItemIndicator completed={item.completed} />
+                              <QueueItemContent completed={item.completed}>
+                                {item.title}
+                              </QueueItemContent>
+                            </div>
+                            {item.description && (
+                              <QueueItemDescription completed={item.completed}>
+                                {item.description}
+                              </QueueItemDescription>
+                            )}
+                          </QueueItem>
+                        ))}
+                      </QueueList>
+                    </QueueSectionContent>
+                  </QueueSection>
+                </Queue>
+              ))}
+            </div>
+          )}
 
-            .prose-inline-citations :global(.inline-citation:hover) {
-              background: rgb(var(--accent) / 0.2);
-              transform: scale(1.1);
-            }
-
-            @media (prefers-color-scheme: dark) {
-              .prose-inline-citations :global(.inline-citation) {
-                background: rgb(var(--accent-light) / 0.1);
-                color: rgb(var(--accent-light));
-              }
-
-              .prose-inline-citations :global(.inline-citation:hover) {
-                background: rgb(var(--accent-light) / 0.2);
-              }
-            }
-          `}</style>
+          {cleaned && (
+            <ResponseWithCitations
+              content={cleaned}
+              citations={streamingState.citations.map((citation, index) => ({
+                number: String(index + 1),
+                title: citation.title,
+                url: citation.url,
+                snippet: citation.snippet,
+              }))}
+              className={cn(
+                "prose prose-sm dark:prose-invert max-w-none",
+                isStreaming && "animate-pulse"
+              )}
+            />
+          )}
         </motion.div>
       )}
 
@@ -372,15 +543,41 @@ export function SonarReasoningProDisplay({
         <Sources className="mt-6">
           <SourcesTrigger count={streamingState.citations.length} />
           <SourcesContent>
-            {streamingState.citations.map((citation, index) => (
-              <Source
-                key={citation.id}
-                href={citation.url}
-                title={`[${index + 1}] ${citation.title}`}
-                snippet={citation.snippet}
-                favicon={citation.domain ? `https://www.google.com/s2/favicons?domain=${citation.domain}&sz=32` : undefined}
-              />
-            ))}
+            {streamingState.citations.map((citation, index) => {
+              const domain = citation.domain || getDomainFromUrl(citation.url)
+              const favicon = domain
+                ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+                : null
+
+              return (
+                <Source key={citation.id} href={citation.url}>
+                  <div className="flex items-start gap-3">
+                    {favicon ? (
+                      <img
+                        src={favicon}
+                        alt=""
+                        className="mt-0.5 h-4 w-4 rounded"
+                      />
+                    ) : (
+                      <span className="mt-0.5 h-4 w-4 rounded bg-muted" aria-hidden />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground line-clamp-1">
+                        [{index + 1}] {citation.title}
+                      </p>
+                      {citation.snippet && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                          {citation.snippet}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[11px] text-muted-foreground/80 line-clamp-1">
+                        {domain}
+                      </p>
+                    </div>
+                  </div>
+                </Source>
+              )
+            })}
           </SourcesContent>
         </Sources>
       )}

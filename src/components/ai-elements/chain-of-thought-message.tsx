@@ -12,6 +12,7 @@
 
 import { useMemo, memo, useEffect, useRef, useCallback } from 'react'
 import {
+  isDataUIPart,
   isToolUIPart,
   getToolName,
   type TextUIPart,
@@ -39,23 +40,164 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-e
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState } from '@/components/ai-elements/tool'
 import { ResponseMarkdown } from '@/components/ai-elements/response'
 import { ResponseWithCitations, type Citation } from '@/components/ai-elements/response-with-citations'
+import {
+  Plan,
+  PlanContent,
+  PlanDescription,
+  PlanFooter,
+  PlanHeader,
+  PlanTitle,
+  PlanTrigger,
+} from '@/components/ai-elements/plan'
+import {
+  Queue,
+  QueueItem,
+  QueueItemContent,
+  QueueItemDescription,
+  QueueItemIndicator,
+  QueueList,
+  QueueSection,
+  QueueSectionContent,
+  QueueSectionLabel,
+  QueueSectionTrigger,
+} from '@/components/ai-elements/queue'
+import { Sources, SourcesContent, SourcesTrigger, Source } from '@/components/ai-elements/sources'
 import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
 import { initOrchestrationFromToolInput } from '@/utils/orchestration-stream'
 import { extractSearchQuery, extractSearchResults, getSearchProvider } from '@/utils/search-tool-utils'
 // ToolState is used by mapToolPartState return type
 
 const ORCHESTRATION_KEYWORDS = ['workflow', 'swarm', 'graph'] as const
+type OrchestrationToolName = typeof ORCHESTRATION_KEYWORDS[number]
+
+type PlanStep = {
+  id?: string
+  title: string
+  description?: string
+  status?: 'pending' | 'running' | 'complete'
+}
+
+type PlanData = {
+  title?: string
+  description?: string
+  steps?: PlanStep[]
+  footer?: string
+}
+
+type QueueItemData = {
+  id?: string
+  title: string
+  description?: string
+  completed?: boolean
+}
+
+type QueueData = {
+  label?: string
+  items: QueueItemData[]
+}
+
+const PLAN_TAG = /<plan>([\s\S]*?)<\/plan>/gi
+const QUEUE_TAG = /<queue>([\s\S]*?)<\/queue>/gi
+
+function parseJsonBlock(raw: string) {
+  try {
+    return JSON.parse(raw.trim())
+  } catch {
+    return null
+  }
+}
+
+function normalizePlanData(raw: any): PlanData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const stepsRaw = Array.isArray(raw.steps || raw.items) ? (raw.steps || raw.items) : []
+  const steps = stepsRaw
+    .map((step: any, index: number) => {
+      if (!step) return null
+      const title = String(step.title || step.name || step.task || `Step ${index + 1}`)
+      return {
+        id: step.id ? String(step.id) : undefined,
+        title,
+        description: step.description ? String(step.description) : undefined,
+        status: step.status,
+      } as PlanStep
+    })
+    .filter(Boolean) as PlanStep[]
+
+  return {
+    title: raw.title ? String(raw.title) : raw.name ? String(raw.name) : 'Plan',
+    description: raw.description ? String(raw.description) : undefined,
+    steps: steps.length > 0 ? steps : undefined,
+    footer: raw.footer ? String(raw.footer) : undefined,
+  }
+}
+
+function normalizeQueueData(raw: any): QueueData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const itemsRaw = Array.isArray(raw.items || raw.tasks || raw.todos)
+    ? raw.items || raw.tasks || raw.todos
+    : []
+  const items = itemsRaw
+    .map((item: any, index: number) => {
+      if (!item) return null
+      const title = String(item.title || item.name || item.task || `Item ${index + 1}`)
+      return {
+        id: item.id ? String(item.id) : undefined,
+        title,
+        description: item.description ? String(item.description) : undefined,
+        completed: Boolean(item.completed || item.done),
+      } as QueueItemData
+    })
+    .filter(Boolean) as QueueItemData[]
+
+  if (items.length === 0) return null
+  return {
+    label: raw.label ? String(raw.label) : raw.title ? String(raw.title) : 'Queue',
+    items,
+  }
+}
+
+function extractStructuredBlocks(
+  text: string,
+  plans: PlanData[],
+  queues: QueueData[]
+) {
+  let output = text
+
+  output = output.replace(PLAN_TAG, (match, json) => {
+    const parsed = parseJsonBlock(json)
+    const plan = normalizePlanData(parsed)
+    if (plan) {
+      plans.push(plan)
+      return ''
+    }
+    return match
+  })
+
+  output = output.replace(QUEUE_TAG, (match, json) => {
+    const parsed = parseJsonBlock(json)
+    const queue = normalizeQueueData(parsed)
+    if (queue) {
+      queues.push(queue)
+      return ''
+    }
+    return match
+  })
+
+  return output
+}
+
+function getOrchestrationToolName(toolName?: string): OrchestrationToolName | null {
+  if (!toolName) return null
+  const normalized = toolName.toLowerCase()
+  const segments = normalized.split(/[./:\\|\\s-]+/g).filter(Boolean)
+  const match = segments.find((segment) =>
+    ORCHESTRATION_KEYWORDS.includes(segment as OrchestrationToolName)
+  )
+  return (match as OrchestrationToolName) || null
+}
 
 function isOrchestrationToolName(toolName?: string) {
-  if (!toolName) return false
-  const normalized = toolName.toLowerCase()
-  if (ORCHESTRATION_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
-    return true
-  }
-
-  // Handle namespaced tool names (e.g. "strands_tools.workflow", "mcp:swarm")
-  const segments = normalized.split(/[./:\\|\\s-]+/g).filter(Boolean)
-  return segments.some((segment) => ORCHESTRATION_KEYWORDS.includes(segment as typeof ORCHESTRATION_KEYWORDS[number]))
+  return Boolean(getOrchestrationToolName(toolName))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,16 +236,33 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
   const processedToolCallsRef = useRef(new Set<string>())
 
   // Separate process parts from final text and extract citations
-  const { processParts, finalTextParts, citations } = useMemo(() => {
+  const { processParts, finalTextParts, citations, plans, queues } = useMemo(() => {
     const processParts: MessagePart[] = []
     const finalTextParts: TextUIPart[] = []
     const citations: Citation[] = []
+    const plans: PlanData[] = []
+    const queues: QueueData[] = []
 
     for (const part of parts) {
+      if (isDataUIPart(part)) {
+        if (part.type === 'data-plan') {
+          const plan = normalizePlanData((part as any).data)
+          if (plan) plans.push(plan)
+        }
+        if (part.type === 'data-queue') {
+          const queue = normalizeQueueData((part as any).data)
+          if (queue) queues.push(queue)
+        }
+        continue
+      }
+
       if (part.type === 'text') {
         const textPart = part as TextUIPart
-        if (textPart.text?.trim()) {
-          finalTextParts.push(textPart)
+        if (textPart.text) {
+          const cleaned = extractStructuredBlocks(textPart.text, plans, queues)
+          if (cleaned.trim()) {
+            finalTextParts.push({ ...textPart, text: cleaned })
+          }
         }
         continue
       }
@@ -131,13 +290,16 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
       }
     }
 
-    return { processParts, finalTextParts, citations }
+    return { processParts, finalTextParts, citations, plans, queues }
   }, [parts])
 
   const hasFinalTextOutput = finalTextParts.length > 0
   const resolvedCitations = citationsOverride && citationsOverride.length > 0
     ? citationsOverride
     : citations
+  const resolvedPlans = plans
+  const resolvedQueues = queues
+  const hasStructuredBlocks = resolvedPlans.length > 0 || resolvedQueues.length > 0
 
   // Calculate step count for header
   const stepCount = useMemo(() => {
@@ -275,9 +437,85 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
           </ChainOfThought>
         )}
 
+        {hasStructuredBlocks && (
+          <div className={cn('px-6 pt-5', finalTextParts.length === 0 && 'pb-4')}>
+            <div className="space-y-4">
+              {resolvedPlans.map((plan, planIndex) => (
+                <Plan key={`${messageId}-plan-${planIndex}`} defaultOpen>
+                  <PlanHeader className="items-start gap-3">
+                    <div className="space-y-1">
+                      <PlanTitle>{plan.title || 'Plan'}</PlanTitle>
+                      {plan.description && (
+                        <PlanDescription>{plan.description}</PlanDescription>
+                      )}
+                    </div>
+                    <PlanTrigger />
+                  </PlanHeader>
+                  {plan.steps && plan.steps.length > 0 && (
+                    <PlanContent>
+                      <ol className="space-y-2">
+                        {plan.steps.map((step, index) => (
+                          <li key={step.id || `${planIndex}-${index}`} className="flex items-start gap-2">
+                            <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{step.title}</p>
+                              {step.description && (
+                                <p className="text-xs text-muted-foreground">{step.description}</p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </PlanContent>
+                  )}
+                  {plan.footer && (
+                    <PlanFooter>
+                      <p className="text-xs text-muted-foreground">{plan.footer}</p>
+                    </PlanFooter>
+                  )}
+                </Plan>
+              ))}
+
+              {resolvedQueues.map((queue, queueIndex) => (
+                <Queue key={`${messageId}-queue-${queueIndex}`}>
+                  <QueueSection defaultOpen>
+                    <QueueSectionTrigger>
+                      <QueueSectionLabel
+                        count={queue.items.length}
+                        label={queue.label || 'Queue'}
+                      />
+                    </QueueSectionTrigger>
+                    <QueueSectionContent>
+                      <QueueList>
+                        {queue.items.map((item, index) => (
+                          <QueueItem key={item.id || `${queueIndex}-${index}`}>
+                            <div className="flex items-start gap-2">
+                              <QueueItemIndicator completed={item.completed} />
+                              <QueueItemContent completed={item.completed}>
+                                {item.title}
+                              </QueueItemContent>
+                            </div>
+                            {item.description && (
+                              <QueueItemDescription completed={item.completed}>
+                                {item.description}
+                              </QueueItemDescription>
+                            )}
+                          </QueueItem>
+                        ))}
+                      </QueueList>
+                    </QueueSectionContent>
+                  </QueueSection>
+                </Queue>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Final Text Output (inside same bubble, below reasoning) */}
         {finalTextParts.length > 0 && (
-          <div className="p-6">
+          <div className={cn('p-6', hasStructuredBlocks && 'pt-4')}>
             {finalTextParts.map((part, index) => (
               <ResponseWithCitations
                 key={`${messageId}-text-${index}`}
@@ -286,6 +524,39 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
                 isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}
               />
             ))}
+          </div>
+        )}
+
+        {resolvedCitations.length > 0 && (
+          <div className={cn('px-6 pb-6', finalTextParts.length === 0 && !hasStructuredBlocks && 'pt-4')}>
+            <Sources>
+              <SourcesTrigger count={resolvedCitations.length} />
+              <SourcesContent>
+                {resolvedCitations.map((citation, index) => (
+                  <Source key={`${messageId}-source-${index}`} href={citation.url}>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-foreground">
+                        [{index + 1}] {citation.title}
+                      </p>
+                      {citation.snippet && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {citation.snippet}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground/80">
+                        {(() => {
+                          try {
+                            return new URL(citation.url).hostname
+                          } catch {
+                            return citation.url
+                          }
+                        })()}
+                      </p>
+                    </div>
+                  </Source>
+                ))}
+              </SourcesContent>
+            </Sources>
           </div>
         )}
       </div>
@@ -356,7 +627,8 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
     const shouldShowSearch = Boolean(searchProvider)
     const hasToolOutput = toolPart.output != null || toolPart.errorText != null
     const shouldKeepOpen = toolState !== 'success' || shouldShowSearch || hasToolOutput
-    const isOrchestrationTool = isOrchestrationToolName(toolName)
+    const orchestrationName = getOrchestrationToolName(toolName)
+    const isOrchestrationTool = Boolean(orchestrationName)
 
     if (isOrchestrationTool) {
       return (
@@ -368,7 +640,7 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
             tool={{
               type: toolPart.type,
               toolCallId: toolPart.toolCallId,
-              toolName: toolName || 'tool',
+              toolName: orchestrationName || toolName || 'tool',
               state: toolPart.state,
               input: toolPart.input,
               output: toolPart.output,

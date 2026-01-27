@@ -19,7 +19,7 @@ import {
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
-import { SourcesGrid } from './SourcesGrid'
+import { Sources, SourcesContent, SourcesTrigger, Source } from '@/components/ai-elements/sources'
 import type { SourceData } from './SourceCard'
 import { useSearchStore } from '@/stores/searchStore'
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
@@ -382,6 +382,7 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
                 case 'tool-output-available':
                   if (event.toolCallId) {
                     upsertToolExecution(event.toolCallId, {
+                      name: event.toolName,
                       state: 'output-available',
                       output: event.output,
                     })
@@ -392,6 +393,7 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
                 case 'tool-output-error':
                   if (event.toolCallId) {
                     upsertToolExecution(event.toolCallId, {
+                      name: event.toolName,
                       state: 'output-error',
                       errorText: event.errorText,
                     })
@@ -517,19 +519,35 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
       )}
 
       <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-white/70">
-              Sources ({mergedSources.length})
-            </h2>
+        {mergedSources.length > 0 ? (
+          <Sources>
+            <SourcesTrigger count={mergedSources.length} />
+            <SourcesContent>
+              {mergedSources.map((source, index) => (
+                <Source key={source.id || `${source.url}-${index}`} href={source.url}>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      [{index + 1}] {source.title}
+                    </p>
+                    {source.snippet && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {source.snippet}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground/80">
+                      {getDomainFromUrl(source.url)}
+                    </p>
+                  </div>
+                </Source>
+              ))}
+            </SourcesContent>
+          </Sources>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/40">
+            Sources will appear here as they stream in.
           </div>
-          {mergedSources.length > 0 ? (
-            <SourcesGrid sources={mergedSources} />
-          ) : (
-            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/40">
-              Sources will appear here as they stream in.
-            </div>
-          )}
-        </div>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
         <button

@@ -256,59 +256,50 @@ const TAB_CONFIG: { id: HomeTab; label: string; icon: (isActive: boolean) => Rea
 ]
 
 function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
-  const activeIndex = TAB_CONFIG.findIndex(t => t.id === activeTab)
-
   return (
-    <div className="relative">
-      {/* Clean glass container */}
+    <div className="flex justify-center w-full">
+      {/* Premium frosted glass container - perfectly centered */}
       <div className="
-        relative flex items-center gap-1 p-1.5
-        rounded-full
-        bg-surface-100/80 dark:bg-surface-800/60
+        relative flex items-center justify-center gap-2 px-3 py-2
+        rounded-2xl
+        bg-white/70 dark:bg-surface-800/60
         backdrop-blur-xl
-        border border-surface-200/50 dark:border-surface-700/50
-        shadow-soft dark:shadow-dark-soft
+        border border-indigo-300/30 dark:border-surface-700/50
+        shadow-[0_4px_32px_rgba(79,70,229,0.12)] dark:shadow-dark-soft
       ">
-        {/* Animated pill indicator */}
-        <motion.div
-          className="absolute top-1.5 bottom-1.5 rounded-full bg-accent dark:bg-accent-light"
-          style={{
-            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
-          }}
-          layoutId="tab-pill"
-          initial={false}
-          animate={{
-            left: `calc(${activeIndex * 20}% + 6px)`,
-            width: `calc(20% - 8px)`,
-          }}
-          transition={{
-            type: 'spring',
-            stiffness: 400,
-            damping: 30,
-          }}
-        />
-
-        {/* Tab buttons */}
+        {/* Tab buttons - each with individual frosted glass pill effect */}
         {TAB_CONFIG.map((tab) => {
           const isActive = activeTab === tab.id
           return (
-            <button
+            <motion.button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               className={`
-                relative z-10 flex items-center justify-center gap-2
-                px-6 py-2.5 rounded-full
+                group relative flex items-center justify-center gap-2.5
+                px-5 py-2.5 rounded-xl
                 text-body-sm font-medium
-                transition-colors duration-200
+                transition-all duration-300 ease-out
                 ${isActive
-                  ? 'text-white'
-                  : 'text-ink-secondary dark:text-ink-inverse-secondary hover:text-ink dark:hover:text-ink-inverse'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-800 text-white shadow-lg shadow-indigo-700/30'
+                  : 'bg-white/50 dark:bg-surface-800/50 text-ink-secondary dark:text-ink-inverse-secondary hover:text-ink dark:hover:text-ink-inverse hover:bg-white/80 dark:hover:bg-surface-700/80 border border-transparent hover:border-indigo-300/30 dark:hover:border-surface-600'
                 }
               `}
             >
-              <span className="w-4 h-4">{tab.icon(isActive)}</span>
+              {/* Icon with spin animation on hover */}
+              <span 
+                className={`
+                  w-4 h-4 flex-shrink-0
+                  transition-all duration-300
+                  group-hover:animate-[spin-slow_0.6s_ease-in-out]
+                  ${isActive ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}
+                `}
+              >
+                {tab.icon(isActive)}
+              </span>
               <span>{tab.label}</span>
-            </button>
+            </motion.button>
           )
         })}
       </div>
@@ -328,7 +319,7 @@ function VibePlaceholder() {
       className="text-center space-y-6"
     >
       <motion.div
-        className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center"
+        className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center"
         animate={{
           y: [0, -8, 0],
           rotate: [0, -3, 3, 0]

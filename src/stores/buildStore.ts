@@ -187,7 +187,7 @@ export const useBuildStore = create<BuildState>()(
   persist(
     (set, get) => ({
       // Initial state
-      activeAgentId: 'super-agent',
+      activeAgentId: 'sandbox-agent',
       agents: DEFAULT_AGENTS,
       threads: {},
       workspaceId: 'default',
@@ -454,6 +454,14 @@ export const useBuildStore = create<BuildState>()(
     }),
     {
       name: 'build-store-v2',
+      version: 3,
+      migrate: (state: any) => {
+        if (!state) return state
+        if (!state.activeAgentId || state.activeAgentId === 'super-agent') {
+          return { ...state, activeAgentId: 'sandbox-agent' }
+        }
+        return state
+      },
       partialize: (state) => ({
         activeAgentId: state.activeAgentId,
         threads: state.threads,

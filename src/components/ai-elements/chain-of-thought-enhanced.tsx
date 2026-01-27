@@ -82,6 +82,41 @@ export function ChainOfThoughtEnhanced({
     return results
   }, [steps])
 
+  const renderSource = (result: SearchResult) => {
+    const domain = (() => {
+      try {
+        return new URL(result.url).hostname
+      } catch {
+        return result.url
+      }
+    })()
+
+    return (
+      <Source key={result.id} href={result.url}>
+        <div className="flex items-start gap-3">
+          {result.favicon ? (
+            <img src={result.favicon} alt="" className="mt-0.5 h-4 w-4 rounded" />
+          ) : (
+            <span className="mt-0.5 h-4 w-4 rounded bg-muted" aria-hidden />
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground line-clamp-1">
+              {result.title || domain}
+            </p>
+            {result.snippet && (
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                {result.snippet}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] text-muted-foreground/80 line-clamp-1">
+              {domain}
+            </p>
+          </div>
+        </div>
+      </Source>
+    )
+  }
+
   return (
     <div className={cn(
       'rounded-xl border border-surface-200 dark:border-surface-700',
@@ -89,17 +124,20 @@ export function ChainOfThoughtEnhanced({
       className
     )}>
       {/* Header */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
+      <div
         className={cn(
-          'w-full flex items-center justify-between',
+          'flex items-center justify-between gap-3',
           'px-4 py-3',
           'bg-surface-50 dark:bg-surface-800',
           'hover:bg-surface-100 dark:hover:bg-surface-700',
           'transition-colors duration-200'
         )}
       >
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex flex-1 items-center gap-2 text-left"
+          type="button"
+        >
           <BrainIcon className="w-4 h-4 text-accent dark:text-accent-light" />
           <span className="text-body-sm font-medium text-ink dark:text-ink-inverse">
             Chain of Thought
@@ -109,35 +147,24 @@ export function ChainOfThoughtEnhanced({
               Processing...
             </span>
           )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {showSources && allSearchResults.length > 0 && (
-            <Sources>
-              <SourcesTrigger count={allSearchResults.length} />
-              <SourcesContent>
-                {allSearchResults.map((result) => (
-                  <Source
-                    key={result.id}
-                    href={result.url}
-                    title={result.title}
-                    snippet={result.snippet}
-                    favicon={result.favicon}
-                  />
-                ))}
-              </SourcesContent>
-            </Sources>
-          )}
-
           <ChevronIcon
             className={cn(
-              'w-4 h-4 text-ink-muted dark:text-ink-inverse-muted',
+              'ml-auto w-4 h-4 text-ink-muted dark:text-ink-inverse-muted',
               'transition-transform duration-200',
               isOpen && 'rotate-180'
             )}
           />
-        </div>
-      </button>
+        </button>
+
+        {showSources && allSearchResults.length > 0 && (
+          <Sources>
+            <SourcesTrigger count={allSearchResults.length} />
+            <SourcesContent>
+              {allSearchResults.map(renderSource)}
+            </SourcesContent>
+          </Sources>
+        )}
+      </div>
 
       {/* Content */}
       <AnimatePresence>

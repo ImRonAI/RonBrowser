@@ -19,6 +19,17 @@ import httpx
 from dotenv import load_dotenv
 from pathlib import Path
 from openai import OpenAI
+from strands import Agent
+from a2a.client import A2AClient
+from a2a.types import (
+    SendStreamingMessageRequest,
+    MessageSendParams,
+    Message as A2AMessage,
+    TextPart,
+    Role,
+    TaskStatusUpdateEvent,
+    TaskArtifactUpdateEvent,
+)
 
 # LanceDB for persistent memory
 import lancedb
@@ -56,6 +67,9 @@ EMBEDDING_MODEL = "text-embedding-3-small"  # For semantic search
 SUPERAGENT_SESSION_ID = os.getenv("SUPERAGENT_SESSION_ID", "ron-permanent")
 SUPERAGENT_LOCK_SESSION = os.getenv("SUPERAGENT_LOCK_SESSION", "false").lower() == "true"
 SUPERAGENT_BROWSER_SESSION = os.getenv("SUPERAGENT_BROWSER_SESSION", "ron-superagent")
+TASK_AGENT_SESSION_ID = os.getenv("TASK_AGENT_SESSION_ID", "ron-task-agent")
+TASK_AGENT_LOCK_SESSION = os.getenv("TASK_AGENT_LOCK_SESSION", "false").lower() == "true"
+TASK_AGENT_BROWSER_SESSION = os.getenv("TASK_AGENT_BROWSER_SESSION", "ron-task-agent")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Models
@@ -458,6 +472,22 @@ async def perplexity_search(
 async def lifespan(app: FastAPI):
     """Initialize resources on startup"""
     await memory.initialize()
+
+    # Ensure MCP gateway is running on backend startup so tools are always available
+    try:
+        import superagent as sa_boot
+        from superagent import get_or_create_session_agent as get_or_create_session_agent_boot
+
+        agent, _, _ = get_or_create_session_agent_boot(
+            session_id="gateway-bootstrap",
+            callback_handler=None,
+            memory=None,
+        )
+        sa_boot._current_agent = agent
+        await sa_boot.load_mcp_server(server_id="gateway")
+        logger.info("MCP gateway loaded on startup.")
+    except Exception as e:
+        logger.warning(f"MCP gateway startup failed: {e}")
     
     # Only initialize Playwright - don't create sessions yet
     # Sessions are created per-chat in the /superagent/stream endpoint
@@ -473,6 +503,12 @@ async def lifespan(app: FastAPI):
     # Cleanup: close all browser sessions
     if sa._global_browser:
         await sa._global_browser._cleanup()
+
+    # Stop MCP gateway if it was started
+    try:
+        sa.unload_mcp_server(server_id="gateway")
+    except Exception as e:
+        logger.warning(f"MCP gateway shutdown failed: {e}")
 
 app = FastAPI(
     title="Ron Browser Search Chat API",
@@ -711,6 +747,110 @@ async def sonar_reasoning_pro_stream(request: Request):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Search Agent Endpoint (AI Elements format for SearchAgentDisplay)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SearchAgentRequest(BaseModel):
+    query: str
+    session_id: Optional[str] = "search-default"
+
+
+@app.post("/api/search-agent/stream")
+async def search_agent_stream(request: Request):
+    """
+    Search agent endpoint that streams Strands search agent output in AI SDK UIMessageStream format.
+    Expected by SearchAgentDisplay.tsx component.
+    """
+    body = await request.json()
+    query = body.get("query", "")
+    session_id = body.get("session_id", "search-default")
+
+    if not query:
+        return JSONResponse(status_code=400, content={"error": "Query is required"})
+
+    queue = asyncio.Queue()
+    saw_finish = False
+    saw_done = False
+    emitter = AISDKStreamEmitter()
+
+    def emit(sse_event: str):
+        """Receive complete SSE strings from AISDKCallbackHandler."""
+        nonlocal saw_finish, saw_done
+        if '"type": "finish"' in sse_event:
+            saw_finish = True
+        if "[DONE]" in sse_event:
+            saw_done = True
+        queue.put_nowait(sse_event)
+
+    callback_handler = UICallbackHandler(emit)
+
+    search_agent = create_search_agent(callback_handler=callback_handler, session_id=session_id)
+
+    # Ensure MCP gateway tools are available for this agent
+    sa._current_agent = search_agent
+    try:
+        await sa.load_mcp_server(server_id="gateway")
+    except Exception as e:
+        logger.warning(f"[SearchAgent] Failed to load MCP gateway: {e}")
+
+    async def run_agent():
+        """Run the search agent stream and let the callback handler emit SSE events."""
+        async for _ in search_agent.stream_async(query):
+            pass
+
+    async def emit_terminal_events_and_drain(finish_reason: str = "stop"):
+        """Ensure finish + [DONE] events are emitted and drain queued output."""
+        events = []
+        if not callback_handler.is_finished:
+            callback_handler.finalize(finish_reason=finish_reason)
+        while not queue.empty():
+            events.append(queue.get_nowait())
+        return events
+
+    async def generate():
+        agent_task = asyncio.create_task(run_agent())
+        try:
+            while not agent_task.done():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                    yield event
+                except asyncio.TimeoutError:
+                    yield emitter.emit_ping()
+
+            try:
+                agent_task.result()
+            except Exception as e:
+                logger.error(f"[SearchAgent] Agent execution error: {e}")
+                emit(emitter.emit_error(str(e)))
+
+            # Drain remaining events
+            while not queue.empty():
+                yield queue.get_nowait()
+
+            if not saw_finish or not saw_done:
+                terminal_events = await emit_terminal_events_and_drain("stop")
+                for event in terminal_events:
+                    yield event
+        except Exception as e:
+            logger.error(f"[SearchAgent] Streaming error: {e}")
+            emit(emitter.emit_error(str(e)))
+            terminal_events = await emit_terminal_events_and_drain("error")
+            for event in terminal_events:
+                yield event
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "x-vercel-ai-ui-message-stream": "v1",
+        }
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Superagent Endpoint (Strands-based orchestration)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -719,12 +859,157 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from superagent import get_or_create_session_agent, UICallbackHandler
+from search_agent import create_search_agent
+from task_agent import get_or_create_task_agent
 from aisdk_stream import AISDKStreamEmitter
 import superagent as sa
 
-# Agent execution timeout in seconds (45 seconds default, configurable via env)
-# Individual tools have 15s timeouts. This allows ~3 tool attempts before overall timeout.
-AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "45"))
+# Per-session stream locks to prevent concurrent streams clobbering handlers
+_SESSION_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _get_session_lock(session_id: str) -> asyncio.Lock:
+    lock = _SESSION_LOCKS.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _SESSION_LOCKS[session_id] = lock
+    return lock
+
+# Agent silence timeout in seconds (default 300s/5min, configurable via env)
+# Timeout resets on each streamed event - only triggers if agent goes silent.
+# If agent is streaming tokens, it can run indefinitely.
+AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "300"))
+SANDBOX_AGENT_URL = os.getenv("SANDBOX_AGENT_URL", "http://localhost:9000")
+SANDBOX_AGENT_TIMEOUT_SECONDS = int(
+    os.getenv("SANDBOX_AGENT_TIMEOUT_SECONDS", str(AGENT_TIMEOUT_SECONDS))
+)
+
+# Ralph Loop Configuration (outer loop that re-runs agent until task is complete)
+# Based on Geoffrey Huntley's Ralph Wiggum technique
+RALPH_MAX_ITERATIONS = int(os.getenv("RALPH_MAX_ITERATIONS", "10"))
+RALPH_ENABLED = os.getenv("RALPH_ENABLED", "true").lower() == "true"
+
+RALPH_CONTINUATION_PROMPT = """The previous agent iteration ended without completing the full task.
+
+CONTINUE WORKING. You MUST:
+1. Review what was accomplished so far
+2. Identify what remains to be done
+3. Use tools to make progress on the NEXT step
+4. Keep going until the ENTIRE original task is complete
+
+DO NOT stop until all deliverables are produced. Use tools now."""
+
+COMPLETION_CHECK_PROMPT = """You are a strict completion auditor.
+
+TASK:
+{task}
+
+LATEST ASSISTANT RESPONSE:
+{response}
+
+Decide if ALL required deliverables are present and verified. If ANY required
+deliverable is missing, unclear, or the response asks for more info, answer NO.
+If fully complete and verified, answer YES.
+
+Respond with exactly:
+YES
+or
+NO - <short reason>
+"""
+
+
+def _extract_text_from_strands_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text" and part.get("text"):
+                    parts.append(str(part.get("text")))
+                elif "text" in part:
+                    parts.append(str(part.get("text")))
+            else:
+                text = getattr(part, "text", None)
+                if text:
+                    parts.append(str(text))
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _extract_last_assistant_text(messages: list[dict]) -> str:
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant":
+            return _extract_text_from_strands_content(msg.get("content"))
+    return ""
+
+
+async def _evaluate_completion(
+    completion_agent: Agent,
+    task: str,
+    agent_messages: list[dict],
+) -> tuple[bool, str]:
+    last_response = _extract_last_assistant_text(agent_messages)
+    if not last_response:
+        return False, "No assistant response to evaluate."
+
+    prompt = COMPLETION_CHECK_PROMPT.format(task=task, response=last_response)
+    result = await completion_agent.invoke_async(prompt)
+
+    response_text = ""
+    if isinstance(result.message, dict):
+        response_text = _extract_text_from_strands_content(result.message.get("content"))
+    else:
+        response_text = _extract_text_from_strands_content(getattr(result.message, "content", None))
+
+    normalized = response_text.strip().upper()
+    if normalized.startswith("YES"):
+        return True, response_text.strip()
+    if normalized.startswith("NO"):
+        return False, response_text.strip()
+    return False, response_text.strip() or "Completion check did not return explicit YES."
+
+
+def _extract_a2a_text_parts(message: A2AMessage | None) -> list[str]:
+    if message is None:
+        return []
+    parts = getattr(message, "parts", None)
+    if parts is None and isinstance(message, dict):
+        parts = message.get("parts", [])
+    if not parts:
+        return []
+    chunks: list[str] = []
+    for part in parts:
+        kind = getattr(part, "kind", None)
+        text = getattr(part, "text", None)
+        if isinstance(part, dict):
+            kind = part.get("kind", kind)
+            text = part.get("text", text)
+        if kind == "text" and text:
+            chunks.append(str(text))
+    return chunks
+
+
+def _extract_a2a_text_chunks(result: Any) -> list[str]:
+    if isinstance(result, TaskStatusUpdateEvent):
+        message = getattr(result.status, "message", None)
+        return _extract_a2a_text_parts(message)
+    if isinstance(result, A2AMessage):
+        return _extract_a2a_text_parts(result)
+    if isinstance(result, TaskArtifactUpdateEvent):
+        # Ignore artifacts for now (no UI mapping)
+        return []
+    return []
+
+
+def _normalize_sse_chunk(chunk: str) -> str:
+    if not chunk:
+        return ""
+    stripped = chunk.lstrip()
+    if stripped.startswith("data:") or stripped.startswith(":"):
+        return chunk if chunk.endswith("\n\n") else f"{chunk}\n\n"
+    # Wrap raw text so frontend can append it safely
+    return f"data: {json.dumps({'data': chunk})}\n\n"
 
 
 @app.post("/superagent/stream")
@@ -821,19 +1106,21 @@ async def superagent_stream(request: Request):
         logger.debug(f"[Session {session_id}] Emit #{emit_count}: {sse_event[:80]}...")
         queue.put_nowait(sse_event)
 
+    callback_handler = UICallbackHandler(emit)
+
     # Use per-session agent to persist across the entire chat
     agent_session_id = SUPERAGENT_SESSION_ID if SUPERAGENT_LOCK_SESSION else session_id
     browser_session_override = SUPERAGENT_BROWSER_SESSION if SUPERAGENT_LOCK_SESSION else None
     agent, agent_created, browser_session_name = get_or_create_session_agent(
         session_id=agent_session_id,
-        callback_handler=UICallbackHandler(emit),
+        callback_handler=callback_handler,
         memory=None,
         browser_session_name=browser_session_override
     )
 
     # Save original callback handler and set per-request handler
     original_callback_handler = getattr(agent, 'callback_handler', None)
-    agent.callback_handler = UICallbackHandler(emit)
+    agent.callback_handler = callback_handler
 
     # Load history only once per session agent
     storage_session_id = agent_session_id if SUPERAGENT_LOCK_SESSION else session_id
@@ -856,6 +1143,12 @@ async def superagent_stream(request: Request):
 
     # Ensure this agent is set as the 'current' one for global tool access
     sa._current_agent = agent
+
+    # Ensure MCP gateway tools are available for the superagent
+    try:
+        await sa.load_mcp_server(server_id="gateway")
+    except Exception as e:
+        logger.warning(f"[Session {session_id}] Failed to load MCP gateway: {e}")
 
     # Auto-create browser session for this chat (if not exists)
     browser = sa._global_browser
@@ -882,8 +1175,12 @@ async def superagent_stream(request: Request):
         Per AGENTS.md: Every stream MUST emit finish + [DONE] even on errors/early exits.
         """
         nonlocal saw_finish, saw_done
-        
-        # Emit terminal events if not already seen
+
+        # Ask the callback handler to finalize first (closes open blocks + finish-step)
+        if hasattr(callback_handler, "finalize"):
+            callback_handler.finalize(finish_reason=finish_reason)
+
+        # Emit terminal events if not already seen (fallback)
         if not saw_finish:
             emit(emitter.emit_finish(finish_reason))
         if not saw_done:
@@ -895,6 +1192,8 @@ async def superagent_stream(request: Request):
             events_to_yield.append(queue.get_nowait())
         return events_to_yield
 
+    session_lock = _get_session_lock(agent_session_id)
+
     async def generate():
         """
         Async generator that streams agent responses.
@@ -903,142 +1202,216 @@ async def superagent_stream(request: Request):
         regardless of success, error, or timeout. This is required by UIMessageStream protocol.
         """
         nonlocal saw_finish, saw_done
+        lock_acquired = False
         
-        # Use stream_async for native async tool support (browser, etc.)
-        # This allows proper await of async tool methods without deadlock
-
-        # Ensure browser session exists for this chat (with timeout to prevent hang)
         try:
-            await asyncio.wait_for(ensure_browser_session(), timeout=10.0)
-        except asyncio.TimeoutError:
-            logger.warning(f"[Session {session_id}] Browser session creation timed out, continuing without it")
-        except Exception as e:
-            logger.warning(f"[Session {session_id}] Browser session error: {e}")
-
-        logger.info(f"[Session {session_id}] Starting agent stream for message: {message[:100]}...")
-
-        agent_error = None
-        agent_timed_out = False
-
-        async def run_agent():
-            """Run agent and drive stream_async generator to completion."""
-            nonlocal agent_error
+            # Prevent concurrent streams for the same session
             try:
-                event_count = 0
-                async for event in agent.stream_async(message):
-                    # stream_async yields events; callback handler also fires
-                    # We just need to drive the generator to completion
-                    event_count += 1
-                    logger.debug(f"[Session {session_id}] Agent stream event #{event_count}: {str(event)[:80]}")
-                logger.info(f"[Session {session_id}] Agent stream completed. Total events: {event_count}")
+                await asyncio.wait_for(session_lock.acquire(), timeout=0.01)
+                lock_acquired = True
+            except asyncio.TimeoutError:
+                emit(emitter.emit_error("Another request is already streaming for this session"))
+                terminal_events = await emit_terminal_events_and_drain("error")
+                for event in terminal_events:
+                    yield event
+                return
+
+            # Use stream_async for native async tool support (browser, etc.)
+            # This allows proper await of async tool methods without deadlock
+
+            # Ensure browser session exists for this chat (with timeout to prevent hang)
+            try:
+                await asyncio.wait_for(ensure_browser_session(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"[Session {session_id}] Browser session creation timed out, continuing without it")
             except Exception as e:
-                logger.error(f"[Session {session_id}] Agent stream error: {e}", exc_info=True)
-                agent_error = e
-                emit(emitter.emit_error(str(e)))
-                # DON'T emit terminal events here - let the outer handler do it consistently
-                raise
+                logger.warning(f"[Session {session_id}] Browser session error: {e}")
 
-        # Run agent as async task with overall timeout
-        agent_task = asyncio.create_task(run_agent())
-        start_time = asyncio.get_event_loop().time()
+            logger.info(f"[Session {session_id}] Starting agent stream for message: {message[:100]}...")
 
-        yield_count = 0
-        try:
-            # Stream events as they arrive, with overall timeout check
-            while not agent_task.done():
-                # Check overall timeout
-                elapsed = asyncio.get_event_loop().time() - start_time
-                if elapsed > AGENT_TIMEOUT_SECONDS:
-                    logger.error(f"[Session {session_id}] Agent execution timed out after {elapsed:.1f}s")
-                    agent_timed_out = True
-                    agent_task.cancel()
+            agent_error = None
+            agent_timed_out = False
+
+            completion_agent = Agent(
+                model=sa.create_summarization_model(),
+                system_prompt="You are a strict completion auditor. Respond only YES or NO with a short reason.",
+                load_tools_from_directory=False,
+            )
+
+            async def run_agent():
+                """Run agent with Ralph Loop - re-runs until task complete or max iterations."""
+                nonlocal agent_error
+                
+                iteration = 0
+                current_message = message
+                total_event_count = 0
+                
+                while iteration < RALPH_MAX_ITERATIONS:
+                    iteration += 1
+                    logger.info(f"[Session {session_id}] Ralph Loop iteration {iteration}/{RALPH_MAX_ITERATIONS}")
+                    
+                    try:
+                        event_count = 0
+                        last_stop_reason = None
+                        
+                        async for event in agent.stream_async(current_message):
+                            event_count += 1
+                            total_event_count += 1
+                            logger.debug(f"[Session {session_id}] Agent stream event #{total_event_count}: {str(event)[:80]}")
+                            
+                            # Capture stop reason if present
+                            if isinstance(event, dict) and "stop" in event:
+                                last_stop_reason = event.get("stop")
+                        
+                        logger.info(f"[Session {session_id}] Iteration {iteration} completed. Events: {event_count}, Stop: {last_stop_reason}")
+                        
+                        # Check if we should continue (Ralph Loop logic)
+                        if not RALPH_ENABLED:
+                            logger.info(f"[Session {session_id}] Ralph Loop disabled, stopping after 1 iteration")
+                            break
+
+                        # Use completion auditor to decide if the task is actually done
+                        try:
+                            completed, verdict = await _evaluate_completion(
+                                completion_agent=completion_agent,
+                                task=message,
+                                agent_messages=agent.messages,
+                            )
+                        except Exception as e:
+                            logger.warning(f"[Session {session_id}] Completion check failed: {e}")
+                            completed, verdict = False, f"Completion check failed: {e}"
+
+                        if completed:
+                            logger.info(f"[Session {session_id}] Completion check: YES")
+                            break
+                        
+                        if iteration >= RALPH_MAX_ITERATIONS:
+                            logger.warning(f"[Session {session_id}] Ralph Loop hit max iterations ({RALPH_MAX_ITERATIONS})")
+                            break
+                        
+                        # Continue with Ralph continuation prompt
+                        logger.info(f"[Session {session_id}] Completion check: NO ({verdict}). Continuing with Ralph prompt")
+                        current_message = f"{RALPH_CONTINUATION_PROMPT}\n\nCompletion audit: {verdict}"
+                        
+                    except Exception as e:
+                        logger.error(f"[Session {session_id}] Agent stream error in iteration {iteration}: {e}", exc_info=True)
+                        agent_error = e
+                        emit(emitter.emit_error(str(e)))
+                        raise
+                
+                logger.info(f"[Session {session_id}] Ralph Loop complete. Total iterations: {iteration}, Total events: {total_event_count}")
+
+            # Run agent as async task with activity-based timeout
+            # Timeout resets when we receive events - only triggers on silence
+            agent_task = asyncio.create_task(run_agent())
+            last_activity_time = asyncio.get_event_loop().time()
+
+            yield_count = 0
+            try:
+                # Stream events as they arrive, with activity-based timeout
+                while not agent_task.done():
+                    # Check time since last activity (not total elapsed)
+                    time_since_activity = asyncio.get_event_loop().time() - last_activity_time
+                    if time_since_activity > AGENT_TIMEOUT_SECONDS:
+                        logger.error(f"[Session {session_id}] Agent silent for {time_since_activity:.1f}s - timeout")
+                        agent_timed_out = True
+                        agent_task.cancel()
+                        try:
+                            await agent_task
+                        except asyncio.CancelledError:
+                            pass
+                        break
+                    
+                    try:
+                        # Increased timeout from 0.1s to 0.5s to handle LLM latency
+                        sse_event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                        yield_count += 1
+                        # Reset activity timer on each event
+                        last_activity_time = asyncio.get_event_loop().time()
+                        logger.debug(f"[Session {session_id}] Yielding SSE event #{yield_count}")
+                        yield sse_event
+                    except asyncio.TimeoutError:
+                        # Emit keepalive to prevent idle proxy timeouts; do not reset activity timer
+                        if time_since_activity >= 10:
+                            ping_event = emitter.emit_ping()
+                            emit(ping_event)
+                            yield_count += 1
+                            yield ping_event
+                        logger.debug(f"[Session {session_id}] Timeout waiting for event, agent still running...")
+                        continue
+                    except Exception as e:
+                        logger.error(f"[Session {session_id}] Error yielding event: {e}")
+                        break
+
+                # Await task to propagate any exceptions (if not already cancelled)
+                if not agent_task.cancelled():
                     try:
                         await agent_task
-                    except asyncio.CancelledError:
-                        pass
-                    break
+                        logger.info(f"[Session {session_id}] Agent task completed successfully")
+                    except Exception as e:
+                        logger.error(f"[Session {session_id}] Agent task failed: {e}", exc_info=True)
+                        agent_error = e
+
+            except Exception as e:
+                logger.error(f"[Session {session_id}] Unexpected error in stream loop: {e}", exc_info=True)
+                agent_error = e
+
+            # Drain any remaining events after agent completes (before terminal events)
+            drain_count = queue.qsize()
+            if drain_count > 0:
+                logger.info(f"[Session {session_id}] Draining {drain_count} remaining events from queue")
+            while not queue.empty():
+                yield_count += 1
+                yield queue.get_nowait()
+
+            # Determine finish reason based on what happened
+            if agent_timed_out:
+                finish_reason = "timeout"
+                if not saw_finish:
+                    emit(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
+            elif agent_error:
+                finish_reason = "error"
+            else:
+                finish_reason = "stop"
+
+            # CRITICAL: Emit and yield terminal events
+            # This MUST happen regardless of success/error/timeout
+            terminal_events = await emit_terminal_events_and_drain(finish_reason)
+            for event in terminal_events:
+                yield_count += 1
+                yield event
+
+            logger.info(f"[Session {session_id}] Stream complete. Emitted: {emit_count}, Yielded: {yield_count}, "
+                       f"Finish: {saw_finish}, Done: {saw_done}, TimedOut: {agent_timed_out}, Error: {agent_error is not None}")
+
+            # After execution, sync new messages to this session's LanceDB storage
+            # Do this AFTER yielding all events so client isn't blocked
+            try:
+                new_messages = agent.messages[initial_msg_count:]
+                logger.info(f"Syncing {len(new_messages)} new messages to session {storage_session_id}")
                 
-                try:
-                    # Increased timeout from 0.1s to 0.5s to handle LLM latency
-                    sse_event = await asyncio.wait_for(queue.get(), timeout=0.5)
-                    yield_count += 1
-                    logger.debug(f"[Session {session_id}] Yielding SSE event #{yield_count}")
-                    yield sse_event
-                except asyncio.TimeoutError:
-                    # Keep waiting - agent may still be processing or thinking
-                    logger.debug(f"[Session {session_id}] Timeout waiting for event, agent still running...")
-                    continue
-                except Exception as e:
-                    logger.error(f"[Session {session_id}] Error yielding event: {e}")
-                    break
-
-            # Await task to propagate any exceptions (if not already cancelled)
-            if not agent_task.cancelled():
-                try:
-                    await agent_task
-                    logger.info(f"[Session {session_id}] Agent task completed successfully")
-                except Exception as e:
-                    logger.error(f"[Session {session_id}] Agent task failed: {e}", exc_info=True)
-                    agent_error = e
-
-        except Exception as e:
-            logger.error(f"[Session {session_id}] Unexpected error in stream loop: {e}", exc_info=True)
-            agent_error = e
-
-        # Drain any remaining events after agent completes (before terminal events)
-        drain_count = queue.qsize()
-        if drain_count > 0:
-            logger.info(f"[Session {session_id}] Draining {drain_count} remaining events from queue")
-        while not queue.empty():
-            yield_count += 1
-            yield queue.get_nowait()
-
-        # Determine finish reason based on what happened
-        if agent_timed_out:
-            finish_reason = "timeout"
-            if not saw_finish:
-                emit(emitter.emit_error(f"Agent execution timed out after {AGENT_TIMEOUT_SECONDS}s"))
-        elif agent_error:
-            finish_reason = "error"
-        else:
-            finish_reason = "stop"
-
-        # CRITICAL: Emit and yield terminal events
-        # This MUST happen regardless of success/error/timeout
-        terminal_events = await emit_terminal_events_and_drain(finish_reason)
-        for event in terminal_events:
-            yield_count += 1
-            yield event
-
-        logger.info(f"[Session {session_id}] Stream complete. Emitted: {emit_count}, Yielded: {yield_count}, "
-                   f"Finish: {saw_finish}, Done: {saw_done}, TimedOut: {agent_timed_out}, Error: {agent_error is not None}")
-
-        # After execution, sync new messages to this session's LanceDB storage
-        # Do this AFTER yielding all events so client isn't blocked
-        try:
-            new_messages = agent.messages[initial_msg_count:]
-            logger.info(f"Syncing {len(new_messages)} new messages to session {storage_session_id}")
-            
-            for msg in new_messages:
-                role = msg.get("role")
-                content = msg.get("content")
-                
-                # Strands might have complex types or tool calls.
-                if isinstance(content, list):
-                    # Convert list of content blocks to string if possible
-                    text_parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
-                    content_str = "\n".join(text_parts)
-                else:
-                    content_str = str(content) if content else ""
-                
-                # Only persist assistant messages here (user already saved at start)
-                if role == "assistant" and content_str:
-                    memory.add_message(storage_session_id, role, content_str)
-        except Exception as e:
-            logger.error(f"[Session {session_id}] Failed to sync messages to DB: {e}")
-
-        # Restore original callback handler to prevent race conditions with concurrent requests
-        agent.callback_handler = original_callback_handler
+                for msg in new_messages:
+                    role = msg.get("role")
+                    content = msg.get("content")
+                    
+                    # Strands might have complex types or tool calls.
+                    if isinstance(content, list):
+                        # Convert list of content blocks to string if possible
+                        text_parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+                        content_str = "\n".join(text_parts)
+                    else:
+                        content_str = str(content) if content else ""
+                    
+                    # Only persist assistant messages here (user already saved at start)
+                    if role == "assistant" and content_str:
+                        memory.add_message(storage_session_id, role, content_str)
+            except Exception as e:
+                logger.error(f"[Session {session_id}] Failed to sync messages to DB: {e}")
+        finally:
+            # Restore original callback handler to prevent race conditions with concurrent requests
+            agent.callback_handler = original_callback_handler
+            if lock_acquired:
+                session_lock.release()
 
     return StreamingResponse(
         generate(),
@@ -1048,6 +1421,551 @@ async def superagent_stream(request: Request):
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
             "x-vercel-ai-ui-message-stream": "v1",  # Required for AI SDK v5
+        }
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task Agent Endpoint (Project Manager flavor of SuperAgent)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/task-agent/stream")
+async def task_agent_stream(request: Request):
+    """
+    Stream task agent responses in AI SDK v5 UIMessageStream format.
+    Uses task-focused agent with per-session conversation history.
+    """
+    body = await request.json()
+    logger.info(f"[TaskAgent] Received request body: {json.dumps(body, indent=2)}")
+
+    # AI SDK v6 sends messages array with parts
+    messages = body.get("messages", [])
+    message = ""
+    if messages:
+        last_msg = messages[-1]
+        # AI SDK v6 format: messages[].parts[].text
+        parts = last_msg.get("parts", [])
+        for part in parts:
+            p_type = part.get("type")
+            if p_type == "text":
+                msg_text = part.get("text", "")
+                if msg_text:
+                    message += f"\n{msg_text}" if message else msg_text
+            elif p_type in ["attachment", "file"]:
+                # Handle file attachments (AI SDK v6 FileUIPart format)
+                content = part.get("text") or part.get("content") or part.get("data")
+
+                if not content and part.get("url"):
+                    url = part.get("url")
+                    if url.startswith("data:"):
+                        try:
+                            import base64
+                            comma_idx = url.find(",")
+                            if comma_idx != -1:
+                                header = url[5:comma_idx]
+                                encoded_data = url[comma_idx + 1:]
+                                if ";base64" in header:
+                                    decoded_bytes = base64.b64decode(encoded_data)
+                                    content = decoded_bytes.decode("utf-8", errors="replace")
+                                else:
+                                    from urllib.parse import unquote
+                                    content = unquote(encoded_data)
+                        except Exception as e:
+                            logger.error(f"[TaskAgent] Failed to decode attachment URL: {e}")
+                            content = ""
+
+                filename = part.get("filename", "attachment")
+                if content:
+                    message += f"\n\n[Attachment: {filename}]\n{content}\n" if message else f"[Attachment: {filename}]\n{content}\n"
+        if not message and isinstance(last_msg.get("content"), str):
+            message = last_msg["content"].strip()
+
+    if not message:
+        message = body.get("message", "").strip()
+
+    session_id = body.get("session_id", "task-default")
+    logger.info(f"[TaskAgent] Session: {session_id}, Message: '{message}'")
+
+    if not message:
+        return JSONResponse(status_code=400, content={"error": "Message cannot be empty"})
+
+    queue = asyncio.Queue()
+
+    emit_count = 0
+    saw_finish = False
+    saw_done = False
+    emitter = AISDKStreamEmitter()
+
+    def emit(sse_event: str):
+        nonlocal emit_count, saw_finish, saw_done
+        emit_count += 1
+        if '"type": "finish"' in sse_event:
+            saw_finish = True
+        if "[DONE]" in sse_event:
+            saw_done = True
+        logger.debug(f"[TaskAgent Session {session_id}] Emit #{emit_count}: {sse_event[:80]}...")
+        queue.put_nowait(sse_event)
+
+    callback_handler = UICallbackHandler(emit)
+
+    agent_session_id = TASK_AGENT_SESSION_ID if TASK_AGENT_LOCK_SESSION else session_id
+    browser_session_override = TASK_AGENT_BROWSER_SESSION if TASK_AGENT_LOCK_SESSION else None
+    agent, agent_created, browser_session_name = get_or_create_task_agent(
+        session_id=agent_session_id,
+        callback_handler=callback_handler,
+        memory=None,
+        browser_session_name=browser_session_override
+    )
+
+    original_callback_handler = getattr(agent, 'callback_handler', None)
+    agent.callback_handler = callback_handler
+
+    storage_session_id = agent_session_id if TASK_AGENT_LOCK_SESSION else session_id
+    if agent_created:
+        db_messages = memory.get_messages(storage_session_id, limit=1000)
+        session_history = []
+        for msg in db_messages:
+            content = msg["content"]
+            if isinstance(content, str):
+                content = [{"text": content}]
+            session_history.append({"role": msg["role"], "content": content})
+        logger.info(f"[TaskAgent] Loaded {len(session_history)} messages for session {storage_session_id}")
+        agent.messages = session_history
+
+    memory.add_message(storage_session_id, "user", message)
+    logger.info(f"[TaskAgent] Saved user message to session {storage_session_id}")
+
+    initial_msg_count = len(agent.messages)
+    sa._current_agent = agent
+
+    browser = sa._global_browser
+
+    async def ensure_browser_session():
+        if browser and browser_session_name not in browser._sessions:
+            try:
+                from strands_tools.browser.models import InitSessionAction
+                action = InitSessionAction(
+                    type="init_session",
+                    session_name=browser_session_name,
+                    description=f"Browser session for task chat {session_id}"
+                )
+                result = await browser.init_session(action)
+                logger.info(f"[TaskAgent] Created browser session: {browser_session_name} -> {result}")
+            except Exception as e:
+                logger.warning(f"[TaskAgent] Failed to create browser session: {e}")
+
+    async def emit_terminal_events_and_drain(finish_reason: str = "stop"):
+        nonlocal saw_finish, saw_done
+
+        if hasattr(callback_handler, "finalize"):
+            callback_handler.finalize(finish_reason=finish_reason)
+
+        if not saw_finish:
+            emit(emitter.emit_finish(finish_reason))
+        if not saw_done:
+            emit(emitter.emit_done())
+
+        events_to_yield = []
+        while not queue.empty():
+            events_to_yield.append(queue.get_nowait())
+        return events_to_yield
+
+    session_lock = _get_session_lock(agent_session_id)
+
+    async def generate():
+        nonlocal saw_finish, saw_done
+        lock_acquired = False
+
+        try:
+            try:
+                await asyncio.wait_for(session_lock.acquire(), timeout=0.01)
+                lock_acquired = True
+            except asyncio.TimeoutError:
+                emit(emitter.emit_error("Another request is already streaming for this session"))
+                terminal_events = await emit_terminal_events_and_drain("error")
+                for event in terminal_events:
+                    yield event
+                return
+
+            try:
+                await asyncio.wait_for(ensure_browser_session(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"[TaskAgent Session {session_id}] Browser session creation timed out, continuing without it")
+            except Exception as e:
+                logger.warning(f"[TaskAgent Session {session_id}] Browser session error: {e}")
+
+            logger.info(f"[TaskAgent Session {session_id}] Starting agent stream for message: {message[:100]}...")
+
+            agent_error = None
+            agent_timed_out = False
+
+            completion_agent = Agent(
+                model=sa.create_summarization_model(),
+                system_prompt="You are a strict completion auditor. Respond only YES or NO with a short reason.",
+                load_tools_from_directory=False,
+            )
+
+            async def run_agent():
+                nonlocal agent_error
+                iteration = 0
+                current_message = message
+                total_event_count = 0
+
+                while iteration < RALPH_MAX_ITERATIONS:
+                    iteration += 1
+                    logger.info(f"[TaskAgent Session {session_id}] Ralph Loop iteration {iteration}/{RALPH_MAX_ITERATIONS}")
+
+                    try:
+                        event_count = 0
+                        last_stop_reason = None
+
+                        async for event in agent.stream_async(current_message):
+                            event_count += 1
+                            total_event_count += 1
+                            logger.debug(f"[TaskAgent Session {session_id}] Agent stream event #{total_event_count}: {str(event)[:80]}")
+
+                            if isinstance(event, dict) and "stop" in event:
+                                last_stop_reason = event.get("stop")
+
+                        logger.info(f"[TaskAgent Session {session_id}] Iteration {iteration} completed. Events: {event_count}, Stop: {last_stop_reason}")
+
+                        if not RALPH_ENABLED:
+                            logger.info(f"[TaskAgent Session {session_id}] Ralph Loop disabled, stopping after 1 iteration")
+                            break
+
+                        try:
+                            completed, verdict = await _evaluate_completion(
+                                completion_agent=completion_agent,
+                                task=message,
+                                agent_messages=agent.messages,
+                            )
+                        except Exception as e:
+                            logger.warning(f"[TaskAgent Session {session_id}] Completion check failed: {e}")
+                            completed, verdict = False, f"Completion check failed: {e}"
+
+                        if completed:
+                            logger.info(f"[TaskAgent Session {session_id}] Completion check: YES")
+                            break
+
+                        if iteration >= RALPH_MAX_ITERATIONS:
+                            logger.warning(f"[TaskAgent Session {session_id}] Ralph Loop hit max iterations ({RALPH_MAX_ITERATIONS})")
+                            break
+
+                        logger.info(f"[TaskAgent Session {session_id}] Completion check: NO ({verdict}). Continuing with Ralph prompt")
+                        current_message = f"{RALPH_CONTINUATION_PROMPT}\n\nCompletion audit: {verdict}"
+
+                    except Exception as e:
+                        logger.error(f"[TaskAgent Session {session_id}] Agent stream error in iteration {iteration}: {e}", exc_info=True)
+                        agent_error = e
+                        emit(emitter.emit_error(str(e)))
+                        raise
+
+                logger.info(f"[TaskAgent Session {session_id}] Ralph Loop complete. Total iterations: {iteration}, Total events: {total_event_count}")
+
+            agent_task = asyncio.create_task(run_agent())
+            last_activity_time = asyncio.get_event_loop().time()
+
+            yield_count = 0
+            try:
+                while not agent_task.done():
+                    time_since_activity = asyncio.get_event_loop().time() - last_activity_time
+                    if time_since_activity > AGENT_TIMEOUT_SECONDS:
+                        logger.error(f"[TaskAgent Session {session_id}] Agent silent for {time_since_activity:.1f}s - timeout")
+                        agent_timed_out = True
+                        agent_task.cancel()
+                        try:
+                            await agent_task
+                        except asyncio.CancelledError:
+                            pass
+                        break
+
+                    try:
+                        sse_event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                        yield_count += 1
+                        last_activity_time = asyncio.get_event_loop().time()
+                        logger.debug(f"[TaskAgent Session {session_id}] Yielding SSE event #{yield_count}")
+                        yield sse_event
+                    except asyncio.TimeoutError:
+                        if time_since_activity >= 10:
+                            ping_event = emitter.emit_ping()
+                            emit(ping_event)
+                            yield_count += 1
+                            yield ping_event
+                        logger.debug(f"[TaskAgent Session {session_id}] Timeout waiting for event, agent still running...")
+                        continue
+                    except Exception as e:
+                        logger.error(f"[TaskAgent Session {session_id}] Error yielding event: {e}")
+                        break
+
+                if not agent_task.cancelled():
+                    try:
+                        await agent_task
+                        logger.info(f"[TaskAgent Session {session_id}] Agent task completed successfully")
+                    except Exception as e:
+                        logger.error(f"[TaskAgent Session {session_id}] Agent task failed: {e}", exc_info=True)
+                        agent_error = e
+
+            except Exception as e:
+                logger.error(f"[TaskAgent Session {session_id}] Unexpected error in stream loop: {e}", exc_info=True)
+                agent_error = e
+
+            drain_count = queue.qsize()
+            if drain_count > 0:
+                logger.info(f"[TaskAgent Session {session_id}] Draining {drain_count} remaining events from queue")
+            while not queue.empty():
+                yield_count += 1
+                yield queue.get_nowait()
+
+            if agent_timed_out:
+                finish_reason = "timeout"
+                if not saw_finish:
+                    emit(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
+            elif agent_error:
+                finish_reason = "error"
+            else:
+                finish_reason = "stop"
+
+            terminal_events = await emit_terminal_events_and_drain(finish_reason)
+            for event in terminal_events:
+                yield_count += 1
+                yield event
+
+            logger.info(f"[TaskAgent Session {session_id}] Stream complete. Emitted: {emit_count}, Yielded: {yield_count}, "
+                       f"Finish: {saw_finish}, Done: {saw_done}, TimedOut: {agent_timed_out}, Error: {agent_error is not None}")
+
+            try:
+                new_messages = agent.messages[initial_msg_count:]
+                logger.info(f"[TaskAgent] Syncing {len(new_messages)} new messages to session {storage_session_id}")
+
+                for msg in new_messages:
+                    role = msg.get("role")
+                    content = msg.get("content")
+
+                    if isinstance(content, list):
+                        text_parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+                        content_str = "\n".join(text_parts)
+                    else:
+                        content_str = str(content) if content else ""
+
+                    if role == "assistant" and content_str:
+                        memory.add_message(storage_session_id, role, content_str)
+            except Exception as e:
+                logger.error(f"[TaskAgent Session {session_id}] Failed to sync messages to DB: {e}")
+        finally:
+            agent.callback_handler = original_callback_handler
+            if lock_acquired:
+                session_lock.release()
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "x-vercel-ai-ui-message-stream": "v1",
+        }
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sandbox / Desktop Agent Endpoint (A2A bridge)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/sandbox-agent/stream")
+async def sandbox_agent_stream(request: Request):
+    """
+    Stream sandbox (desktop) agent responses in AI SDK v5 UIMessageStream format.
+    Bridges to the A2A sandbox agent on SANDBOX_AGENT_URL.
+    """
+    body = await request.json()
+    logger.info(f"[SandboxAgent] Received request body: {json.dumps(body, indent=2)}")
+
+    # AI SDK v6 message extraction
+    messages = body.get("messages", [])
+    message = ""
+    if messages:
+        last_msg = messages[-1]
+        parts = last_msg.get("parts", [])
+        for part in parts:
+            p_type = part.get("type")
+            if p_type == "text":
+                msg_text = part.get("text", "")
+                if msg_text:
+                    message += f"\n{msg_text}" if message else msg_text
+            elif p_type in ["attachment", "file"]:
+                content = part.get("text") or part.get("content") or part.get("data")
+                if not content and part.get("url"):
+                    url = part.get("url")
+                    if url.startswith("data:"):
+                        try:
+                            import base64
+                            comma_idx = url.find(",")
+                            if comma_idx != -1:
+                                header = url[5:comma_idx]
+                                encoded_data = url[comma_idx + 1:]
+                                if ";base64" in header:
+                                    decoded_bytes = base64.b64decode(encoded_data)
+                                    content = decoded_bytes.decode("utf-8", errors="replace")
+                                else:
+                                    from urllib.parse import unquote
+                                    content = unquote(encoded_data)
+                        except Exception as e:
+                            logger.error(f"[SandboxAgent] Failed to decode attachment URL: {e}")
+                            content = ""
+                filename = part.get("filename", "attachment")
+                if content:
+                    message += f"\n\n[Attachment: {filename}]\n{content}\n" if message else f"[Attachment: {filename}]\n{content}\n"
+        if not message and isinstance(last_msg.get("content"), str):
+            message = last_msg["content"].strip()
+
+    if not message:
+        message = body.get("message", "").strip()
+
+    session_id = body.get("session_id", "sandbox-default")
+    logger.info(f"[SandboxAgent] Session: {session_id}, Message: '{message}'")
+
+    if not message:
+        return JSONResponse(status_code=400, content={"error": "Message cannot be empty"})
+
+    queue = asyncio.Queue()
+    emit_count = 0
+    saw_finish = False
+    saw_done = False
+    emitter = AISDKStreamEmitter()
+
+    def emit(sse_event: str):
+        nonlocal emit_count, saw_finish, saw_done
+        emit_count += 1
+        if '"type": "finish"' in sse_event:
+            saw_finish = True
+        if "[DONE]" in sse_event:
+            saw_done = True
+        logger.debug(f"[SandboxAgent Session {session_id}] Emit #{emit_count}: {sse_event[:80]}...")
+        queue.put_nowait(sse_event)
+
+    async def emit_terminal_events_and_drain(finish_reason: str = "stop"):
+        nonlocal saw_finish, saw_done
+        if not saw_finish:
+            emit(emitter.emit_finish(finish_reason))
+        if not saw_done:
+            emit(emitter.emit_done())
+        events_to_yield = []
+        while not queue.empty():
+            events_to_yield.append(queue.get_nowait())
+        return events_to_yield
+
+    async def run_a2a():
+        try:
+            async with httpx.AsyncClient(timeout=None) as httpx_client:
+                a2a_client = A2AClient(httpx_client, url=SANDBOX_AGENT_URL)
+                a2a_message = A2AMessage(
+                    message_id=str(uuid.uuid4()),
+                    role=Role.user,
+                    parts=[TextPart(text=message)],
+                    context_id=session_id,
+                )
+                params = MessageSendParams(message=a2a_message)
+                req = SendStreamingMessageRequest(id=str(uuid.uuid4()), params=params)
+
+                async for resp in a2a_client.send_message_streaming(req, http_kwargs={"timeout": None}):
+                    root = resp.root
+                    error_obj = getattr(root, "error", None)
+                    if error_obj:
+                        error_text = getattr(error_obj, "message", None) or "A2A stream error"
+                        emit(emitter.emit_error(error_text))
+                        return
+
+                    result = getattr(root, "result", None)
+                    if result is None:
+                        continue
+
+                    for chunk in _extract_a2a_text_chunks(result):
+                        normalized = _normalize_sse_chunk(chunk)
+                        if normalized:
+                            emit(normalized)
+        except Exception as e:
+            logger.error(f"[SandboxAgent Session {session_id}] A2A stream error: {e}", exc_info=True)
+            emit(emitter.emit_error(str(e)))
+
+    async def generate():
+        nonlocal saw_finish, saw_done
+        agent_timed_out = False
+        agent_error = None
+
+        agent_task = asyncio.create_task(run_a2a())
+        last_activity_time = asyncio.get_event_loop().time()
+        yield_count = 0
+
+        try:
+            while not agent_task.done():
+                time_since_activity = asyncio.get_event_loop().time() - last_activity_time
+                if time_since_activity > SANDBOX_AGENT_TIMEOUT_SECONDS:
+                    logger.error(f"[SandboxAgent Session {session_id}] Agent silent for {time_since_activity:.1f}s - timeout")
+                    agent_timed_out = True
+                    agent_task.cancel()
+                    try:
+                        await agent_task
+                    except asyncio.CancelledError:
+                        pass
+                    break
+
+                try:
+                    sse_event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                    yield_count += 1
+                    last_activity_time = asyncio.get_event_loop().time()
+                    yield sse_event
+                except asyncio.TimeoutError:
+                    if time_since_activity >= 10:
+                        ping_event = emitter.emit_ping()
+                        emit(ping_event)
+                        yield_count += 1
+                        yield ping_event
+                    continue
+                except Exception as e:
+                    agent_error = e
+                    logger.error(f"[SandboxAgent Session {session_id}] Error yielding event: {e}")
+                    break
+
+            if not agent_task.cancelled():
+                try:
+                    await agent_task
+                except Exception as e:
+                    agent_error = e
+
+        except Exception as e:
+            agent_error = e
+            logger.error(f"[SandboxAgent Session {session_id}] Unexpected error in stream loop: {e}", exc_info=True)
+
+        while not queue.empty():
+            yield_count += 1
+            yield queue.get_nowait()
+
+        if agent_timed_out:
+            finish_reason = "timeout"
+            if not saw_finish:
+                emit(emitter.emit_error(f"Agent silent for {SANDBOX_AGENT_TIMEOUT_SECONDS}s - no response"))
+        elif agent_error:
+            finish_reason = "error"
+        else:
+            finish_reason = "stop"
+
+        terminal_events = await emit_terminal_events_and_drain(finish_reason)
+        for event in terminal_events:
+            yield_count += 1
+            yield event
+
+        logger.info(
+            f"[SandboxAgent Session {session_id}] Stream complete. Emitted: {emit_count}, Yielded: {yield_count}, "
+            f"Finish: {saw_finish}, Done: {saw_done}, TimedOut: {agent_timed_out}, Error: {agent_error is not None}"
+        )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "x-vercel-ai-ui-message-stream": "v1",
         }
     )
 

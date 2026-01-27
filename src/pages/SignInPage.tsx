@@ -313,7 +313,7 @@ export function SignInPage() {
                 name: 'Guest',
                 tenantId: 'dev-user',
                 preferences: {
-                  theme: 'system',
+                  theme: 'dark',
                   interactionMode: 'type',
                   searchMode: 'ai-web',
                   contentDensity: 'comfortable',

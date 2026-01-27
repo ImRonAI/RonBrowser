@@ -61,6 +61,7 @@ export * from './chain-of-thought-agent'
 
 // Context components
 export * from './sources'
+export * from './inline-citation'
 export * from './tool'
 
 // Branching components
@@ -80,6 +81,8 @@ export * from './artifact'
 
 // Task components
 export * from './task'
+export * from './plan'
+export * from './queue'
 
 // Agent components
 export * from './agent'

@@ -206,8 +206,7 @@ class AISDKCallbackHandler:
         return f"{prefix}{uuid.uuid4().hex[:8]}"
 
     def _is_orchestration_tool(self, tool_name: Optional[str]) -> bool:
-        normalized = self._normalize_tool_name(tool_name)
-        return any(key in normalized for key in ("swarm", "workflow", "graph"))
+        return bool(self._canonical_tool_name(tool_name))
 
     def _normalize_tool_name(self, tool_name: Optional[str]) -> str:
         normalized = (tool_name or "").lower().strip()
@@ -215,6 +214,16 @@ class AISDKCallbackHandler:
             return ""
         parts = re.split(r"[./:\\\s|-]+", normalized)
         return parts[-1] if parts else normalized
+
+    def _canonical_tool_name(self, tool_name: Optional[str]) -> str:
+        normalized = (tool_name or "").lower().strip()
+        if not normalized:
+            return ""
+        parts = re.split(r"[./:\\\s|-]+", normalized)
+        for part in parts:
+            if part in ("swarm", "workflow", "graph"):
+                return part
+        return ""
 
     def _emit_reasoning_chunk(self, chunk: str):
         """Emit reasoning chunk, opening block if needed."""
@@ -311,7 +320,9 @@ class AISDKCallbackHandler:
             edges = []
             active_agents = []
 
-            base_name = self._normalize_tool_name(tool_name) or tool_name
+            base_name = self._canonical_tool_name(tool_name)
+            if not base_name:
+                return
 
             if base_name == "swarm":
                 # Transform SwarmResult
