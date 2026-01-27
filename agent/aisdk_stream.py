@@ -94,19 +94,32 @@ class AISDKStreamEmitter:
             return f'data: {json.dumps({"type": "tool-input-available", "toolCallId": tool_call_id, "toolName": tool_name, "input": {"error": "input_not_serializable"}})}\n\n'
 
     @staticmethod
-    def emit_tool_output_available(tool_call_id: str, output: Any) -> str:
+    def emit_tool_output_available(tool_call_id: str, output: Any, tool_name: Optional[str] = None) -> str:
         """Tool execution output/result. Handles serialization errors gracefully."""
         try:
-            return f'data: {json.dumps({"type": "tool-output-available", "toolCallId": tool_call_id, "output": output})}\n\n'
+            event: Dict[str, Any] = {"type": "tool-output-available", "toolCallId": tool_call_id, "output": output}
+            if tool_name:
+                event["toolName"] = tool_name
+            return f'data: {json.dumps(event)}\n\n'
         except (TypeError, ValueError) as e:
             # Fallback for unserializable data (bytes, custom objects, etc.)
             logger.warning(f"Tool output serialization failed for {tool_call_id}: {e}")
-            return f'data: {json.dumps({"type": "tool-output-available", "toolCallId": tool_call_id, "output": {"error": "output_not_serializable", "type": str(type(output))}})}\n\n'
+            event: Dict[str, Any] = {
+                "type": "tool-output-available",
+                "toolCallId": tool_call_id,
+                "output": {"error": "output_not_serializable", "type": str(type(output))},
+            }
+            if tool_name:
+                event["toolName"] = tool_name
+            return f'data: {json.dumps(event)}\n\n'
 
     @staticmethod
-    def emit_tool_output_error(tool_call_id: str, error_text: str) -> str:
+    def emit_tool_output_error(tool_call_id: str, error_text: str, tool_name: Optional[str] = None) -> str:
         """Tool execution error."""
-        return f'data: {json.dumps({"type": "tool-output-error", "toolCallId": tool_call_id, "errorText": error_text})}\n\n'
+        event: Dict[str, Any] = {"type": "tool-output-error", "toolCallId": tool_call_id, "errorText": error_text}
+        if tool_name:
+            event["toolName"] = tool_name
+        return f'data: {json.dumps(event)}\n\n'
 
     @staticmethod
     def emit_finish_step() -> str:
@@ -196,6 +209,8 @@ class AISDKCallbackHandler:
         self.reasoning_id: Optional[str] = None
         self.text_id: Optional[str] = None
         self.pending_tool_ids: set = set()  # Track tools awaiting output
+        self._last_tool_id: Optional[str] = None
+        self._last_tool_name: Optional[str] = None
         # Streaming <think> handling
         self._in_think_tag = False
         # Terminal event tracking
@@ -588,6 +603,8 @@ class AISDKCallbackHandler:
             tool_id = current_tool_use.get("toolUseId", self._new_id("tool-"))
             tool_name = current_tool_use.get("name")
             tool_input = current_tool_use.get("input", {})
+            self._last_tool_id = tool_id
+            self._last_tool_name = tool_name
 
             # Parse input if it's a string (Strands accumulates JSON string)
             if isinstance(tool_input, str):
@@ -610,7 +627,10 @@ class AISDKCallbackHandler:
         tool_stream_event = kwargs.get("tool_stream_event")
         if tool_stream_event:
             tool_use = tool_stream_event.get("tool_use", {})
-            tool_id = tool_use.get("toolUseId", "unknown")
+            tool_id = tool_use.get("toolUseId") or "unknown"
+            tool_name = tool_use.get("name") or self._last_tool_name
+            if tool_id == "unknown" and self._last_tool_id:
+                tool_id = self._last_tool_id
             output_data = tool_stream_event.get("data")
 
             if (
@@ -623,21 +643,25 @@ class AISDKCallbackHandler:
 
             # CRITICAL: Sanitize output for JSON serialization (handles bytes from image tools)
             safe_output = self._json_safe(output_data)
-            self.emit(self.emitter.emit_tool_output_available(tool_id, safe_output))
+            self.emit(self.emitter.emit_tool_output_available(tool_id, safe_output, tool_name))
             self.pending_tool_ids.discard(tool_id)
             return
 
         # Handle tool result (from result message content)
         tool_result = kwargs.get("tool_result")
         if tool_result:
-            tool_id = tool_result.get("toolUseId", "unknown")
-            tool_name = tool_result.get("name", "unknown")
+            tool_id = tool_result.get("toolUseId") or "unknown"
+            tool_name = tool_result.get("name") or self._last_tool_name or "unknown"
+            if tool_id == "unknown" and self._last_tool_id:
+                tool_id = self._last_tool_id
             status = tool_result.get("status", "success")
             content = tool_result.get("content", [])
+            self._last_tool_id = tool_id
+            self._last_tool_name = tool_name
 
             if status == "error":
                 error_text = content[0].get("text", "Tool execution failed") if content else "Tool execution failed"
-                self.emit(self.emitter.emit_tool_output_error(tool_id, error_text))
+                self.emit(self.emitter.emit_tool_output_error(tool_id, error_text, tool_name))
             else:
                 output = content[0] if len(content) == 1 else content
 
@@ -647,7 +671,7 @@ class AISDKCallbackHandler:
 
             # CRITICAL: Sanitize output for JSON serialization (handles bytes from image_reader, screenshots, etc.)
             safe_output = self._json_safe(output)
-            self.emit(self.emitter.emit_tool_output_available(tool_id, safe_output))
+            self.emit(self.emitter.emit_tool_output_available(tool_id, safe_output, tool_name))
 
             self.pending_tool_ids.discard(tool_id)
             return

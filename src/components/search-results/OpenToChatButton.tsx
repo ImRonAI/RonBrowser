@@ -59,7 +59,9 @@ export function OpenToChatButton({
     }
     
     // Open the result in the appropriate agent
-    openInAgent(result, searchQuery)
+    if (!e.defaultPrevented) {
+      openInAgent(result, searchQuery)
+    }
   }
 
   const buttonProps = {

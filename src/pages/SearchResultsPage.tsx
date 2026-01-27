@@ -14,6 +14,10 @@ import type {
   UniversalResult,
 } from '@/pages/types/search'
 import type { Citation } from '@/components/ai-elements/response-with-citations'
+import { AnimatePresence, motion } from 'framer-motion'
+import { SearchChat } from '@/components/search-results/SearchChat'
+import { List, MessageCircle } from 'lucide-react'
+import { cn } from '@/utils/cn'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENT
@@ -97,7 +101,7 @@ function normalizeCitations(raw: any): Citation[] {
   if (!Array.isArray(raw)) return []
 
   return raw
-    .map((item, index) => {
+    .map((item, index): Citation | null => {
       if (!item) return null
       if (typeof item === 'string') {
         const url = item
@@ -183,10 +187,10 @@ function sourcesToWebResults(sources: SourceData[]): UniversalResult[] {
 
 function mergeResults(existing: UniversalResult[], incoming: UniversalResult[]): UniversalResult[] {
   if (incoming.length === 0) return existing
-  const seen = new Set(existing.map((result) => ('url' in result ? result.url : result.id)))
+  const seen = new Set(existing.map((result) => result.url || result.id))
   const merged = [...existing]
   for (const result of incoming) {
-    const key = 'url' in result ? result.url : result.id
+    const key = result.url || result.id
     if (!seen.has(key)) {
       merged.push(result)
       seen.add(key)
@@ -233,6 +237,11 @@ export function SearchResultsPage() {
   const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
   const [isAgentStreaming, setIsAgentStreaming] = useState(false)
   const [agentError, setAgentError] = useState<string | null>(null)
+  
+  // View State
+  const [viewMode, setViewMode] = useState<'results' | 'chat'>('results')
+  const [chatContext, setChatContext] = useState<UniversalResult | null>(null)
+
   const { query: storeQuery, clearSearch } = useSearchStore()
 
   // Use the query from the store if available, otherwise use the mock data query
@@ -524,6 +533,11 @@ export function SearchResultsPage() {
     clearSearch()
   }
 
+  const handleChatClick = (result: UniversalResult) => {
+    setChatContext(result)
+    setViewMode('chat')
+  }
+
   return (
     <div className="min-h-screen bg-surface-0 dark:bg-surface-900">
       {/* Page Header */}
@@ -567,6 +581,36 @@ export function SearchResultsPage() {
             </div>
             
             <div className="flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="flex items-center bg-surface-200/50 dark:bg-surface-700/50 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('results')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    viewMode === 'results'
+                      ? "bg-surface-0 dark:bg-surface-800 text-ink dark:text-ink-inverse shadow-sm"
+                      : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse"
+                  )}
+                >
+                  <List className="w-4 h-4" />
+                  Results
+                </button>
+                <button
+                  onClick={() => setViewMode('chat')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    viewMode === 'chat'
+                      ? "bg-surface-0 dark:bg-surface-800 text-ink dark:text-ink-inverse shadow-sm"
+                      : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse"
+                  )}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Chat
+                </button>
+              </div>
+
+              <div className="w-px h-8 bg-surface-200 dark:bg-surface-700 mx-1" />
+
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
@@ -586,16 +630,58 @@ export function SearchResultsPage() {
       </div>
 
       {/* Search Layout */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <SearchLayout
-          searchResponse={searchResponse}
-          searchQuery={searchQuery}
-          isLoading={isLoading}
-          error={error}
-          agentState={agentState}
-          onResultClick={handleResultClick}
-          onFilterChange={handleFilterChange}
-        />
+      {/* Content Area */}
+      <div className="flex-1 overflow-hidden relative">
+        <AnimatePresence mode="wait">
+          {viewMode === 'results' ? (
+            <motion.div
+              key="results"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
+            >
+              <SearchLayout
+                searchResponse={searchResponse}
+                searchQuery={searchQuery}
+                isLoading={isLoading}
+                error={error}
+                agentState={agentState}
+                onResultClick={handleResultClick}
+                onFilterChange={handleFilterChange}
+                onChatClick={handleChatClick}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="chat"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.2 }}
+              className="h-[calc(100vh-80px)]" // Adjust based on header height
+            >
+              <SearchChat
+                searchResult={{
+                  query: searchQuery,
+                  answer: answerText,
+                  sources: citations.map(c => ({
+                    id: c.url,
+                    url: c.url,
+                    title: c.title || c.url,
+                    snippet: c.snippet || '',
+                    domain: getDomainFromUrl(c.url),
+                    type: 'web',
+                    favicon: undefined
+                  }))
+                }}
+                onBack={() => setViewMode('results')}
+                initialContext={chatContext}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

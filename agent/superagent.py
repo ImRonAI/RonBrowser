@@ -21,9 +21,8 @@ sys.path.append(str(Path(__file__).parent / "tools" / "src"))
 sys.path.append(str(Path(__file__).parent / "tools" / "strands-fun-tools"))
 
 from strands import Agent, tool
-from strands.models.gemini import GeminiModel
+from strands.models.litellm import LiteLLMModel
 from strands.hooks import HookProvider, HookRegistry, AfterModelCallEvent
-from google import genai
 
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
@@ -384,15 +383,15 @@ Every subagent MUST receive these tools for runtime expansion:
 Include in every subagent system_prompt:
 "You can load additional tools: load_tool(path), mcp_client(action='connect'), environment(action='get'). 
 Tool locations: ~/Library/Application Support/RonBrowser/custom_tools/, agent/tools/strands-fun-tools/, agent/tools/open-api-specs/
-UI OUTPUT CONTRACT: Use inline citations [1][2] for sourced facts. When needed, append <plan>{...}</plan> and <queue>{...}</queue> JSON blocks. Do not wrap these tags in code fences."
+UI OUTPUT CONTRACT: Use inline citations [1][2] for sourced facts. Always append <plan>{...}</plan> and <queue>{...}</queue> JSON blocks (use a minimal plan/queue if needed). Do not wrap these tags in code fences."
 
 ## STOP CONDITIONS
 Only stop when ALL deliverables from the original request are produced and verified.
 
 ## UI OUTPUT CONTRACT (AI ELEMENTS)
 - Use inline citations like [1], [2], [3] when referencing sources. Citation numbers must align with the order of sources from tools.
-- When you have a plan, append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
-- When you have a task queue or checklist, append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
+- Always append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
+- Always append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
 - Do NOT wrap <plan>/<queue> blocks in code fences.
 
 ## BROWSER & APP NATIVE CONTROL
@@ -1012,45 +1011,36 @@ class CLICallbackHandler:
             print(data, end="", flush=True)
 
 
-def create_gemini_model() -> GeminiModel:
-    """Create Gemini 3 Flash Preview model with high reasoning."""
-    return GeminiModel(
-        model_id="gemini-3-pro-preview",
+def create_litellm_model() -> LiteLLMModel:
+    """Create LiteLLM model with Grok 4.1 Fast Reasoning."""
+    return LiteLLMModel(
+        model_id="xai/grok-4-1-fast-reasoning",
         client_args={
-            "api_key": os.getenv("GOOGLE_API_KEY"),
+            "api_key": os.getenv("XAI_API_KEY"),
+            "merge_reasoning_content_in_choices": True
         },
         params={
             "temperature": 1.0,
-            "max_output_tokens": 65536,
-            "thinking_config": genai.types.ThinkingConfig(
-                thinking_level="high",  # Maximum reasoning depth (must be lowercase)
-                include_thoughts=True   # Expose reasoning tokens / thought summaries
-            )
+            "max_tokens": 200000
         }
-        # NOTE: gemini_tools (GoogleSearch, CodeExecution, UrlContext) removed
-        # due to potential conflicts with Strands function calling tools.
-        # These can be added back if needed for specific use cases.
     )
 
 
 def create_primary_model():
-    """Create the main model for SuperAgent, defaulting to Gemini for reasoning."""
-    provider = os.getenv("SUPERAGENT_PROVIDER", "google")
+    """Create the main model for SuperAgent, defaulting to Grok 4.1 Fast Reasoning."""
+    provider = os.getenv("SUPERAGENT_PROVIDER", "xai")
     model_override = os.getenv("SUPERAGENT_MODEL_ID")
-    if provider == "google":
-        model_id = model_override or "gemini-3-pro-preview"
-        return GeminiModel(
+    if provider == "xai":
+        model_id = model_override or "xai/grok-4-1-fast-reasoning"
+        return LiteLLMModel(
             model_id=model_id,
             client_args={
-                "api_key": os.getenv("GOOGLE_API_KEY"),
+                "api_key": os.getenv("XAI_API_KEY"),
+                "merge_reasoning_content_in_choices": True
             },
             params={
                 "temperature": 1.0,
-                "max_output_tokens": 65536,
-                "thinking_config": genai.types.ThinkingConfig(
-                    thinking_level="high",  # Maximum reasoning depth (must be lowercase)
-                    include_thoughts=True   # Expose reasoning tokens / thought summaries
-                )
+                "max_tokens": 200000
             }
         )
     config = get_provider_config(provider)
@@ -1060,22 +1050,20 @@ def create_primary_model():
 
 
 def create_summarization_model():
-    """Create a summarization model for SuperAgent."""
-    provider = os.getenv("SUPERAGENT_SUMMARIZER_PROVIDER") or os.getenv("SUPERAGENT_PROVIDER", "google")
+    """Create a summarization model for SuperAgent using Grok."""
+    provider = os.getenv("SUPERAGENT_SUMMARIZER_PROVIDER") or os.getenv("SUPERAGENT_PROVIDER", "xai")
     model_override = os.getenv("SUPERAGENT_SUMMARIZER_MODEL_ID") or os.getenv("SUPERAGENT_MODEL_ID")
-    if provider == "google":
-        model_id = model_override or "gemini-3-pro-preview"
-        return GeminiModel(
+    if provider == "xai":
+        model_id = model_override or "xai/grok-4-1-fast-reasoning"
+        return LiteLLMModel(
             model_id=model_id,
             client_args={
-                "api_key": os.getenv("GOOGLE_API_KEY"),
+                "api_key": os.getenv("XAI_API_KEY"),
+                "merge_reasoning_content_in_choices": True
             },
             params={
                 "temperature": 0.3,
-                "thinking_config": genai.types.ThinkingConfig(
-                    thinking_level="LOW",  # Fast summarization
-                    include_thoughts=False
-                )
+                "max_tokens": 200000
             }
         )
     config = get_provider_config(provider)

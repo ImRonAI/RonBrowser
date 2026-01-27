@@ -1,0 +1,7 @@
+import { R, g } from "./mermaid-parser.core-yC5K7jiC.js";
+import "./index-C5PVMVYg.js";
+import "langium";
+export {
+  R as RadarModule,
+  g as createRadarServices
+};

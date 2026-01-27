@@ -110,8 +110,8 @@ SUPERAGENT_SYSTEM_PROMPT = """You are Ron Superagent running inside an isolated 
 
 ## UI OUTPUT CONTRACT (AI ELEMENTS)
 - Use inline citations like [1], [2], [3] when referencing sources. Citation numbers must align with the order of sources from tools.
-- When you have a plan, append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
-- When you have a task queue or checklist, append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
+- Always append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
+- Always append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
 - Do NOT wrap <plan>/<queue> blocks in code fences.
 
 ## MCP Dynamic Loading (REAL-TIME during execution):

@@ -75,6 +75,8 @@ export interface UniversalResultCardProps {
   className?: string
   /** Optional click handler for the card */
   onClick?: () => void
+  /** Optional handler for "Open to Chat" button */
+  onChatClick?: (result: UniversalResult) => void
 }
 
 /**
@@ -93,6 +95,7 @@ export function UniversalResultCard({
   searchQuery,
   className = '',
   onClick,
+  onChatClick,
 }: UniversalResultCardProps) {
   const [isExpanded] = useState(false)
 
@@ -133,36 +136,36 @@ export function UniversalResultCard({
 
   const renderActions = () => {
     if (isVideoResult(result)) {
-      return <VideoActions result={result} searchQuery={searchQuery} />
+      return <VideoActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isAudioResult(result)) {
-      return <AudioActions result={result} searchQuery={searchQuery} />
+      return <AudioActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isPodcastResult(result)) {
-      return <PodcastActions result={result} searchQuery={searchQuery} />
+      return <PodcastActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isWebResult(result)) {
-      return <WebActions result={result} searchQuery={searchQuery} />
+      return <WebActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isArticleResult(result)) {
-      return <ArticleActions result={result} searchQuery={searchQuery} />
+      return <ArticleActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isSocialMediaResult(result)) {
-      return <SocialMediaActions result={result} searchQuery={searchQuery} />
+      return <SocialMediaActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isTravelResult(result)) {
-      return <TravelActions result={result} searchQuery={searchQuery} />
+      return <TravelActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isAcademicResult(result)) {
-      return <AcademicActions result={result} searchQuery={searchQuery} />
+      return <AcademicActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isImageResult(result)) {
-      return <ImageActions result={result} searchQuery={searchQuery} />
+      return <ImageActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
     if (isCodeResult(result)) {
-      return <CodeActions result={result} searchQuery={searchQuery} />
+      return <CodeActions result={result} searchQuery={searchQuery} onChatClick={onChatClick} />
     }
-    return <OpenToChatButton result={result} searchQuery={searchQuery} variant="full" />
+    return <OpenToChatButton result={result} searchQuery={searchQuery} variant="full" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
   }
 
   // SocialMediaResult doesn't have title property, use content for display
@@ -771,7 +774,7 @@ function CodeResultContent({ result }: { result: CodeResult }) {
 // Action Button Components
 // ============================================
 
-function VideoActions({ result, searchQuery }: { result: VideoResult; searchQuery?: string }) {
+function VideoActions({ result, searchQuery, onChatClick }: { result: VideoResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm">
@@ -784,12 +787,12 @@ function VideoActions({ result, searchQuery }: { result: VideoResult; searchQuer
           Transcript
         </Button>
       )}
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function AudioActions({ result, searchQuery }: { result: AudioResult; searchQuery?: string }) {
+function AudioActions({ result, searchQuery, onChatClick }: { result: AudioResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm">
@@ -800,12 +803,12 @@ function AudioActions({ result, searchQuery }: { result: AudioResult; searchQuer
         <Bookmark className="h-4 w-4 mr-1" />
         Subscribe
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function PodcastActions({ result, searchQuery }: { result: PodcastResult; searchQuery?: string }) {
+function PodcastActions({ result, searchQuery, onChatClick }: { result: PodcastResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm">
@@ -822,12 +825,12 @@ function PodcastActions({ result, searchQuery }: { result: PodcastResult; search
           Transcript
         </Button>
       )}
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function WebActions({ result, searchQuery }: { result: WebResult; searchQuery?: string }) {
+function WebActions({ result, searchQuery, onChatClick }: { result: WebResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm" asChild>
@@ -836,12 +839,12 @@ function WebActions({ result, searchQuery }: { result: WebResult; searchQuery?: 
           Open
         </a>
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function ArticleActions({ result, searchQuery }: { result: ArticleResult; searchQuery?: string }) {
+function ArticleActions({ result, searchQuery, onChatClick }: { result: ArticleResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm" asChild>
@@ -850,12 +853,12 @@ function ArticleActions({ result, searchQuery }: { result: ArticleResult; search
           Open
         </a>
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function SocialMediaActions({ result, searchQuery }: { result: SocialMediaResult; searchQuery?: string }) {
+function SocialMediaActions({ result, searchQuery, onChatClick }: { result: SocialMediaResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm">
@@ -870,12 +873,12 @@ function SocialMediaActions({ result, searchQuery }: { result: SocialMediaResult
         <Share className="h-4 w-4 mr-1" />
         Share
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function TravelActions({ result, searchQuery }: { result: TravelResult; searchQuery?: string }) {
+function TravelActions({ result, searchQuery, onChatClick }: { result: TravelResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="default" size="sm" asChild>
@@ -888,12 +891,12 @@ function TravelActions({ result, searchQuery }: { result: TravelResult; searchQu
         <Bookmark className="h-4 w-4 mr-1" />
         Save
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function AcademicActions({ result, searchQuery }: { result: AcademicResult; searchQuery?: string }) {
+function AcademicActions({ result, searchQuery, onChatClick }: { result: AcademicResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       {result.pdfUrl && (
@@ -908,12 +911,12 @@ function AcademicActions({ result, searchQuery }: { result: AcademicResult; sear
         <Copy className="h-4 w-4 mr-1" />
         Cite
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function ImageActions({ result, searchQuery }: { result: ImageResult; searchQuery?: string }) {
+function ImageActions({ result, searchQuery, onChatClick }: { result: ImageResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="sm" asChild>
@@ -926,12 +929,12 @@ function ImageActions({ result, searchQuery }: { result: ImageResult; searchQuer
         <ImageIcon className="h-4 w-4 mr-1" />
         Similar
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }
 
-function CodeActions({ result, searchQuery }: { result: CodeResult; searchQuery?: string }) {
+function CodeActions({ result, searchQuery, onChatClick }: { result: CodeResult; searchQuery?: string; onChatClick?: (result: UniversalResult) => void }) {
   return (
     <div className="flex items-center gap-2">
       {result.repositoryUrl && (
@@ -946,7 +949,7 @@ function CodeActions({ result, searchQuery }: { result: CodeResult; searchQuery?
         <Copy className="h-4 w-4 mr-1" />
         Copy Code
       </Button>
-      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" />
+      <OpenToChatButton result={result} searchQuery={searchQuery} variant="icon" onClick={(e) => { e.preventDefault(); onChatClick?.(result) }} />
     </div>
   )
 }

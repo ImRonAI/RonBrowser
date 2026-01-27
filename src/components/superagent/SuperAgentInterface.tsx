@@ -9,7 +9,7 @@
  * - Orchestration mode selector
  */
 
-import { useState, useRef, useEffect, memo } from 'react'
+import { useState, useRef, useEffect, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 
@@ -33,14 +33,117 @@ import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
 
 // AI SDK v6
 import { useChat, type UIMessage } from '@ai-sdk/react'
-import { DefaultChatTransport, type TextUIPart } from 'ai'
+import { DefaultChatTransport, type TextUIPart, isToolUIPart } from 'ai'
+import { Message, MessageAvatar, MessageContent } from '@/components/ai-elements/message'
+import type { Citation } from '@/components/ai-elements/response-with-citations'
 
 type MessagePart = UIMessage['parts'][number]
 type OrchestrationMode = 'workflow' | 'swarm' | 'graph'
+type ToolLikePart = { state?: string; output?: any }
 
 const EASE = [0.16, 1, 0.3, 1] as const
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
 const SUPERAGENT_API = 'http://localhost:8765/superagent/stream'
+
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+function normalizeCitations(raw: any): Citation[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .map((item, index): Citation | null => {
+      if (!item) return null
+      if (typeof item === 'string') {
+        const url = item
+        return {
+          number: String(index + 1),
+          url,
+          title: getDomainFromUrl(url),
+          snippet: undefined,
+        }
+      }
+
+      const url = item.url || item.link || item.source || ''
+      const title = item.title || item.name || getDomainFromUrl(url)
+      const snippet = item.snippet || item.description || item.quote
+      const number = item.number ? String(item.number) : String(index + 1)
+
+      return {
+        number,
+        url,
+        title,
+        snippet,
+      }
+    })
+    .filter((item): item is Citation => Boolean(item && item.url))
+}
+
+function mergeCitations(existing: Citation[], incoming: Citation[]): Citation[] {
+  if (incoming.length === 0) return existing
+
+  const seen = new Map<string, Citation>()
+  for (const citation of existing) {
+    seen.set(citation.url, citation)
+  }
+  for (const citation of incoming) {
+    if (!seen.has(citation.url)) {
+      seen.set(citation.url, citation)
+    }
+  }
+
+  return Array.from(seen.values()).map((citation, index) => ({
+    ...citation,
+    number: String(index + 1),
+  }))
+}
+
+function extractCitationsFromParts(parts: MessagePart[]): Citation[] {
+  let citations: Citation[] = []
+
+  for (const part of parts) {
+    if (!isToolUIPart(part)) continue
+    const toolPart = part as ToolLikePart
+    if (toolPart.state !== 'output-available' || toolPart.output == null) continue
+
+    const output = toolPart.output as any
+    let incoming: Citation[] = []
+
+    if (Array.isArray(output?.flat_results)) {
+      incoming = output.flat_results
+        .map((result: any, index: number) => {
+          if (!result) return null
+          return {
+            number: String(index + 1),
+            title: result.title || 'Untitled',
+            url: result.url || '',
+            snippet: result.snippet,
+          } as Citation
+        })
+        .filter((item: Citation | null): item is Citation => Boolean(item && item.url))
+    }
+
+    if (incoming.length === 0) {
+      const raw =
+        output?.citations ||
+        output?.sources ||
+        output?.links ||
+        output?.results ||
+        output?.items ||
+        output
+      incoming = normalizeCitations(raw)
+    }
+
+    citations = mergeCitations(citations, incoming)
+  }
+
+  return citations
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
@@ -709,40 +812,36 @@ interface MessageBubbleProps {
 
 function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const citations = useMemo(() => extractCitationsFromParts(message.parts), [message.parts])
 
   if (isUser) {
     const textParts = message.parts.filter(p => p.type === 'text') as TextUIPart[]
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-end"
-      >
-        <div className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white">
-          <p className="text-body-sm leading-relaxed whitespace-pre-wrap text-white">
+      <Message from="user">
+        <MessageAvatar fallback="U" />
+        <MessageContent>
+          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
             {textParts.map(p => p.text).join('')}
           </p>
-        </div>
-      </motion.div>
+        </MessageContent>
+      </Message>
     )
   }
 
   const isStreaming = message.parts.some(p => (p as { state?: string }).state === 'streaming')
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex justify-start"
-    >
-      <div className="max-w-[85%]">
+    <Message from="assistant">
+      <MessageAvatar fallback="R" />
+      <MessageContent variant="flat">
         <ChainOfThoughtMessage
           parts={message.parts}
           isStreaming={isStreaming}
           messageId={message.id}
+          citations={citations}
         />
-      </div>
-    </motion.div>
+      </MessageContent>
+    </Message>
   )
 }
 

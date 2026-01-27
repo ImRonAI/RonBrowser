@@ -5,8 +5,7 @@ import os
 from typing import Any, Callable
 
 from strands import Agent
-from strands.models.gemini import GeminiModel
-from google import genai
+from strands.models.litellm import LiteLLMModel
 from strands.multiagent.a2a import A2AServer
 from strands.multiagent.a2a.executor import StrandsA2AExecutor
 from a2a.server.tasks import TaskUpdater, InMemoryTaskStore
@@ -246,19 +245,16 @@ class ReasoningA2AServer(A2AServer):
 
 def create_sandbox_agent() -> Agent:
     """Create the sandbox agent with use_computer."""
-    # Gemini 3 Flash Preview with high reasoning
-    model = GeminiModel(
-        model_id="gemini-3-pro-preview",
+    # Grok 4.1 Fast Reasoning via LiteLLM
+    model = LiteLLMModel(
+        model_id="xai/grok-4-1-fast-reasoning",
         client_args={
-            "api_key": os.getenv("GOOGLE_API_KEY"),
+            "api_key": os.getenv("XAI_API_KEY"),
+            "merge_reasoning_content_in_choices": True
         },
         params={
             "temperature": 1.0,
-            "max_output_tokens": 65536,
-            "thinking_config": genai.types.ThinkingConfig(
-                thinking_level="HIGH",  # Maximum reasoning depth
-                include_thoughts=True   # Expose reasoning tokens
-            )
+            "max_tokens": 200000
         }
     )
 

@@ -12,12 +12,14 @@ import { cn } from '@/utils/cn'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
+import { Message, MessageAvatar, MessageContent } from '@/components/ai-elements/message'
 
 // Context Picker
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
 
 // Source Card for citations
 import type { SourceData } from './SourceCard'
+import type { UniversalResult } from '@/pages/types/search'
 
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 
@@ -28,6 +30,7 @@ import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 interface SearchChatProps {
   searchResult: { query: string; answer?: string; sources?: SourceData[] }
   onBack: () => void
+  initialContext?: UniversalResult | null
 }
 
 interface ReasoningStep {
@@ -186,7 +189,7 @@ function buildSearchChatParts(message: Message): MessagePart[] {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function SearchChat({ searchResult, onBack }: SearchChatProps) {
+export function SearchChat({ searchResult, onBack, initialContext }: SearchChatProps) {
   const query = searchResult.query
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -203,6 +206,21 @@ export function SearchChat({ searchResult, onBack }: SearchChatProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Initialize context if provided
+  useEffect(() => {
+    if (initialContext) {
+      const contextItem: ContextItem = {
+        id: initialContext.id,
+        type: 'tab', // Treat search results as tabs/links
+        name: (initialContext as any).title || initialContext.url || 'Result',
+        description: initialContext.url,
+        url: initialContext.url,
+        favicon: (initialContext as any).favicon,
+      }
+      setSelectedContexts([contextItem])
+    }
+  }, [initialContext])
 
   // Seed chat with initial search result or fetch if missing
   useEffect(() => {
@@ -734,18 +752,13 @@ function MessageBubble({ message }: { message: Message }) {
   }))
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn("flex flex-col gap-3", isUser ? "items-end" : "items-start")}
-    >
-      <div className={cn("max-w-[85%]", isUser ? "order-2" : "order-1")}>
+    <Message from={isUser ? 'user' : 'assistant'}>
+      <MessageAvatar fallback={isUser ? 'U' : 'R'} />
+      <MessageContent variant={isUser ? 'contained' : 'flat'}>
         {isUser ? (
-          <div className="px-4 py-3 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20 rounded-br-md">
-            <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
-              {message.content}
-            </p>
-          </div>
+          <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
+            {message.content}
+          </p>
         ) : (
           <ChainOfThoughtMessage
             parts={parts}
@@ -754,10 +767,8 @@ function MessageBubble({ message }: { message: Message }) {
             citations={citations}
           />
         )}
-
-        {/* Sources are rendered by ChainOfThoughtMessage via AI Elements */}
-      </div>
-    </motion.div>
+      </MessageContent>
+    </Message>
   )
 }
 

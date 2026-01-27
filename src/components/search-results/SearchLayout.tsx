@@ -15,6 +15,7 @@ import { ChainOfThoughtContent } from '@/components/ai-elements/chain-of-thought
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 import { ThinkingIndicator } from '@/components/ai-elements/loader'
 import type { Citation } from '@/components/ai-elements/response-with-citations'
+import { Message, MessageAvatar, MessageContent } from '@/components/ai-elements/message'
 
 interface SearchLayoutProps {
   searchResponse: SearchResponse | null
@@ -27,6 +28,7 @@ interface SearchLayoutProps {
   onResultClick?: (result: UniversalResult) => void
   onFilterChange?: (filters: SearchFilters) => void
   onExpandPreview?: (result: UniversalResult) => void
+  onChatClick?: (result: UniversalResult) => void
 }
 
 type MessagePart = UIMessage['parts'][number]
@@ -45,6 +47,7 @@ export function SearchLayout({
   error,
   agentState,
   onResultClick,
+  onChatClick,
 }: SearchLayoutProps) {
   const { results = [], sonarReasoning, totalCount } = searchResponse || {}
   const hasResults = results.length > 0
@@ -72,12 +75,17 @@ export function SearchLayout({
         <ChainOfThoughtContent>
           {agentHasParts ? (
             <div className="p-4">
-              <ChainOfThoughtMessage
-                parts={agentState?.parts || []}
-                citations={agentState?.citations || []}
-                isStreaming={agentIsStreaming}
-                messageId={`search-results-${searchQuery.replace(/\s+/g, '-').toLowerCase()}`}
-              />
+              <Message from="assistant">
+                <MessageAvatar fallback="R" />
+                <MessageContent variant="flat">
+                  <ChainOfThoughtMessage
+                    parts={agentState?.parts || []}
+                    citations={agentState?.citations || []}
+                    isStreaming={agentIsStreaming}
+                    messageId={`search-results-${searchQuery.replace(/\s+/g, '-').toLowerCase()}`}
+                  />
+                </MessageContent>
+              </Message>
             </div>
           ) : (
             <div className="p-6">
@@ -136,6 +144,7 @@ export function SearchLayout({
                     result={result}
                     searchQuery={searchQuery}
                     onClick={onResultClick ? () => onResultClick(result) : undefined}
+                    onChatClick={onChatClick}
                   />
                 ))}
               </div>

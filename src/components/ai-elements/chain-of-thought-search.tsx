@@ -595,6 +595,8 @@ export function detectSearchProvider(toolName: string): SearchProvider | null {
     'mcp__mcp_docker__brave_video_search': 'brave',
     'perplexity_search': 'perplexity',
     'perplexity_search_api': 'perplexity',
+    'perplexity_sonar_pro': 'perplexity',
+    'perplexity_deep_research': 'perplexity',
     'pubmed_search': 'pubmed',
     'openfda_search': 'openfda',
     'datacommons_search': 'datacommons',

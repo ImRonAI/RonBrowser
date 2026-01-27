@@ -12,8 +12,7 @@ Integrates multiple search tools:
 import logging
 import os
 from strands import Agent
-from strands.models.gemini import GeminiModel
-from google import genai
+from strands.models.litellm import LiteLLMModel
 from strands.session.file_session_manager import FileSessionManager
 
 logger = logging.getLogger(__name__)
@@ -85,6 +84,7 @@ Example: "The study found 87% efficacy[1] with minimal side effects[2]."
 - When you have a plan, append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
 - When you have a task queue or checklist, append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
 - Do NOT wrap <plan>/<queue> blocks in code fences.
+- Always include at least one <plan> and one <queue> block in the final response, even if minimal.
 
 **Optimal Workflow:**
 1. Start perplexity_deep_research IMMEDIATELY (it runs async in background)
@@ -141,19 +141,16 @@ def create_search_agent(callback_handler=None, session_id="search"):
     # Filter out None values
     tools = [t for t in tools if t is not None]
 
-    # Gemini 3 Flash Preview with high reasoning
-    model = GeminiModel(
-        model_id="gemini-3-pro-preview",
+    # Grok 4.1 Fast Reasoning via LiteLLM
+    model = LiteLLMModel(
+        model_id="xai/grok-4-1-fast-reasoning",
         client_args={
-            "api_key": os.getenv("GOOGLE_API_KEY"),
+            "api_key": os.getenv("XAI_API_KEY"),
+            "merge_reasoning_content_in_choices": True
         },
         params={
             "temperature": 1.0,
-            "max_output_tokens": 65536,
-            "thinking_config": genai.types.ThinkingConfig(
-                thinking_level="HIGH",  # Maximum reasoning depth
-                include_thoughts=True   # Expose reasoning tokens
-            )
+            "max_tokens": 200000
         }
     )
 

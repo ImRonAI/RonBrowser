@@ -24,11 +24,13 @@ import { Loader } from './loader'
 interface ChainOfThoughtContextValue {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
+  markUserInteraction: () => void
 }
 
 const ChainOfThoughtContext = createContext<ChainOfThoughtContextValue>({
   isOpen: false,
   setIsOpen: () => {},
+  markUserInteraction: () => {},
 })
 
 export const useChainOfThought = () => useContext(ChainOfThoughtContext)
@@ -65,6 +67,7 @@ export const ChainOfThought = memo(function ChainOfThought({
   const hasAutoClosedRef = useRef(false)
   const prevStreamingRef = useRef(isStreaming)
   const collapseTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const userInteractedRef = useRef(false)
   
   // Internal state (for uncontrolled mode)
   const [internalOpen, setInternalOpen] = useState(defaultOpen)
@@ -80,6 +83,15 @@ export const ChainOfThought = memo(function ChainOfThought({
     onOpenChange?.(newOpen)
   }, [isControlled, onOpenChange])
 
+  const markUserInteraction = useCallback(() => {
+    userInteractedRef.current = true
+    if (collapseTimerRef.current) {
+      clearTimeout(collapseTimerRef.current)
+      collapseTimerRef.current = null
+    }
+    hasAutoClosedRef.current = true
+  }, [])
+
   // Handle streaming state changes - only on edges
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current
@@ -93,20 +105,31 @@ export const ChainOfThought = memo(function ChainOfThought({
         collapseTimerRef.current = null
       }
       hasAutoClosedRef.current = false
-      // Don't auto-open - let user control or keep defaultOpen behavior
+      userInteractedRef.current = false
+      if (!isOpen) {
+        setIsOpen(true)
+      }
     }
 
     // Falling edge: streaming just ended
-    if (wasStreaming && !isStreaming && autoCollapseDelay > 0 && !hasAutoClosedRef.current) {
+    if (
+      wasStreaming &&
+      !isStreaming &&
+      autoCollapseDelay > 0 &&
+      !hasAutoClosedRef.current &&
+      !userInteractedRef.current
+    ) {
       collapseTimerRef.current = setTimeout(() => {
         setIsOpen(false)
         hasAutoClosedRef.current = true
+        collapseTimerRef.current = null
       }, autoCollapseDelay)
     }
 
     return () => {
       if (collapseTimerRef.current) {
         clearTimeout(collapseTimerRef.current)
+        collapseTimerRef.current = null
       }
     }
   }, [isStreaming, autoCollapseDelay, setIsOpen])
@@ -114,7 +137,8 @@ export const ChainOfThought = memo(function ChainOfThought({
   const contextValue = useMemo(() => ({
     isOpen,
     setIsOpen,
-  }), [isOpen, setIsOpen])
+    markUserInteraction,
+  }), [isOpen, setIsOpen, markUserInteraction])
 
   return (
     <ChainOfThoughtContext.Provider value={contextValue}>
@@ -145,11 +169,12 @@ export const ChainOfThoughtHeader = memo(function ChainOfThoughtHeader({
   children, 
   className 
 }: ChainOfThoughtHeaderProps) {
-  const { isOpen, setIsOpen } = useChainOfThought()
+  const { isOpen, setIsOpen, markUserInteraction } = useChainOfThought()
 
   const handleClick = useCallback(() => {
+    markUserInteraction()
     setIsOpen(!isOpen)
-  }, [isOpen, setIsOpen])
+  }, [isOpen, setIsOpen, markUserInteraction])
 
   return (
     <button

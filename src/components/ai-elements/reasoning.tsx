@@ -30,6 +30,7 @@ const AUTO_CLOSE_DELAY = 1500
 interface ReasoningContextValue {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
+  markUserInteraction: () => void
   isStreaming: boolean
   duration: number
 }
@@ -37,6 +38,7 @@ interface ReasoningContextValue {
 const ReasoningContext = createContext<ReasoningContextValue>({
   isOpen: false,
   setIsOpen: () => {},
+  markUserInteraction: () => {},
   isStreaming: false,
   duration: 0,
 })
@@ -84,6 +86,8 @@ export const Reasoning = memo(function Reasoning({
   const hasAutoClosedRef = useRef(false)
   const startTimeRef = useRef<number | null>(null)
   const prevStreamingRef = useRef(isStreaming)
+  const userInteractedRef = useRef(false)
+  const collapseTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   // Controlled/uncontrolled
   const isControlled = controlledOpen !== undefined
@@ -96,6 +100,15 @@ export const Reasoning = memo(function Reasoning({
     onOpenChange?.(newOpen)
   }, [isControlled, onOpenChange])
 
+  const markUserInteraction = useCallback(() => {
+    userInteractedRef.current = true
+    if (collapseTimerRef.current) {
+      clearTimeout(collapseTimerRef.current)
+      collapseTimerRef.current = null
+    }
+    hasAutoClosedRef.current = true
+  }, [])
+
   // Track duration and handle auto-open/close on streaming edges
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current
@@ -105,6 +118,7 @@ export const Reasoning = memo(function Reasoning({
     if (!wasStreaming && isStreaming) {
       startTimeRef.current = Date.now()
       hasAutoClosedRef.current = false
+      userInteractedRef.current = false
       // Auto-open when streaming starts
       if (!isOpen) {
         setIsOpen(true)
@@ -120,22 +134,33 @@ export const Reasoning = memo(function Reasoning({
       }
       
       // Auto-close after delay (once only)
-      if (isOpen && !defaultOpen && !hasAutoClosedRef.current) {
-        const timer = setTimeout(() => {
+      if (isOpen && !hasAutoClosedRef.current && !userInteractedRef.current) {
+        collapseTimerRef.current = setTimeout(() => {
           setIsOpen(false)
           hasAutoClosedRef.current = true
+          collapseTimerRef.current = null
         }, autoCollapseDelay)
-        return () => clearTimeout(timer)
+        return () => {
+          if (collapseTimerRef.current) {
+            clearTimeout(collapseTimerRef.current)
+            collapseTimerRef.current = null
+          }
+        }
+      }
+
+      if (!isOpen) {
+        hasAutoClosedRef.current = true
       }
     }
-  }, [isStreaming, isOpen, defaultOpen, setIsOpen])
+  }, [isStreaming, isOpen, autoCollapseDelay, durationProp, setIsOpen])
 
   const contextValue = useMemo(() => ({
     isOpen,
     setIsOpen,
+    markUserInteraction,
     isStreaming,
     duration,
-  }), [isOpen, setIsOpen, isStreaming, duration])
+  }), [isOpen, setIsOpen, markUserInteraction, isStreaming, duration])
 
   return (
     <ReasoningContext.Provider value={contextValue}>
@@ -159,11 +184,18 @@ export const ReasoningTrigger = memo(function ReasoningTrigger({
   title = 'Thinking',
   className 
 }: ReasoningTriggerProps) {
-  const { isOpen, setIsOpen, isStreaming, duration } = useReasoning()
+  const { isOpen, setIsOpen, markUserInteraction, isStreaming, duration } = useReasoning()
 
   const handleClick = useCallback(() => {
+    markUserInteraction()
+    if (isStreaming) {
+      if (!isOpen) {
+        setIsOpen(true)
+      }
+      return
+    }
     setIsOpen(!isOpen)
-  }, [isOpen, setIsOpen])
+  }, [isOpen, isStreaming, setIsOpen, markUserInteraction])
 
   return (
     <button
