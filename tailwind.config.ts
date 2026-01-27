@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss'
 import plugin from 'tailwindcss/plugin'
 
 const config: Config = {
-  darkMode: ['class', 'class'],
+  darkMode: 'class',
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
@@ -72,6 +72,7 @@ const config: Config = {
           300: '#D4D4D4',     // Scrollbar hover gray
           400: '#A3A3A3',     // Medium gray
           // Dark mode
+          950: '#050505',     // Ultra black
           900: '#0A0A0A',     // Near black
           850: '#121212',     // Elevated black
           800: '#171717',     // Card black
@@ -87,7 +88,7 @@ const config: Config = {
           muted: '#A3A3A3',   // Gray-400
           ghost: '#D4D4D4',   // Gray-300
           // Dark mode inversions
-          inverse: '#FAFAFA',
+          inverse: '#FFFFFF',
           'inverse-secondary': '#A3A3A3',
           'inverse-muted': '#737373',
         },
