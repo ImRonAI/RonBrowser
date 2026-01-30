@@ -40,27 +40,28 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-e
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput, mapToolPartState } from '@/components/ai-elements/tool'
 import { ResponseMarkdown } from '@/components/ai-elements/response'
 import { ResponseWithCitations, type Citation } from '@/components/ai-elements/response-with-citations'
-import {
-  Plan,
-  PlanContent,
-  PlanDescription,
-  PlanFooter,
-  PlanHeader,
-  PlanTitle,
-  PlanTrigger,
-} from '@/components/ai-elements/plan'
-import {
-  Queue,
-  QueueItem,
-  QueueItemContent,
-  QueueItemDescription,
-  QueueItemIndicator,
-  QueueList,
-  QueueSection,
-  QueueSectionContent,
-  QueueSectionLabel,
-  QueueSectionTrigger,
-} from '@/components/ai-elements/queue'
+// Plan and Queue components temporarily removed from rendering - see git history for reintegration
+// import {
+//   Plan,
+//   PlanContent,
+//   PlanDescription,
+//   PlanFooter,
+//   PlanHeader,
+//   PlanTitle,
+//   PlanTrigger,
+// } from '@/components/ai-elements/plan'
+// import {
+//   Queue,
+//   QueueItem,
+//   QueueItemContent,
+//   QueueItemDescription,
+//   QueueItemIndicator,
+//   QueueList,
+//   QueueSection,
+//   QueueSectionContent,
+//   QueueSectionLabel,
+//   QueueSectionTrigger,
+// } from '@/components/ai-elements/queue'
 import { Sources, SourcesContent, SourcesTrigger, Source } from '@/components/ai-elements/sources'
 import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
 import { initOrchestrationFromToolInput } from '@/utils/orchestration-stream'
@@ -94,6 +95,13 @@ type QueueItemData = {
 type QueueData = {
   label?: string
   items: QueueItemData[]
+}
+
+type UsageData = {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
 }
 
 const PLAN_TAG = /<plan>([\s\S]*?)<\/plan>/gi
@@ -156,35 +164,60 @@ function normalizeQueueData(raw: any): QueueData | null {
   }
 }
 
-function extractStructuredBlocks(
-  text: string,
-  plans: PlanData[],
-  queues: QueueData[]
-) {
-  let output = text
+function normalizeUsageData(raw: unknown): UsageData | null {
+  if (!raw || typeof raw !== 'object') return null
+  const data = raw as Record<string, any>
+  const usage: UsageData = {}
 
-  output = output.replace(PLAN_TAG, (match, json) => {
-    const parsed = parseJsonBlock(json)
-    const plan = normalizePlanData(parsed)
-    if (plan) {
-      plans.push(plan)
-      return ''
-    }
-    return match
-  })
+  const toNumber = (value: unknown) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return undefined
+    return Number.isFinite(value) ? value : undefined
+  }
 
-  output = output.replace(QUEUE_TAG, (match, json) => {
-    const parsed = parseJsonBlock(json)
-    const queue = normalizeQueueData(parsed)
-    if (queue) {
-      queues.push(queue)
-      return ''
-    }
-    return match
-  })
+  const inputTokens = toNumber(data.inputTokens)
+  const outputTokens = toNumber(data.outputTokens)
+  const totalTokens = toNumber(data.totalTokens)
 
-  return output
+  const reasoningTokens =
+    toNumber(data.reasoningTokens) ??
+    toNumber(data.reasoning_tokens) ??
+    toNumber(data.completion_tokens_details?.reasoning_tokens)
+
+  if (inputTokens !== undefined) usage.inputTokens = inputTokens
+  if (outputTokens !== undefined) usage.outputTokens = outputTokens
+  if (totalTokens !== undefined) usage.totalTokens = totalTokens
+  if (reasoningTokens !== undefined) usage.reasoningTokens = reasoningTokens
+
+  return Object.keys(usage).length > 0 ? usage : null
 }
+
+// Plan and Queue extraction disabled - will be reintegrated after fix
+// function extractStructuredBlocks(
+//   text: string,
+//   plans: PlanData[],
+//   queues: QueueData[]
+// ) {
+//   let output = text
+//   output = output.replace(PLAN_TAG, (match, json) => {
+//     const parsed = parseJsonBlock(json)
+//     const plan = normalizePlanData(parsed)
+//     if (plan) {
+//       plans.push(plan)
+//       return ''
+//     }
+//     return match
+//   })
+//   output = output.replace(QUEUE_TAG, (match, json) => {
+//     const parsed = parseJsonBlock(json)
+//     const queue = normalizeQueueData(parsed)
+//     if (queue) {
+//       queues.push(queue)
+//       return ''
+//     }
+//     return match
+//   })
+//   return output
+// }
 
 function getOrchestrationToolName(toolName?: string): OrchestrationToolName | null {
   if (!toolName) return null
@@ -236,30 +269,43 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
   const processedToolCallsRef = useRef(new Set<string>())
 
   // Separate process parts from final text and extract citations
-  const { processParts, finalTextParts, citations, plans, queues } = useMemo(() => {
+  const { processParts, finalTextParts, citations, usage } = useMemo(() => {
     const processParts: MessagePart[] = []
     const finalTextParts: TextUIPart[] = []
     const citations: Citation[] = []
-    const plans: PlanData[] = []
-    const queues: QueueData[] = []
+    let usage: UsageData | null = null
+    // Plan and Queue extraction disabled - will be reintegrated after fix
+    // const plans: PlanData[] = []
+    // const queues: QueueData[] = []
 
     for (const part of parts) {
+      // Plan and Queue data extraction disabled
+      // if (isDataUIPart(part)) {
+      //   if (part.type === 'data-plan') {
+      //     const plan = normalizePlanData((part as any).data)
+      //     if (plan) plans.push(plan)
+      //   }
+      //   if (part.type === 'data-queue') {
+      //     const queue = normalizeQueueData((part as any).data)
+      //     if (queue) queues.push(queue)
+      //   }
+      //   continue
+      // }
       if (isDataUIPart(part)) {
-        if (part.type === 'data-plan') {
-          const plan = normalizePlanData((part as any).data)
-          if (plan) plans.push(plan)
+        if (part.type === 'data-usage') {
+          const normalized = normalizeUsageData((part as any).data)
+          if (normalized) usage = normalized
         }
-        if (part.type === 'data-queue') {
-          const queue = normalizeQueueData((part as any).data)
-          if (queue) queues.push(queue)
-        }
+        // Skip data-plan and data-queue parts for now
         continue
       }
 
       if (part.type === 'text') {
         const textPart = part as TextUIPart
         if (textPart.text) {
-          const cleaned = extractStructuredBlocks(textPart.text, plans, queues)
+          // extractStructuredBlocks disabled - Plan/Queue extraction removed
+          // const cleaned = extractStructuredBlocks(textPart.text, plans, queues)
+          const cleaned = textPart.text
           if (cleaned.trim()) {
             finalTextParts.push({ ...textPart, text: cleaned })
           }
@@ -290,16 +336,18 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
       }
     }
 
-    return { processParts, finalTextParts, citations, plans, queues }
+    return { processParts, finalTextParts, citations, usage }
   }, [parts])
 
   const hasFinalTextOutput = finalTextParts.length > 0
   const resolvedCitations = citationsOverride && citationsOverride.length > 0
     ? citationsOverride
     : citations
-  const resolvedPlans = plans
-  const resolvedQueues = queues
-  const hasStructuredBlocks = resolvedPlans.length > 0 || resolvedQueues.length > 0
+  // Plan and Queue data extraction disabled - will be reintegrated after fix
+  // const resolvedPlans = plans
+  // const resolvedQueues = queues
+  // const hasStructuredBlocks = resolvedPlans.length > 0 || resolvedQueues.length > 0
+  const hasStructuredBlocks = false
 
   // Calculate step count for header
   const stepCount = useMemo(() => {
@@ -397,9 +445,9 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
       if (!toolName || !toolCallId) continue
       if (processedToolCallsRef.current.has(toolCallId)) continue
 
-      if (toolPart.state === 'input-available' || toolPart.state === 'output-available') {
-        const payload = toolPart.input ?? toolPart.output
-        const didInit = initOrchestrationFromToolInput(toolName, payload)
+      if (toolPart.state === 'input-available') {
+        const payload = toolPart.input
+        const didInit = payload != null && initOrchestrationFromToolInput(toolName, payload)
         if (didInit) {
           processedToolCallsRef.current.add(toolCallId)
         }
@@ -408,151 +456,101 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
   }, [parts])
 
   return (
-    <div className={cn('flex flex-col gap-4', className)}>
-      {processParts.length > 0 && (
-        <ChainOfThought
-          defaultOpen={hasOrchestrationTools || !hasFinalTextOutput}
-          isStreaming={isStreaming && !hasFinalTextOutput}
-          autoCollapseDelay={hasOrchestrationTools ? 0 : hasFinalTextOutput ? 2000 : 0}
-        >
-          <ChainOfThoughtHeader>
-            {isStreaming && !hasFinalTextOutput
-              ? 'Processing...'
-              : `Thought Process (${stepCount} step${stepCount !== 1 ? 's' : ''})`
-            }
-          </ChainOfThoughtHeader>
-          <ChainOfThoughtContent>
-            {processParts.map((part, index) => (
-              <PartRenderer
-                key={`${messageId}-part-${index}`}
-                part={part}
-                isLast={index === processParts.length - 1}
-                isStreaming={isStreaming}
+    <div className={cn('flex flex-col', className)}>
+      {/* Message bubble with reasoning at top */}
+      <div className="glass-card rounded-2xl overflow-hidden">
+        {/* Chain of Thought at top of bubble */}
+        {processParts.length > 0 && (
+          <ChainOfThought
+            defaultOpen={hasOrchestrationTools || !hasFinalTextOutput}
+            isStreaming={isStreaming && !hasFinalTextOutput}
+            autoCollapseDelay={hasOrchestrationTools ? 0 : hasFinalTextOutput ? 2000 : 0}
+          >
+            <ChainOfThoughtHeader>
+              {isStreaming && !hasFinalTextOutput
+                ? 'Processing...'
+                : `Thought Process (${stepCount} step${stepCount !== 1 ? 's' : ''})`
+              }
+            </ChainOfThoughtHeader>
+            <ChainOfThoughtContent>
+              {processParts.map((part, index) => (
+                <PartRenderer
+                  key={`${messageId}-part-${index}`}
+                  part={part}
+                  isLast={index === processParts.length - 1}
+                  isStreaming={isStreaming}
+                  reasoningTokens={usage?.reasoningTokens}
+                />
+              ))}
+            </ChainOfThoughtContent>
+          </ChainOfThought>
+        )}
+
+        {/* Plan and Queue components temporarily disabled - will be reintegrated after fix */}
+        {/* {hasStructuredBlocks && (
+          <div className={cn('px-6 pt-5', finalTextParts.length === 0 && 'pb-4')}>
+            <div className="space-y-4">
+              {resolvedPlans.map((plan, planIndex) => (
+                <Plan key={`${messageId}-plan-${planIndex}`} defaultOpen>
+                  ...
+                </Plan>
+              ))}
+              {resolvedQueues.map((queue, queueIndex) => (
+                <Queue key={`${messageId}-queue-${queueIndex}`}>
+                  ...
+                </Queue>
+              ))}
+            </div>
+          </div>
+        )} */}
+
+        {/* Final Text Output (inside same bubble, below reasoning) */}
+        {finalTextParts.length > 0 && (
+          <div className={cn('p-6', hasStructuredBlocks && 'pt-4')}>
+            {finalTextParts.map((part, index) => (
+              <ResponseWithCitations
+                key={`${messageId}-text-${index}`}
+                content={part.text}
+                citations={resolvedCitations}
+                isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}
               />
             ))}
-          </ChainOfThoughtContent>
-        </ChainOfThought>
-      )}
+          </div>
+        )}
 
-      {hasStructuredBlocks && (
-        <div className={cn('space-y-4', finalTextParts.length === 0 && 'pb-2')}>
-          {resolvedPlans.map((plan, planIndex) => (
-            <Plan key={`${messageId}-plan-${planIndex}`} defaultOpen>
-              <PlanHeader className="items-start gap-3">
-                <div className="space-y-1">
-                  <PlanTitle>{plan.title || 'Plan'}</PlanTitle>
-                  {plan.description && (
-                    <PlanDescription>{plan.description}</PlanDescription>
-                  )}
-                </div>
-                <PlanTrigger />
-              </PlanHeader>
-              {plan.steps && plan.steps.length > 0 && (
-                <PlanContent>
-                  <ol className="space-y-2">
-                    {plan.steps.map((step, index) => (
-                      <li key={step.id || `${planIndex}-${index}`} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{step.title}</p>
-                          {step.description && (
-                            <p className="text-xs text-muted-foreground">{step.description}</p>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                </PlanContent>
-              )}
-              {plan.footer && (
-                <PlanFooter>
-                  <p className="text-xs text-muted-foreground">{plan.footer}</p>
-                </PlanFooter>
-              )}
-            </Plan>
-          ))}
-
-          {resolvedQueues.map((queue, queueIndex) => (
-            <Queue key={`${messageId}-queue-${queueIndex}`}>
-              <QueueSection defaultOpen>
-                <QueueSectionTrigger>
-                  <QueueSectionLabel
-                    count={queue.items.length}
-                    label={queue.label || 'Queue'}
-                  />
-                </QueueSectionTrigger>
-                <QueueSectionContent>
-                  <QueueList>
-                    {queue.items.map((item, index) => (
-                      <QueueItem key={item.id || `${queueIndex}-${index}`}>
-                        <div className="flex items-start gap-2">
-                          <QueueItemIndicator completed={item.completed} />
-                          <QueueItemContent completed={item.completed}>
-                            {item.title}
-                          </QueueItemContent>
-                        </div>
-                        {item.description && (
-                          <QueueItemDescription completed={item.completed}>
-                            {item.description}
-                          </QueueItemDescription>
-                        )}
-                      </QueueItem>
-                    ))}
-                  </QueueList>
-                </QueueSectionContent>
-              </QueueSection>
-            </Queue>
-          ))}
-        </div>
-      )}
-
-      {finalTextParts.length > 0 && (
-        <div className={cn('space-y-3', hasStructuredBlocks && 'pt-2')}>
-          {finalTextParts.map((part, index) => (
-            <ResponseWithCitations
-              key={`${messageId}-text-${index}`}
-              content={part.text}
-              citations={resolvedCitations}
-              isStreaming={isStreaming && index === finalTextParts.length - 1 && part.state === 'streaming'}
-            />
-          ))}
-        </div>
-      )}
-
-      {resolvedCitations.length > 0 && (
-        <div className={cn(finalTextParts.length === 0 && !hasStructuredBlocks && 'pt-2')}>
-          <Sources>
-            <SourcesTrigger count={resolvedCitations.length} />
-            <SourcesContent>
-              {resolvedCitations.map((citation, index) => (
-                <Source key={`${messageId}-source-${index}`} href={citation.url}>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">
-                      [{index + 1}] {citation.title}
-                    </p>
-                    {citation.snippet && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {citation.snippet}
+        {resolvedCitations.length > 0 && (
+          <div className={cn('px-6 pb-6', finalTextParts.length === 0 && !hasStructuredBlocks && 'pt-4')}>
+            <Sources>
+              <SourcesTrigger count={resolvedCitations.length} />
+              <SourcesContent>
+                {resolvedCitations.map((citation, index) => (
+                  <Source key={`${messageId}-source-${index}`} href={citation.url}>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-foreground">
+                        [{index + 1}] {citation.title}
                       </p>
-                    )}
-                    <p className="text-[11px] text-muted-foreground/80">
-                      {(() => {
-                        try {
-                          return new URL(citation.url).hostname
-                        } catch {
-                          return citation.url
-                        }
-                      })()}
-                    </p>
-                  </div>
-                </Source>
-              ))}
-            </SourcesContent>
-          </Sources>
-        </div>
-      )}
+                      {citation.snippet && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {citation.snippet}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground/80">
+                        {(() => {
+                          try {
+                            return new URL(citation.url).hostname
+                          } catch {
+                            return citation.url
+                          }
+                        })()}
+                      </p>
+                    </div>
+                  </Source>
+                ))}
+              </SourcesContent>
+            </Sources>
+          </div>
+        )}
+      </div>
     </div>
   )
 })
@@ -565,9 +563,10 @@ interface PartRendererProps {
   part: MessagePart
   isLast: boolean
   isStreaming?: boolean
+  reasoningTokens?: number
 }
 
-const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: PartRendererProps) {
+const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming, reasoningTokens }: PartRendererProps) {
   const { openBrowserPreview } = usePreviewStore()
 
   const handleSearchPreview = useCallback(
@@ -586,6 +585,10 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
   if (part.type === 'reasoning') {
     const reasoningPart = part as ReasoningUIPart
     const isReasoningStreaming = isStreaming && isLast && reasoningPart.state === 'streaming'
+    const formattedReasoningTokens =
+      typeof reasoningTokens === 'number'
+        ? new Intl.NumberFormat('en-US').format(Math.round(reasoningTokens))
+        : null
 
     return (
       <ChainOfThoughtStep
@@ -595,6 +598,11 @@ const PartRenderer = memo(function PartRenderer({ part, isLast, isStreaming }: P
         <Reasoning isStreaming={isReasoningStreaming}>
           <ReasoningTrigger />
           <ReasoningContent>
+            {formattedReasoningTokens && (
+              <div className="mb-2 text-[11px] text-muted-foreground">
+                Reasoning tokens: {formattedReasoningTokens}
+              </div>
+            )}
             <ResponseMarkdown
               content={reasoningPart.text}
               isStreaming={isReasoningStreaming}

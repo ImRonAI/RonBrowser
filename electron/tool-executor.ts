@@ -23,7 +23,7 @@ import { ToolInfo } from './tool-manager'
 // ============================================
 
 const FEATURE_FLAG = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true'
-const DEFAULT_TIMEOUT = 300000 // 5 minutes (matches SDK defaults)
+const DEFAULT_TIMEOUT = 7000 // 7 seconds (fast tool timeout)
 
 // ============================================
 // Types
@@ -209,7 +209,7 @@ function getWorker(): UtilityProcess {
  * 
  * @param toolInfo - Tool metadata from discovery
  * @param args - Arguments to pass to the tool
- * @param timeout - Execution timeout in milliseconds (default 5 min)
+ * @param timeout - Execution timeout in milliseconds (default 7 seconds)
  * @returns ExecutionResult with success status and tool output
  */
 export async function executeToolInSandbox(

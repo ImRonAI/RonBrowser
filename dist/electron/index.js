@@ -299,7 +299,7 @@ function registerToolManagerIPC() {
   console.log("[ToolManager] IPC handlers registered");
 }
 const FEATURE_FLAG$1 = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true";
-const DEFAULT_TIMEOUT = 3e5;
+const DEFAULT_TIMEOUT = 7e3;
 let workerPool = [];
 const pendingExecutions = /* @__PURE__ */ new Map();
 let _utilityRunnerPath = null;

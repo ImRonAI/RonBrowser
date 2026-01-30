@@ -20,6 +20,7 @@ export interface WorkflowOrchestrationTaskProps {
   className?: string;
   onNodeClick?: (task: WorkflowTask) => void;
   onTaskComplete?: (taskId: string) => void;
+  toolInput?: unknown;
 }
 
 export function WorkflowOrchestrationTask({
@@ -28,6 +29,7 @@ export function WorkflowOrchestrationTask({
   defaultExpanded = true,
   className,
   onNodeClick,
+  toolInput,
 }: WorkflowOrchestrationTaskProps) {
   const { workflowTasks } = useOrchestrationStore();
 
@@ -47,6 +49,7 @@ export function WorkflowOrchestrationTask({
       defaultExpanded={defaultExpanded}
       className={className}
       onWorkflowNodeClick={onNodeClick}
+      toolInput={toolInput}
     />
   );
 }

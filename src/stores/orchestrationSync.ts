@@ -118,7 +118,7 @@ export function isActiveStreamingEvent(event: AgentStreamEvent): boolean {
   return !!(
     event.reasoningText ||
     event.current_tool_use ||
-    event.data
+    typeof event.data === 'string'
   );
 }
 

@@ -144,13 +144,31 @@ class EndTurnGuardHook(HookProvider):
     
     This hook prevents the model from stopping early with just text when it
     should be calling tools to make progress.
+    
+    IMPORTANT: This hook is DISABLED by default to prevent looping on simple
+    conversational messages. Enable it only for task-oriented contexts where
+    tool usage is expected.
     """
     
-    def __init__(self, min_tool_calls: int = 3, max_retries: int = 5):
+    # Keywords that suggest the user wants actual work done (not just chat)
+    TASK_INDICATORS = frozenset([
+        'search', 'find', 'look up', 'research', 'analyze', 'create', 'make',
+        'write', 'edit', 'update', 'delete', 'remove', 'add', 'build', 'run',
+        'execute', 'fetch', 'get', 'download', 'upload', 'send', 'browse',
+        'navigate', 'open', 'click', 'type', 'scrape', 'crawl', 'extract',
+        'summarize', 'translate', 'convert', 'calculate', 'compute', 'check',
+        'verify', 'validate', 'debug', 'fix', 'solve', 'help me', 'can you',
+        'please', 'i need', 'i want', 'show me', 'tell me about', 'what is',
+        'how to', 'how do', 'explain', 'describe', 'list', 'compare'
+    ])
+    
+    def __init__(self, min_tool_calls: int = 3, max_retries: int = 5, enabled: bool = False):
         self.min_tool_calls = min_tool_calls
         self.max_retries = max_retries
+        self.enabled = enabled  # Disabled by default to prevent chat loops
         self._tool_call_count = 0
         self._retry_count = 0
+        self._user_message: Optional[str] = None
     
     def register_hooks(self, registry: HookRegistry) -> None:
         registry.add_callback(BeforeToolCallEvent, self._on_before_tool)
@@ -159,7 +177,43 @@ class EndTurnGuardHook(HookProvider):
     def _on_before_tool(self, event: BeforeToolCallEvent) -> None:
         self._tool_call_count += 1
     
+    def _is_task_oriented(self, messages: list) -> bool:
+        """Check if the conversation appears to be task-oriented vs casual chat."""
+        if not messages:
+            return False
+        
+        # Get the last user message
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", [])
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and "text" in item:
+                            text = item["text"].lower()
+                            # Check for task indicators
+                            for indicator in self.TASK_INDICATORS:
+                                if indicator in text:
+                                    return True
+                            # Short messages without task indicators are likely casual chat
+                            if len(text.split()) < 10:
+                                return False
+                            return True
+                elif isinstance(content, str):
+                    text = content.lower()
+                    for indicator in self.TASK_INDICATORS:
+                        if indicator in text:
+                            return True
+                    if len(text.split()) < 10:
+                        return False
+                    return True
+                break
+        return False
+    
     def _on_after_model(self, event: AfterModelCallEvent) -> None:
+        # Hook is disabled by default
+        if not self.enabled:
+            return
+            
         # Skip if error or no stop response
         if event.exception or not event.stop_response:
             return
@@ -383,16 +437,24 @@ Every subagent MUST receive these tools for runtime expansion:
 Include in every subagent system_prompt:
 "You can load additional tools: load_tool(path), mcp_client(action='connect'), environment(action='get'). 
 Tool locations: ~/Library/Application Support/RonBrowser/custom_tools/, agent/tools/strands-fun-tools/, agent/tools/open-api-specs/
-UI OUTPUT CONTRACT: Use inline citations [1][2] for sourced facts. Always append <plan>{...}</plan> and <queue>{...}</queue> JSON blocks (use a minimal plan/queue if needed). Do not wrap these tags in code fences."
+UI OUTPUT CONTRACT: Use inline citations [1][2] for sourced facts. For task-oriented work, append <plan>{...}</plan> and <queue>{...}</queue> JSON blocks. Skip these for casual chat."
 
 ## STOP CONDITIONS
 Only stop when ALL deliverables from the original request are produced and verified.
 
 ## UI OUTPUT CONTRACT (AI ELEMENTS)
+IMPORTANT: Only include plan/queue blocks for TASK-ORIENTED requests (research, creation, analysis, multi-step work).
+DO NOT include plan/queue blocks for casual conversation (greetings, small talk, simple questions).
+
+For task-oriented requests:
 - Use inline citations like [1], [2], [3] when referencing sources. Citation numbers must align with the order of sources from tools.
-- Always append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
-- Always append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
+- Append a valid JSON block: <plan>{"title":"...","description":"...","steps":[{"title":"...","description":"...","status":"pending|running|complete"}],"footer":"..."}</plan>
+- Append a valid JSON block: <queue>{"label":"...","items":[{"title":"...","description":"...","completed":false}]}</queue>
 - Do NOT wrap <plan>/<queue> blocks in code fences.
+
+For casual conversation (hello, how are you, thanks, etc.):
+- Just respond naturally and conversationally
+- NO plan/queue blocks needed
 
 ## BROWSER & APP NATIVE CONTROL
 ## PRIMARY BROWSER AUTOMATION (MANDATORY)
@@ -1017,7 +1079,6 @@ def create_litellm_model() -> LiteLLMModel:
         model_id="xai/grok-4-1-fast-reasoning",
         client_args={
             "api_key": os.getenv("XAI_API_KEY"),
-            "merge_reasoning_content_in_choices": True
         },
         params={
             "temperature": 1.0,
@@ -1036,7 +1097,6 @@ def create_primary_model():
             model_id=model_id,
             client_args={
                 "api_key": os.getenv("XAI_API_KEY"),
-                "merge_reasoning_content_in_choices": True
             },
             params={
                 "temperature": 1.0,
@@ -1059,7 +1119,6 @@ def create_summarization_model():
             model_id=model_id,
             client_args={
                 "api_key": os.getenv("XAI_API_KEY"),
-                "merge_reasoning_content_in_choices": True
             },
             params={
                 "temperature": 0.3,
@@ -1340,7 +1399,7 @@ def create_superagent(
             preserve_recent_messages=10,
             summarization_agent=summarization_agent
         ),
-        hooks=[ToolTimeoutHook(), ToolErrorRecoveryHook(), EndTurnGuardHook(min_tool_calls=3, max_retries=5)]
+        hooks=[ToolTimeoutHook(), ToolErrorRecoveryHook()]  # EndTurnGuardHook disabled - causes loops on casual chat
     )
     
     if history:

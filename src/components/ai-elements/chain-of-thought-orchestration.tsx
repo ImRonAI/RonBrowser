@@ -47,6 +47,7 @@ export const ChainOfThoughtOrchestration = memo(function ChainOfThoughtOrchestra
       <WorkflowOrchestrationTask
         defaultExpanded={true}
         className={cn("w-full", className)}
+        toolInput={tool.input}
       />
     );
   }
@@ -56,6 +57,7 @@ export const ChainOfThoughtOrchestration = memo(function ChainOfThoughtOrchestra
       <SwarmOrchestrationTask
         defaultExpanded={true}
         className={cn("w-full", className)}
+        toolInput={tool.input}
       />
     );
   }
@@ -65,6 +67,7 @@ export const ChainOfThoughtOrchestration = memo(function ChainOfThoughtOrchestra
       <GraphOrchestrationTask
         defaultExpanded={true}
         className={cn("w-full", className)}
+        toolInput={tool.input}
       />
     );
   }

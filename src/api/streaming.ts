@@ -255,7 +255,7 @@ export function isStreamActive(): boolean {
  * Extract text content from a stream event
  */
 export function extractTextFromEvent(event: AgentStreamEvent): string | null {
-  if (event.data) {
+  if (typeof event.data === 'string') {
     return event.data
   }
   if (event.reasoningText) {

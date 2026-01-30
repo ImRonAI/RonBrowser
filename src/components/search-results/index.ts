@@ -24,8 +24,11 @@ export type { ChatMessage } from './SearchChat'
 // Modals
 export { SitePreviewModal } from './SitePreviewModal'
 
-// Full Results Layout
-export { SearchLayout } from './SearchLayout'
+// Full Results Layout - Premium Redesign
+export { PremiumSearchLayout, SearchLayout } from './SearchLayout'
+
+// Premium Result Cards
+export { PremiumResultCard } from './UniversalResultCard'
 
 // Search Agent Display
 export { SearchAgentDisplay } from './SearchAgentDisplay'

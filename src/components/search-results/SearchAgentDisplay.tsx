@@ -46,6 +46,13 @@ type ToolExecution = {
   errorText?: string
 }
 
+type UsageData = {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
+}
+
 type MessagePart = UIMessage['parts'][number]
 
 function buildSearchAgentParts({
@@ -53,13 +60,22 @@ function buildSearchAgentParts({
   reasoningText,
   toolExecutions,
   isStreaming,
+  usage,
 }: {
   answerText: string
   reasoningText: string
   toolExecutions: ToolExecution[]
   isStreaming: boolean
+  usage: UsageData | null
 }): MessagePart[] {
   const parts: MessagePart[] = []
+
+  if (usage) {
+    parts.push({
+      type: 'data-usage',
+      data: usage,
+    } as MessagePart)
+  }
 
   if (reasoningText || isStreaming) {
     parts.push({
@@ -197,6 +213,7 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
   const [sources, setSources] = useState<SourceData[]>([])
   const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [usage, setUsage] = useState<UsageData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const clearSearch = useSearchStore((state) => state.clearSearch)
@@ -212,8 +229,8 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
   }, [sources, citations])
 
   const assistantParts = useMemo(
-    () => buildSearchAgentParts({ answerText, reasoningText, toolExecutions, isStreaming }),
-    [answerText, reasoningText, toolExecutions, isStreaming]
+    () => buildSearchAgentParts({ answerText, reasoningText, toolExecutions, isStreaming, usage }),
+    [answerText, reasoningText, toolExecutions, isStreaming, usage]
   )
 
   const resetState = useCallback(() => {
@@ -222,6 +239,7 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
     setCitations([])
     setSources([])
     setToolExecutions([])
+    setUsage(null)
     setError(null)
   }, [])
 
@@ -399,6 +417,12 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
                     })
                   }
                   setError(event.errorText || 'Tool error')
+                  break
+
+                case 'data-usage':
+                  if (event.data) {
+                    setUsage(event.data)
+                  }
                   break
 
                 case 'source-url': {

@@ -34,6 +34,12 @@ from strands_tools import (
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+LITELLM_TIMEOUT_SECONDS = int(os.getenv("LITELLM_TIMEOUT_SECONDS", "300"))
+LITELLM_STREAM_TIMEOUT_SECONDS = int(os.getenv("LITELLM_STREAM_TIMEOUT_SECONDS", "30"))
+LITELLM_DEFAULT_PARAMS = {
+    "timeout": LITELLM_TIMEOUT_SECONDS,
+    "stream_timeout": LITELLM_STREAM_TIMEOUT_SECONDS,
+}
 
 SANDBOX_SYSTEM_PROMPT = """You are a Desktop Sandbox Agent running inside an isolated Docker container with a virtual desktop.
 
@@ -250,11 +256,12 @@ def create_sandbox_agent() -> Agent:
         model_id="xai/grok-4-1-fast-reasoning",
         client_args={
             "api_key": os.getenv("XAI_API_KEY"),
-            "merge_reasoning_content_in_choices": True
         },
         params={
             "temperature": 1.0,
-            "max_tokens": 200000
+            "max_tokens": 200000,
+            "reasoning_effort": "high",
+            **LITELLM_DEFAULT_PARAMS,
         }
     )
 

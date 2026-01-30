@@ -265,28 +265,61 @@ class AISDKCallbackHandler:
         self.emit(self.emitter.emit_text_delta(self.text_id, chunk))
 
     def _emit_text_with_think(self, data: str):
-        """Parse <think> tags from text and emit reasoning blocks."""
+        """Parse <think>, <thinking>, and <budget:thinking> tags from text and emit reasoning blocks.
+        
+        Supports multiple model formats:
+        - DeepSeek: <think>...</think>
+        - XAI Grok: <thinking>...</thinking>
+        - Budget models: <budget:thinking>...</budget:thinking>
+        """
         if not data:
             return
 
+        # Tag patterns to match (order matters - check longer patterns first)
+        OPEN_TAGS = ["<budget:thinking>", "<thinking>", "<think>"]
+        CLOSE_TAGS = ["</budget:thinking>", "</thinking>", "</think>"]
+
         while data:
             if self._in_think_tag:
-                end_idx = data.find("</think>")
+                # Find earliest closing tag
+                end_idx = -1
+                end_tag_len = 0
+                for close_tag in CLOSE_TAGS:
+                    idx = data.find(close_tag)
+                    if idx != -1 and (end_idx == -1 or idx < end_idx):
+                        end_idx = idx
+                        end_tag_len = len(close_tag)
+                
                 if end_idx == -1:
+                    # No closing tag found - all remaining data is reasoning
                     self._emit_reasoning_chunk(data)
                     return
+                
+                # Emit reasoning content up to closing tag
                 self._emit_reasoning_chunk(data[:end_idx])
-                data = data[end_idx + len("</think>"):]
+                data = data[end_idx + end_tag_len:]
                 self._in_think_tag = False
                 continue
 
-            start_idx = data.find("<think>")
+            # Find earliest opening tag
+            start_idx = -1
+            start_tag_len = 0
+            for open_tag in OPEN_TAGS:
+                idx = data.find(open_tag)
+                if idx != -1 and (start_idx == -1 or idx < start_idx):
+                    start_idx = idx
+                    start_tag_len = len(open_tag)
+            
             if start_idx == -1:
+                # No opening tag found - all remaining data is text
                 self._emit_text_chunk(data)
                 return
+            
+            # Emit text before opening tag
             if start_idx > 0:
                 self._emit_text_chunk(data[:start_idx])
-            data = data[start_idx + len("<think>"):]
+            
+            data = data[start_idx + start_tag_len:]
             self._in_think_tag = True
 
     def _close_reasoning(self):
@@ -549,6 +582,77 @@ class AISDKCallbackHandler:
             logger.warning(f"JSON sanitization failed: {e}")
             return {"error": "payload_not_serializable", "type": str(type(payload))}
 
+    def _normalize_token_value(self, value: Any) -> Optional[float]:
+        """Normalize token values to numeric types while ignoring booleans."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and not value.is_integer():
+                return value
+            return int(value)
+        return None
+
+    def _extract_usage_payload(self, result: Any) -> Optional[Dict[str, Any]]:
+        """Extract usage metrics from AgentResult if available."""
+        if not result:
+            return None
+
+        summary = None
+        metrics = getattr(result, "metrics", None)
+        if metrics and hasattr(metrics, "get_summary"):
+            try:
+                summary = metrics.get_summary()
+            except Exception as e:
+                logger.debug(f"Usage summary unavailable: {e}")
+                summary = None
+
+        accumulated_usage = None
+        if isinstance(summary, dict):
+            accumulated_usage = summary.get("accumulated_usage") or summary.get("usage")
+        if accumulated_usage is None and hasattr(result, "accumulated_usage"):
+            accumulated_usage = getattr(result, "accumulated_usage")
+
+        usage_payload: Dict[str, Any] = {}
+
+        if isinstance(accumulated_usage, dict):
+            input_tokens = self._normalize_token_value(accumulated_usage.get("inputTokens"))
+            output_tokens = self._normalize_token_value(accumulated_usage.get("outputTokens"))
+            total_tokens = self._normalize_token_value(
+                accumulated_usage.get("totalTokens") or accumulated_usage.get("total_tokens")
+            )
+
+            if input_tokens is not None:
+                usage_payload["inputTokens"] = input_tokens
+            if output_tokens is not None:
+                usage_payload["outputTokens"] = output_tokens
+            if total_tokens is not None:
+                usage_payload["totalTokens"] = total_tokens
+
+            reasoning_tokens = self._normalize_token_value(
+                accumulated_usage.get("reasoningTokens") or accumulated_usage.get("reasoning_tokens")
+            )
+            if reasoning_tokens is None:
+                details = accumulated_usage.get("completion_tokens_details")
+                if isinstance(details, dict):
+                    reasoning_tokens = self._normalize_token_value(
+                        details.get("reasoning_tokens") or details.get("reasoningTokens")
+                    )
+            if reasoning_tokens is not None:
+                usage_payload["reasoningTokens"] = reasoning_tokens
+
+        if "reasoningTokens" not in usage_payload and isinstance(summary, dict):
+            details = summary.get("accumulated_usage_details") or summary.get("usage_details")
+            if isinstance(details, dict):
+                completion_details = details.get("completion_tokens_details")
+                if isinstance(completion_details, dict):
+                    reasoning_tokens = self._normalize_token_value(
+                        completion_details.get("reasoning_tokens") or completion_details.get("reasoningTokens")
+                    )
+                    if reasoning_tokens is not None:
+                        usage_payload["reasoningTokens"] = reasoning_tokens
+
+        return usage_payload or None
+
     def __call__(self, **kwargs: Any) -> None:
         """
         Process Strands callback event and emit AI SDK v5 SSE events.
@@ -662,11 +766,12 @@ class AISDKCallbackHandler:
             if status == "error":
                 error_text = content[0].get("text", "Tool execution failed") if content else "Tool execution failed"
                 self.emit(self.emitter.emit_tool_output_error(tool_id, error_text, tool_name))
+                output = {"error": error_text}
             else:
                 output = content[0] if len(content) == 1 else content
 
             # Check if this is an orchestration tool (swarm/workflow/graph)
-            if self._is_orchestration_tool(tool_name):
+            if status != "error" and self._is_orchestration_tool(tool_name):
                 self._emit_workflow_visualization(tool_name, output, tool_id)
 
             # CRITICAL: Sanitize output for JSON serialization (handles bytes from image_reader, screenshots, etc.)
@@ -710,6 +815,10 @@ class AISDKCallbackHandler:
         # Close any remaining open blocks
         self._close_reasoning()
         self._close_text()
+
+        usage_payload = self._extract_usage_payload(result)
+        if usage_payload:
+            self.emit(self.emitter.emit_data_part("usage", usage_payload))
 
         # Extract stop reason from AgentResult if provided
         stop_reason = finish_reason

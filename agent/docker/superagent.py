@@ -35,6 +35,12 @@ from strands_tools.a2a_client import A2AClientToolProvider
 # Global state for MCP clients
 _mcp_clients: Dict[str, MCPClient] = {}
 MCP_SERVERS_DIR = Path("/app/mcp-servers")
+LITELLM_TIMEOUT_SECONDS = int(os.getenv("LITELLM_TIMEOUT_SECONDS", "300"))
+LITELLM_STREAM_TIMEOUT_SECONDS = int(os.getenv("LITELLM_STREAM_TIMEOUT_SECONDS", "30"))
+LITELLM_DEFAULT_PARAMS = {
+    "timeout": LITELLM_TIMEOUT_SECONDS,
+    "stream_timeout": LITELLM_STREAM_TIMEOUT_SECONDS,
+}
 
 AVAILABLE_MCP_SERVERS = {
     "cms-coverage": "cms-coverage-mcp-server/server.py",
@@ -164,11 +170,12 @@ def create_litellm_model() -> LiteLLMModel:
         model_id="xai/grok-4-1-fast-reasoning",
         client_args={
             "api_key": os.getenv("XAI_API_KEY"),
-            "merge_reasoning_content_in_choices": True
         },
         params={
             "temperature": 1.0,
-            "max_tokens": 200000
+            "max_tokens": 200000,
+            "reasoning_effort": "high",
+            **LITELLM_DEFAULT_PARAMS,
         }
     )
 

@@ -176,4 +176,7 @@ export function SearchLayout({
   )
 }
 
+// Alias for premium naming convention
+export const PremiumSearchLayout = SearchLayout
+
 export default SearchLayout

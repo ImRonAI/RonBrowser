@@ -1,13 +1,20 @@
 /**
- * Search Results Page
+ * Search Results Page - Premium Redesign
  *
- * Page component that displays search results using the SearchLayout component.
- * Fetches live results from sonar-reasoning-pro API.
+ * A luxurious, dark-themed search results experience inspired by 
+ * v0.dev, Bolt.new, and Lovable.dev vibe coding platforms.
+ * 
+ * Features:
+ * - Chain of Thought UI with reasoning visualization
+ * - Inline citations and premium sources display
+ * - Dynamic result cards with selection system
+ * - Browser automation preview panel
+ * - Seamless chat integration
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import type { UIMessage } from '@ai-sdk/react'
-import { SearchLayout } from '@/components/search-results'
+import { PremiumSearchLayout } from '@/components/search-results/SearchLayout'
 import { useSearchStore } from '@/stores/searchStore'
 import type {
   SearchResponse,
@@ -16,8 +23,18 @@ import type {
 import type { Citation } from '@/components/ai-elements/response-with-citations'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SearchChat } from '@/components/search-results/SearchChat'
-import { List, MessageCircle } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { PreviewPanel } from '@/components/ai-elements/preview-panel'
+import { usePreviewStore } from '@/stores/previewStore'
+
+// Icons (lucide)
+import { 
+  ArrowLeft, 
+  MessageSquare, 
+  LayoutGrid,
+  Sparkles,
+  RefreshCw
+} from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENT
@@ -32,6 +49,13 @@ type ToolExecution = {
   input?: unknown
   output?: unknown
   errorText?: string
+}
+
+type UsageData = {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
 }
 
 type SourceData = {
@@ -49,18 +73,27 @@ function buildSearchAgentParts({
   reasoningText,
   toolExecutions,
   isStreaming,
+  usage,
 }: {
   answerText: string
   reasoningText: string
   toolExecutions: ToolExecution[]
   isStreaming: boolean
+  usage: UsageData | null
 }): MessagePart[] {
   const parts: MessagePart[] = []
+
+  if (usage) {
+    parts.push({
+      type: 'data-usage',
+      data: usage,
+    } as MessagePart)
+  }
 
   if (reasoningText || isStreaming) {
     parts.push({
       type: 'reasoning',
-      text: reasoningText || 'Thinking...',
+      text: reasoningText || 'Analyzing your query...',
       state: isStreaming ? 'streaming' : 'done',
     } as MessagePart)
   }
@@ -77,7 +110,7 @@ function buildSearchAgentParts({
     } as MessagePart)
   })
 
-  const finalText = answerText || (isStreaming ? 'Generating answer...' : '')
+  const finalText = answerText || (isStreaming ? '' : '')
   if (finalText) {
     parts.push({
       type: 'text',
@@ -236,15 +269,17 @@ export function SearchResultsPage() {
   const [citations, setCitations] = useState<Citation[]>([])
   const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
   const [isAgentStreaming, setIsAgentStreaming] = useState(false)
+  const [usage, setUsage] = useState<UsageData | null>(null)
   const [agentError, setAgentError] = useState<string | null>(null)
+  const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set())
   
   // View State
   const [viewMode, setViewMode] = useState<'results' | 'chat'>('results')
   const [chatContext, setChatContext] = useState<UniversalResult | null>(null)
 
   const { query: storeQuery, clearSearch } = useSearchStore()
+  const { isOpen: isPreviewOpen } = usePreviewStore()
 
-  // Use the query from the store if available, otherwise use the mock data query
   const searchQuery = storeQuery || 'artificial intelligence and machine learning'
 
   const upsertToolExecution = useCallback((toolCallId: string, update: Partial<ToolExecution>) => {
@@ -277,11 +312,12 @@ export function SearchResultsPage() {
       reasoningText,
       toolExecutions,
       isStreaming: isAgentStreaming,
+      usage,
     }),
     citations,
     isStreaming: isAgentStreaming,
     error: agentError,
-  }), [answerText, reasoningText, toolExecutions, isAgentStreaming, citations, agentError])
+  }), [answerText, reasoningText, toolExecutions, isAgentStreaming, citations, agentError, usage])
 
   // Fetch search results on mount and when query changes
   useEffect(() => {
@@ -297,6 +333,7 @@ export function SearchResultsPage() {
       setReasoningText('')
       setCitations([])
       setToolExecutions([])
+      setUsage(null)
 
       try {
         const response = await fetch('http://localhost:8765/api/search-agent/stream', {
@@ -419,6 +456,12 @@ export function SearchResultsPage() {
                     setAgentError(parsed.errorText || 'Tool error')
                     break
 
+                  case 'data-usage':
+                    if (parsed.data) {
+                      setUsage(parsed.data)
+                    }
+                    break
+
                   case 'source-url': {
                     const url = parsed.url || parsed.sourceId || ''
                     if (url) {
@@ -538,100 +581,138 @@ export function SearchResultsPage() {
     setViewMode('chat')
   }
 
+  const handleResultSelect = useCallback((resultId: string) => {
+    setSelectedResults(prev => {
+      const next = new Set(prev)
+      if (next.has(resultId)) {
+        next.delete(resultId)
+      } else {
+        next.add(resultId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleOpenChat = useCallback(() => {
+    setViewMode('chat')
+  }, [])
+
   return (
-    <div className="min-h-screen bg-surface-0 dark:bg-surface-900">
-      {/* Page Header */}
-      <div className="border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-surface-950 dark:bg-surface-950 relative overflow-hidden">
+      {/* Premium Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Gradient orbs */}
+        <div className="absolute -top-[40%] -left-[20%] w-[80%] h-[80%] rounded-full bg-gradient-to-br from-accent-indigo/8 via-accent-light/5 to-transparent blur-3xl" />
+        <div className="absolute -bottom-[30%] -right-[20%] w-[70%] h-[70%] rounded-full bg-gradient-to-tl from-accent-muted/6 via-accent-light/4 to-transparent blur-3xl" />
+        
+        {/* Subtle grid pattern */}
+        <div 
+          className="absolute inset-0 opacity-[0.02]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(99, 102, 241, 0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(99, 102, 241, 0.3) 1px, transparent 1px)
+            `,
+            backgroundSize: '60px 60px'
+          }}
+        />
+      </div>
+
+      {/* Header */}
+      <motion.header 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-10 border-b border-surface-800/60 bg-surface-900/40 backdrop-blur-xl"
+      >
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
+            {/* Left: Back + Query */}
             <div className="flex items-center gap-4">
-              {/* Back button */}
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleBackToHome}
-                className="p-2 rounded-lg text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-                title="Back to Home"
+                className="p-2.5 rounded-xl bg-surface-800/50 border border-surface-700/50 text-ink-inverse-muted hover:text-ink-inverse hover:border-accent-light/30 hover:bg-surface-800/80 transition-all duration-200"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <div className="flex items-center gap-2">
-                <svg 
-                  className="w-6 h-6 text-accent dark:text-accent-light" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
-                  />
-                </svg>
+                <ArrowLeft className="w-4 h-4" />
+              </motion.button>
+              
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent-indigo to-accent-light rounded-xl blur opacity-40" />
+                  <div className="relative p-2 rounded-xl bg-gradient-to-br from-accent-indigo to-accent-light">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-ink dark:text-ink-inverse">
+                  <h1 className="text-lg font-light text-ink-inverse tracking-tight">
                     Search Results
                   </h1>
-                  <p className="text-sm text-ink-muted dark:text-ink-inverse-muted mt-1">
-                    Query: <span className="font-medium text-ink dark:text-ink-inverse">"{searchQuery}"</span>
+                  <p className="text-sm text-ink-inverse-muted font-light">
+                    "{searchQuery}"
                   </p>
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
               {/* View Toggle */}
-              <div className="flex items-center bg-surface-200/50 dark:bg-surface-700/50 rounded-lg p-1">
+              <div className="flex items-center bg-surface-800/60 border border-surface-700/50 rounded-xl p-1">
                 <button
                   onClick={() => setViewMode('results')}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-light transition-all duration-200",
                     viewMode === 'results'
-                      ? "bg-surface-0 dark:bg-surface-800 text-ink dark:text-ink-inverse shadow-sm"
-                      : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse"
+                      ? "bg-gradient-to-r from-accent-indigo to-accent-light text-white shadow-lg shadow-accent-indigo/25"
+                      : "text-ink-inverse-muted hover:text-ink-inverse"
                   )}
                 >
-                  <List className="w-4 h-4" />
-                  Results
+                  <LayoutGrid className="w-4 h-4" />
+                  <span>Results</span>
                 </button>
                 <button
                   onClick={() => setViewMode('chat')}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-light transition-all duration-200",
                     viewMode === 'chat'
-                      ? "bg-surface-0 dark:bg-surface-800 text-ink dark:text-ink-inverse shadow-sm"
-                      : "text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse"
+                      ? "bg-gradient-to-r from-accent-indigo to-accent-light text-white shadow-lg shadow-accent-indigo/25"
+                      : "text-ink-inverse-muted hover:text-ink-inverse"
                   )}
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  Chat
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Chat</span>
                 </button>
               </div>
 
-              <div className="w-px h-8 bg-surface-200 dark:bg-surface-700 mx-1" />
+              <div className="w-px h-8 bg-surface-700/50 mx-1" />
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className={`
-                  px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                  ${isLoading 
-                    ? 'bg-surface-200 dark:bg-surface-700 text-ink-muted dark:text-ink-inverse-muted cursor-not-allowed'
-                    : 'bg-surface-100 dark:bg-surface-800 text-ink dark:text-ink-inverse hover:bg-surface-200 dark:hover:bg-surface-700'
-                  }
-                `}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-light transition-all duration-200 border",
+                  isLoading
+                    ? "bg-surface-800/40 border-surface-700/30 text-ink-inverse-muted cursor-not-allowed"
+                    : "bg-surface-800/60 border-surface-700/50 text-ink-inverse-secondary hover:text-ink-inverse hover:border-accent-light/30"
+                )}
               >
-                {isLoading ? 'Refreshing...' : 'Refresh'}
-              </button>
+                <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+                <span>{isLoading ? 'Loading' : 'Refresh'}</span>
+              </motion.button>
             </div>
           </div>
         </div>
-      </div>
+      </motion.header>
 
-      {/* Search Layout */}
-      {/* Content Area */}
-      <div className="flex-1 overflow-hidden relative">
+      {/* Main Content */}
+      <div className={cn(
+        "relative z-10 flex-1 transition-all duration-300",
+        isPreviewOpen ? "mr-[480px]" : ""
+      )}>
         <AnimatePresence mode="wait">
           {viewMode === 'results' ? (
             <motion.div
@@ -639,18 +720,20 @@ export function SearchResultsPage() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="max-w-7xl mx-auto px-6 py-8"
             >
-              <SearchLayout
+              <PremiumSearchLayout
                 searchResponse={searchResponse}
                 searchQuery={searchQuery}
                 isLoading={isLoading}
                 error={error}
                 agentState={agentState}
+                selectedResults={selectedResults}
                 onResultClick={handleResultClick}
-                onFilterChange={handleFilterChange}
+                onResultSelect={handleResultSelect}
                 onChatClick={handleChatClick}
+                onOpenChat={handleOpenChat}
               />
             </motion.div>
           ) : (
@@ -659,8 +742,8 @@ export function SearchResultsPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.2 }}
-              className="h-[calc(100vh-80px)]" // Adjust based on header height
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="h-[calc(100vh-73px)]"
             >
               <SearchChat
                 searchResult={{
@@ -683,6 +766,9 @@ export function SearchResultsPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Browser Automation Preview Panel */}
+      <PreviewPanel variant="sliding" />
     </div>
   )
 }

@@ -38,6 +38,13 @@ interface ReasoningStep {
   type: string
 }
 
+type UsageData = {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -49,6 +56,7 @@ interface Message {
   searchResults?: SourceData[]
   images?: string[]
   toolExecutions?: ToolExecution[]
+  usage?: UsageData
 }
 
 // Export for external use
@@ -153,6 +161,13 @@ function buildSearchChatParts(message: Message): MessagePart[] {
         .map((step) => `**${step.type}**\n${step.thought}`)
         .join('\n\n')
     : ''
+
+  if (message.usage) {
+    parts.push({
+      type: 'data-usage',
+      data: message.usage,
+    } as MessagePart)
+  }
 
   if (reasoningText) {
     parts.push({
@@ -485,6 +500,12 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
                   searchResults: searchResults.length > 0 ? searchResults : undefined,
                 })
                 setHasSentContext(true)
+                break
+
+              case 'data-usage':
+                if (event.data) {
+                  updateAssistantMessage({ usage: event.data })
+                }
                 break
 
               case 'error':

@@ -1,8 +1,8 @@
 /**
- * UniversalResultCard Component
+ * UniversalResultCard Component - Premium Redesign
  * 
  * A polymorphic component that renders distinct layouts for different search result types
- * while sharing a common Action Toolbar with Open-to-Chat integration.
+ * with premium dark theme styling, purple accent highlights, and selection system.
  * 
  * Supports 10 result types: video, audio, podcast, web, article, social, travel, academic, image, code
  */
@@ -59,9 +59,217 @@ import {
   Code,
   ChevronDown,
   ChevronRight,
+  Check,
+  Globe,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { ResultTypeLabels } from '@/pages/types/search'
+import { motion } from 'framer-motion'
+import { cn } from '@/utils/cn'
+
+/**
+ * Props for the PremiumResultCard component
+ */
+export interface PremiumResultCardProps {
+  result: UniversalResult
+  searchQuery?: string
+  className?: string
+  isSelected?: boolean
+  onClick?: () => void
+  onSelect?: () => void
+  onChatClick?: (result: UniversalResult) => void
+}
+
+/**
+ * Premium Result Card - Luxurious dark theme with purple accents
+ */
+export const PremiumResultCard = memo(function PremiumResultCard({
+  result,
+  searchQuery,
+  className = '',
+  isSelected = false,
+  onClick,
+  onSelect,
+  onChatClick,
+}: PremiumResultCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Get display title
+  const displayTitle = isSocialMediaResult(result) 
+    ? `${result.author || 'User'} - ${result.platform}` 
+    : result.title
+
+  // Get favicon or domain
+  const domain = result.url ? getDomainFromUrl(result.url) : ''
+  const { favicon } = result as { favicon?: string }
+
+  return (
+    <motion.div
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.2 }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={cn(
+        'group relative rounded-2xl overflow-hidden transition-all duration-300',
+        'bg-surface-900/60 backdrop-blur-sm border',
+        isSelected 
+          ? 'border-accent-light/50 shadow-lg shadow-accent-indigo/10' 
+          : 'border-surface-700/40 hover:border-surface-600/60',
+        className
+      )}
+    >
+      {/* Selection indicator glow */}
+      {isSelected && (
+        <div className="absolute inset-0 bg-gradient-to-br from-accent-indigo/5 to-accent-light/5 pointer-events-none" />
+      )}
+      
+      {/* Selection checkbox */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelect?.()
+        }}
+        title={isSelected ? "Deselect result" : "Select result"}
+        aria-label={isSelected ? "Deselect result" : "Select result"}
+        className={cn(
+          'absolute top-3 right-3 z-10 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200',
+          isSelected
+            ? 'bg-gradient-to-br from-accent-indigo to-accent-light text-white'
+            : 'bg-surface-800/80 border border-surface-600/50 text-transparent hover:border-accent-light/50',
+          'opacity-0 group-hover:opacity-100',
+          isSelected && 'opacity-100'
+        )}
+      >
+        <Check className="w-3.5 h-3.5" />
+      </button>
+
+      <div onClick={onClick} className="cursor-pointer">
+        {/* Card Header */}
+        <div className="p-4 pb-2">
+          <div className="flex items-start gap-3">
+            {/* Favicon/Icon */}
+            <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-surface-800/80 border border-surface-700/50 flex items-center justify-center">
+              {favicon ? (
+                <img src={favicon} alt="" className="w-4 h-4 rounded" />
+              ) : (
+                <Globe className="w-4 h-4 text-ink-inverse-muted" />
+              )}
+            </div>
+            
+            <div className="flex-1 min-w-0 pr-8">
+              <h3 className="text-sm font-light text-ink-inverse line-clamp-2 group-hover:text-accent-light transition-colors">
+                {displayTitle}
+              </h3>
+              <p className="text-xs text-ink-inverse-muted mt-1 truncate">
+                {domain}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-4 pb-3">
+          {/* Snippet */}
+          {(result as any).snippet && (
+            <p className={cn(
+              'text-xs text-ink-inverse-secondary font-light leading-relaxed',
+              isExpanded ? '' : 'line-clamp-3'
+            )}>
+              {(result as any).snippet}
+            </p>
+          )}
+
+          {/* Type badge and metadata */}
+          <div className="flex items-center gap-2 mt-3">
+            <Badge 
+              variant="secondary"
+              className="bg-surface-800/80 border-surface-700/50 text-ink-inverse-muted text-[10px] px-2 py-0.5"
+            >
+              {ResultTypeLabels[result.type]}
+            </Badge>
+            
+            {/* Result-specific metadata */}
+            {isVideoResult(result) && result.duration && (
+              <Badge variant="outline" className="border-surface-700/50 text-ink-inverse-muted text-[10px]">
+                <Video className="w-3 h-3 mr-1" />
+                {formatDuration(result.duration)}
+              </Badge>
+            )}
+            {isArticleResult(result) && result.readTime && (
+              <Badge variant="outline" className="border-surface-700/50 text-ink-inverse-muted text-[10px]">
+                <Clock className="w-3 h-3 mr-1" />
+                {result.readTime} min
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Expand/Collapse for more content */}
+        {(result as any).snippet && (result as any).snippet.length > 150 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsExpanded(!isExpanded)
+            }}
+            className="w-full px-4 py-2 text-xs text-accent-light hover:text-accent-muted transition-colors flex items-center justify-center gap-1 border-t border-surface-700/30"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronDown className="w-3 h-3" />
+                <span>See less</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="w-3 h-3" />
+                <span>See more</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      <div className="px-4 py-3 border-t border-surface-700/30 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex items-center gap-2">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onChatClick?.(result)
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-accent-indigo to-accent-light text-white text-xs font-light"
+          >
+            <MessageCircle className="w-3 h-3" />
+            <span>Chat</span>
+          </motion.button>
+          
+          <motion.a
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            href={result.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-800/80 border border-surface-700/50 text-ink-inverse-muted hover:text-ink-inverse text-xs font-light transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+            <span>Open</span>
+          </motion.a>
+        </div>
+      </div>
+    </motion.div>
+  )
+})
+
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
 
 /**
  * Props for the UniversalResultCard component

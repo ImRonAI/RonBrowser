@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls as ReactFlowControls,
   MiniMap,
@@ -85,7 +86,7 @@ const edgeTypes: EdgeTypes = {
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function AgentGraphCanvas({
+function AgentGraphCanvasInner({
   className,
   onNodeClick,
   onEdgeClick,
@@ -458,6 +459,18 @@ export function AgentGraphCanvas({
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Export with Provider
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function AgentGraphCanvas(props: AgentGraphCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <AgentGraphCanvasInner {...props} />
+    </ReactFlowProvider>
   );
 }
 

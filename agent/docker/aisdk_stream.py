@@ -183,6 +183,76 @@ class AISDKCallbackHandler:
         except Exception:
             return payload
 
+    def _normalize_token_value(self, value: Any) -> Optional[float]:
+        """Normalize token values to numeric types while ignoring booleans."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and not value.is_integer():
+                return value
+            return int(value)
+        return None
+
+    def _extract_usage_payload(self, result: Any) -> Optional[Dict[str, Any]]:
+        """Extract usage metrics from AgentResult if available."""
+        if not result:
+            return None
+
+        summary = None
+        metrics = getattr(result, "metrics", None)
+        if metrics and hasattr(metrics, "get_summary"):
+            try:
+                summary = metrics.get_summary()
+            except Exception:
+                summary = None
+
+        accumulated_usage = None
+        if isinstance(summary, dict):
+            accumulated_usage = summary.get("accumulated_usage") or summary.get("usage")
+        if accumulated_usage is None and hasattr(result, "accumulated_usage"):
+            accumulated_usage = getattr(result, "accumulated_usage")
+
+        usage_payload: Dict[str, Any] = {}
+
+        if isinstance(accumulated_usage, dict):
+            input_tokens = self._normalize_token_value(accumulated_usage.get("inputTokens"))
+            output_tokens = self._normalize_token_value(accumulated_usage.get("outputTokens"))
+            total_tokens = self._normalize_token_value(
+                accumulated_usage.get("totalTokens") or accumulated_usage.get("total_tokens")
+            )
+
+            if input_tokens is not None:
+                usage_payload["inputTokens"] = input_tokens
+            if output_tokens is not None:
+                usage_payload["outputTokens"] = output_tokens
+            if total_tokens is not None:
+                usage_payload["totalTokens"] = total_tokens
+
+            reasoning_tokens = self._normalize_token_value(
+                accumulated_usage.get("reasoningTokens") or accumulated_usage.get("reasoning_tokens")
+            )
+            if reasoning_tokens is None:
+                details = accumulated_usage.get("completion_tokens_details")
+                if isinstance(details, dict):
+                    reasoning_tokens = self._normalize_token_value(
+                        details.get("reasoning_tokens") or details.get("reasoningTokens")
+                    )
+            if reasoning_tokens is not None:
+                usage_payload["reasoningTokens"] = reasoning_tokens
+
+        if "reasoningTokens" not in usage_payload and isinstance(summary, dict):
+            details = summary.get("accumulated_usage_details") or summary.get("usage_details")
+            if isinstance(details, dict):
+                completion_details = details.get("completion_tokens_details")
+                if isinstance(completion_details, dict):
+                    reasoning_tokens = self._normalize_token_value(
+                        completion_details.get("reasoning_tokens") or completion_details.get("reasoningTokens")
+                    )
+                    if reasoning_tokens is not None:
+                        usage_payload["reasoningTokens"] = reasoning_tokens
+
+        return usage_payload or None
+
     def _new_id(self, prefix: str = "") -> str:
         """Generate unique ID for blocks."""
         return f"{prefix}{uuid.uuid4().hex[:8]}"
@@ -353,6 +423,10 @@ class AISDKCallbackHandler:
             if self.in_step:
                 self.emit(self.emitter.emit_finish_step())
                 self.in_step = False
+
+            usage_payload = self._extract_usage_payload(result)
+            if usage_payload:
+                self.emit(self.emitter.emit_data_part("usage", usage_payload))
 
             # Extract finish reason from result
             finish_reason = getattr(result, 'stop_reason', 'stop') if hasattr(result, 'stop_reason') else 'stop'

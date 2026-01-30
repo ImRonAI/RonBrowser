@@ -7,13 +7,14 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { CollapsibleAgentTask } from "@/components/ai-elements/chain-of-thought-agent";
 import { AgentWorkflowCanvas } from "@/components/ai-elements/agent-workflow-canvas";
 import { AgentSwarmCanvas } from "@/components/ai-elements/agent-swarm-canvas";
 import { AgentGraphCanvas } from "@/components/ai-elements/agent-graph-canvas/AgentGraphCanvas";
 import { SubagentTransparencyPanel } from "./SubagentTransparencyPanel";
 import { useOrchestrationStore, type CompletedNodeOutput } from "@/stores/orchestrationStore";
+import { initOrchestrationFromToolInput } from "@/utils/orchestration-stream";
 import type { TaskStatus } from "@/components/ai-elements/task";
 import type {
   AgentResult,
@@ -42,6 +43,7 @@ export interface AgentFormationAccordionProps {
   onSwarmHandoff?: (handoff: HandoffMessage) => void;
   onGraphNodeClick?: (node: StrandsGraphNode) => void;
   onGraphEdgeClick?: (edge: StrandsGraphEdge) => void;
+  toolInput?: unknown;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,6 +63,7 @@ export function AgentFormationAccordion({
   onSwarmHandoff,
   onGraphNodeClick,
   onGraphEdgeClick,
+  toolInput,
 }: AgentFormationAccordionProps) {
   const {
     workflowTasks,
@@ -78,6 +81,15 @@ export function AgentFormationAccordion({
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"single" | "all">("single");
+  const didInitRef = useRef(false);
+
+  useEffect(() => {
+    if (!toolInput || didInitRef.current) return;
+    const didInit = initOrchestrationFromToolInput(formationType, toolInput);
+    if (didInit) {
+      didInitRef.current = true;
+    }
+  }, [formationType, toolInput]);
   const effectiveActiveAgentIds = useMemo(() => {
     const derived =
       formationType === "workflow"
@@ -112,6 +124,23 @@ export function AgentFormationAccordion({
       }
     }
   }, [effectiveActiveAgentIds, selectedAgentId, isFormationComplete, formationType, workflowTasks, swarmNodes, graphNodes]);
+
+  // ─── Initialize orchestration from provided tool input if store is empty ───
+  useEffect(() => {
+    if (!toolInput) return;
+
+    if (formationType === 'workflow' && workflowTasks.length === 0) {
+      initOrchestrationFromToolInput('workflow', toolInput);
+    }
+
+    if (formationType === 'swarm' && swarmNodes.length === 0) {
+      initOrchestrationFromToolInput('swarm', toolInput);
+    }
+
+    if (formationType === 'graph' && graphNodes.length === 0) {
+      initOrchestrationFromToolInput('graph', toolInput);
+    }
+  }, [toolInput, formationType, workflowTasks.length, swarmNodes.length, graphNodes.length]);
 
   // ─── Cleanup: switch tab if selected agent completes ───
   useEffect(() => {

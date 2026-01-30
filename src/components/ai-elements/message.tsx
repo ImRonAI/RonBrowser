@@ -108,9 +108,10 @@ export function MessageContent({ children, variant = 'contained', className }: M
         className={cn(
           variant === 'contained' && [
             'px-4 py-3 rounded-2xl',
-            // User styling
-            'group-[.is-user]:bg-accent group-[.is-user]:dark:bg-accent-light',
-            'group-[.is-user]:text-white group-[.is-user]:rounded-br-md',
+            // User styling - blurple gradient matching selected tab
+            'group-[.is-user]:bg-gradient-to-r group-[.is-user]:from-indigo-600 group-[.is-user]:to-indigo-800',
+            'group-[.is-user]:text-white group-[.is-user]:font-medium group-[.is-user]:rounded-br-md',
+            'group-[.is-user]:shadow-lg group-[.is-user]:shadow-indigo-700/30',
             // Assistant styling
             'group-[.is-assistant]:bg-surface-100 group-[.is-assistant]:dark:bg-surface-800',
             'group-[.is-assistant]:text-ink group-[.is-assistant]:dark:text-ink-inverse',

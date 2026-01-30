@@ -48,6 +48,7 @@ export interface TokenUsage {
   input: number
   output: number
   total: number
+  reasoningTokens?: number
 }
 
 export type StopReason = 'end_turn' | 'max_tokens' | 'tool_use' | 'stop_sequence'
@@ -108,7 +109,7 @@ export interface AgentStreamEvent {
   type?: string
 
   // Text streaming
-  data?: string
+  data?: unknown
   reasoningText?: string
   
   // Event loop lifecycle

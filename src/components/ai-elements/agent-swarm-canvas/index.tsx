@@ -15,6 +15,7 @@
 import { useEffect, useCallback, useState } from "react";
 import {
   ReactFlow,
+  ReactFlowProvider,
   MiniMap,
   Controls,
   Background,
@@ -109,7 +110,7 @@ interface AgentSwarmCanvasProps {
   showEntryBadges?: boolean;
 }
 
-export function AgentSwarmCanvas({
+function AgentSwarmCanvasInner({
   className,
   onNodeClick,
   onHandoffClick,
@@ -367,5 +368,15 @@ export function AgentSwarmCanvas({
   );
 }
 
-// Export the main component
+// Export with Provider
+function AgentSwarmCanvas(props: AgentSwarmCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <AgentSwarmCanvasInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+// Named and default exports for flexible import styles
+export { AgentSwarmCanvas };
 export default AgentSwarmCanvas;

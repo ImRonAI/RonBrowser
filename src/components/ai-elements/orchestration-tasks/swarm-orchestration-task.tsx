@@ -20,6 +20,7 @@ export interface SwarmOrchestrationTaskProps {
   className?: string;
   onNodeClick?: (node: StrandsSwarmNode) => void;
   onHandoff?: (handoff: HandoffMessage) => void;
+  toolInput?: unknown;
 }
 
 export function SwarmOrchestrationTask({
@@ -29,6 +30,7 @@ export function SwarmOrchestrationTask({
   className,
   onNodeClick,
   onHandoff,
+  toolInput,
 }: SwarmOrchestrationTaskProps) {
   const { swarmNodes } = useOrchestrationStore();
 
@@ -53,6 +55,7 @@ export function SwarmOrchestrationTask({
       className={className}
       onSwarmNodeClick={onNodeClick}
       onSwarmHandoff={onHandoff}
+      toolInput={toolInput}
     />
   );
 }

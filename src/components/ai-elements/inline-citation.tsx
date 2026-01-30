@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import {
   type ComponentProps,
-  type ReactNode,
   createContext,
   useCallback,
   useContext,
@@ -56,13 +55,11 @@ export const InlineCitationCard = (props: InlineCitationCardProps) => (
 
 export type InlineCitationCardTriggerProps = ComponentProps<typeof Badge> & {
   sources: string[];
-  children?: ReactNode;
 };
 
 export const InlineCitationCardTrigger = ({
   sources,
   className,
-  children,
   ...props
 }: InlineCitationCardTriggerProps) => (
   <HoverCardTrigger asChild>
@@ -71,15 +68,14 @@ export const InlineCitationCardTrigger = ({
       variant="secondary"
       {...props}
     >
-      {children ??
-        (sources[0] ? (
-          <>
-            {new URL(sources[0]).hostname}{" "}
-            {sources.length > 1 && `+${sources.length - 1}`}
-          </>
-        ) : (
-          "unknown"
-        ))}
+      {sources[0] ? (
+        <>
+          {new URL(sources[0]).hostname}{" "}
+          {sources.length > 1 && `+${sources.length - 1}`}
+        </>
+      ) : (
+        "unknown"
+      )}
     </Badge>
   </HoverCardTrigger>
 );

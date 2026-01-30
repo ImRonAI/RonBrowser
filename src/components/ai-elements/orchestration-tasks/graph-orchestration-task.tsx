@@ -20,6 +20,7 @@ export interface GraphOrchestrationTaskProps {
   className?: string;
   onNodeClick?: (node: StrandsGraphNode) => void;
   onEdgeClick?: (edge: StrandsGraphEdge) => void;
+  toolInput?: unknown;
 }
 
 export function GraphOrchestrationTask({
@@ -29,6 +30,7 @@ export function GraphOrchestrationTask({
   className,
   onNodeClick,
   onEdgeClick,
+  toolInput,
 }: GraphOrchestrationTaskProps) {
   const { graphNodes } = useOrchestrationStore();
 
@@ -51,6 +53,7 @@ export function GraphOrchestrationTask({
       className={className}
       onGraphNodeClick={onNodeClick}
       onGraphEdgeClick={onEdgeClick}
+      toolInput={toolInput}
     />
   );
 }

@@ -154,7 +154,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
       const agentEvent = event as AgentStreamEvent
       
       // Handle text data
-      if (agentEvent.data) {
+      if (typeof agentEvent.data === 'string') {
         const current = get().currentStreamingMessage || ''
         set({ currentStreamingMessage: current + agentEvent.data })
       }
@@ -803,7 +803,7 @@ function processSSELine(line: string, get: () => AgentState, set: (partial: Part
     try {
       const event = JSON.parse(data) as AgentStreamEvent
       
-      if (event.data) {
+      if (typeof event.data === 'string') {
         const current = get().currentStreamingMessage || ''
         set({ currentStreamingMessage: current + event.data })
       }
