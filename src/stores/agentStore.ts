@@ -152,11 +152,22 @@ export const useAgentStore = create<AgentState>((set, get) => {
       if (get().streamId !== streamId) return
       
       const agentEvent = event as AgentStreamEvent
-      
+      const eventType = agentEvent.type
+
+      const appendStreamingText = (chunk: string) => {
+        if (!chunk) return
+        const current = get().currentStreamingMessage || ''
+        set({ currentStreamingMessage: current + chunk })
+      }
+
+      // Handle AI SDK UIMessageStream text deltas
+      if (eventType === 'text-delta' && typeof agentEvent.delta === 'string') {
+        appendStreamingText(agentEvent.delta)
+      }
+
       // Handle text data
       if (typeof agentEvent.data === 'string') {
-        const current = get().currentStreamingMessage || ''
-        set({ currentStreamingMessage: current + agentEvent.data })
+        appendStreamingText(agentEvent.data)
       }
       
       // Handle reasoning text
@@ -177,7 +188,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
       }
 
       // Handle UIMessageStream tool events (tool-input / tool-output)
-      const toolEventType = agentEvent.type
+      const toolEventType = eventType
       if (toolEventType) {
         const toolCallId = agentEvent.toolCallId || get().currentToolUse?.id || generateId()
         const toolName = agentEvent.toolName || get().currentToolUse?.name || 'tool'
@@ -225,9 +236,19 @@ export const useAgentStore = create<AgentState>((set, get) => {
           }, 900)
         }
       }
+
+      if (eventType === 'error' && agentEvent.errorText) {
+        set({
+          isStreaming: false,
+          error: {
+            code: 'STREAM_ERROR',
+            message: agentEvent.errorText,
+          },
+        })
+      }
       
       // Handle completion
-      if (agentEvent.complete || agentEvent.result) {
+      if (agentEvent.complete || agentEvent.result || eventType === 'finish') {
         get().finalizeStreamingMessage()
       }
       
@@ -802,12 +823,21 @@ function processSSELine(line: string, get: () => AgentState, set: (partial: Part
 
     try {
       const event = JSON.parse(data) as AgentStreamEvent
-      
-      if (typeof event.data === 'string') {
+
+      const appendStreamingText = (chunk: string) => {
+        if (!chunk) return
         const current = get().currentStreamingMessage || ''
-        set({ currentStreamingMessage: current + event.data })
+        set({ currentStreamingMessage: current + chunk })
       }
-      
+
+      if (event.type === 'text-delta' && typeof event.delta === 'string') {
+        appendStreamingText(event.delta)
+      }
+
+      if (typeof event.data === 'string') {
+        appendStreamingText(event.data)
+      }
+
       if (event.current_tool_use?.name) {
         set({
           currentToolUse: {
@@ -818,8 +848,66 @@ function processSSELine(line: string, get: () => AgentState, set: (partial: Part
           }
         })
       }
+
+      if (event.type) {
+        const toolCallId = event.toolCallId || get().currentToolUse?.id || generateId()
+        const toolName = event.toolName || get().currentToolUse?.name || 'tool'
+
+        if (event.type === 'tool-input-start' || event.type === 'tool-input-available') {
+          set({
+            currentToolUse: {
+              id: toolCallId,
+              name: toolName,
+              input: event.input,
+              status: 'running',
+            }
+          })
+        }
+
+        if (event.type === 'tool-output-available') {
+          set({
+            currentToolUse: {
+              id: toolCallId,
+              name: toolName,
+              status: 'success',
+            }
+          })
+          setTimeout(() => {
+            const current = get().currentToolUse
+            if (current && current.id === toolCallId && current.status !== 'running') {
+              set({ currentToolUse: null })
+            }
+          }, 500)
+        }
+
+        if (event.type === 'tool-output-error') {
+          set({
+            currentToolUse: {
+              id: toolCallId,
+              name: toolName,
+              status: 'error',
+            }
+          })
+          setTimeout(() => {
+            const current = get().currentToolUse
+            if (current && current.id === toolCallId && current.status !== 'running') {
+              set({ currentToolUse: null })
+            }
+          }, 900)
+        }
+
+        if (event.type === 'error' && event.errorText) {
+          set({
+            isStreaming: false,
+            error: {
+              code: 'STREAM_ERROR',
+              message: event.errorText,
+            },
+          })
+        }
+      }
       
-      if (event.complete || event.result) {
+      if (event.complete || event.result || event.type === 'finish') {
         get().finalizeStreamingMessage()
       }
     } catch {

@@ -107,6 +107,9 @@ export interface ConversationContext {
 export interface AgentStreamEvent {
   // UIMessageStream event type
   type?: string
+  id?: string
+  delta?: string
+  finishReason?: string
 
   // Text streaming
   data?: unknown
@@ -267,4 +270,3 @@ export function hasToolUse(event: AgentStreamEvent): event is AgentStreamEvent &
 export function hasResult(event: AgentStreamEvent): event is AgentStreamEvent & { result: AgentResult } {
   return event.result !== undefined
 }
-
