@@ -184,6 +184,10 @@ export function NavigationDrawer() {
       navigateInternal('ron://execute')
       return
     }
+    if (tabId === 'build') {
+      navigateInternal('ron://build')
+      return
+    }
     navigateInternal('ron://home')
   }
 
@@ -257,7 +261,7 @@ export function NavigationDrawer() {
                     <ContextPicker
                       selectedContexts={selectedContexts}
                       onContextsChange={setSelectedContexts}
-                      placement="bottom"
+                      anchor="bottom"
                       className="flex-shrink-0"
                     />
 

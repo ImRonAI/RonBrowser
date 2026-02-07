@@ -254,22 +254,32 @@ export function AgentPanel() {
           leaveTo="translate-x-full"
         >
           <div className="relative ml-auto w-[420px] h-full pointer-events-auto">
-            {/* Panel Container */}
-            <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-850 border-l border-indigo-300/40 dark:border-surface-700 shadow-dramatic">
+            {/* Panel Container - Premium Frosted Glass */}
+            <div className="h-full flex flex-col bg-white/95 dark:bg-surface-900/95 backdrop-blur-xl border-l border-indigo-200/50 dark:border-indigo-900/50 shadow-2xl">
               
-              {/* Header - Ultra Minimal */}
+              {/* Subtle gradient overlay */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-indigo-500/5 to-violet-500/5 dark:from-indigo-500/10 dark:to-violet-500/10 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-indigo-500/3 to-transparent blur-2xl" />
+              </div>
+              
+              {/* Header - Ultra Premium */}
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.1 }}
-                className="flex-shrink-0 px-5 py-4 flex items-center justify-between border-b border-surface-100 dark:border-surface-800"
+                className="relative flex-shrink-0 px-5 py-4 flex items-center justify-between border-b border-indigo-100/50 dark:border-surface-800/80 bg-gradient-to-r from-white/50 via-indigo-50/30 to-white/50 dark:from-surface-900/50 dark:via-indigo-950/20 dark:to-surface-900/50"
               >
                 <div className="flex items-center gap-3">
-                  {/* Minimal Ron Logo with violet accent */}
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center shadow-sm shadow-indigo-700/25">
-                    <span className="text-sm font-display font-light text-white">R</span>
+                  {/* Premium Ron Logo with violet gradient and glow */}
+                  <div className="relative">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 flex items-center justify-center shadow-lg shadow-indigo-600/30">
+                      <span className="text-base font-display font-medium text-white">R</span>
+                    </div>
+                    {/* Subtle glow ring */}
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 blur-md opacity-30 -z-10" />
                   </div>
-                  <h2 className="text-body-md font-medium text-ink dark:text-ink-inverse">
+                  <h2 className="text-lg font-semibold bg-gradient-to-r from-ink dark:from-ink-inverse to-indigo-600 dark:to-indigo-400 bg-clip-text text-transparent">
                     Ron
                   </h2>
                 </div>
@@ -419,7 +429,7 @@ export function AgentPanel() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2, ease: EASE }}
-                  className="flex-shrink-0 p-4 border-t border-surface-100 dark:border-surface-800"
+                  className="relative flex-shrink-0 p-4 border-t border-indigo-100/50 dark:border-surface-800/80 bg-gradient-to-t from-white/80 via-white/60 to-transparent dark:from-surface-900/80 dark:via-surface-900/60 dark:to-transparent"
                 >
                   {/* Ask Ron Options - Inline listbox */}
                   <AnimatePresence>
@@ -474,14 +484,18 @@ export function AgentPanel() {
                   {/* Input Container */}
                   <div className={cn(
                     "relative rounded-2xl overflow-visible transition-all duration-300",
-                    "bg-surface-50 dark:bg-surface-850",
+                    "bg-white dark:bg-surface-850",
                     "border",
                     input 
-                      ? "border-surface-300 dark:border-surface-600 shadow-sm" 
-                      : "border-surface-200 dark:border-surface-700",
+                      ? "border-indigo-300 dark:border-indigo-700 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/10" 
+                      : "border-surface-200/80 dark:border-surface-700 shadow-sm",
                   )}>
+                    {/* Subtle inner glow when focused */}
+                    {input && (
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-indigo-500/5 to-transparent pointer-events-none" />
+                    )}
                     {/* Input Row */}
-                    <div className="flex items-center gap-2 px-3 py-2">
+                    <div className="relative flex items-center gap-2 px-3 py-2">
                       {/* Context Picker */}
                       <ContextPicker
                         selectedContexts={selectedContexts}
@@ -727,22 +741,29 @@ function TextMode({ messages, isEmpty, isTyping, onSuggestionClick, messagesEndR
 function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) => void }) {
   return (
     <div className="h-full flex flex-col items-center justify-center px-6">
-      {/* Minimal logo mark */}
+      {/* Premium logo mark with gradient and glow */}
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         className="relative mb-10"
       >
-        <div className="w-14 h-14 rounded-2xl bg-ink dark:bg-ink-inverse flex items-center justify-center">
-          <span className="text-xl font-display font-light text-surface-0 dark:text-surface-900">R</span>
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 flex items-center justify-center shadow-xl shadow-indigo-600/40">
+          <span className="text-2xl font-display font-medium text-white">R</span>
         </div>
-        {/* Subtle pulse ring */}
+        {/* Animated glow rings */}
         <motion.div
-          className="absolute inset-0 rounded-2xl border border-ink/20 dark:border-ink-inverse/20"
-          animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+          className="absolute inset-0 rounded-2xl border-2 border-indigo-500/40"
+          animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeOut' }}
         />
+        <motion.div
+          className="absolute inset-0 rounded-2xl border border-violet-500/30"
+          animate={{ scale: [1, 1.8], opacity: [0.3, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeOut', delay: 0.5 }}
+        />
+        {/* Static glow behind */}
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 blur-xl opacity-40 -z-10" />
       </motion.div>
 
       {/* Title */}
@@ -764,12 +785,12 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) =
         Browse, search, analyze, and accomplish.
       </motion.p>
 
-      {/* Sleek Pill Suggestions */}
+      {/* Premium Pill Suggestions with indigo accents */}
       <motion.div
         initial={{ y: 12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="flex flex-wrap justify-center gap-2 px-2"
+        className="flex flex-wrap justify-center gap-2.5 px-2"
       >
         {SUGGESTIONS.map((suggestion, i) => (
           <motion.button
@@ -777,24 +798,25 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (text: string) =
             onClick={() => onSuggestionClick(suggestion.text)}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.25 + i * 0.04 }}
-            whileHover={{ scale: 1.04, y: -1 }}
+            transition={{ delay: 0.25 + i * 0.05 }}
+            whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.97 }}
             className={cn(
               "group",
               "inline-flex items-center gap-2",
-              "px-4 py-2 rounded-full",
-              "bg-surface-50 dark:bg-surface-850",
-              "border border-surface-200 dark:border-surface-700",
-              "hover:border-surface-300 dark:hover:border-surface-600",
-              "hover:bg-surface-100 dark:hover:bg-surface-800",
+              "px-4 py-2.5 rounded-full",
+              "bg-white dark:bg-surface-800",
+              "border border-indigo-200/60 dark:border-surface-700",
+              "hover:border-indigo-400 dark:hover:border-indigo-600",
+              "hover:bg-indigo-50 dark:hover:bg-indigo-950/30",
+              "hover:shadow-md hover:shadow-indigo-500/10",
               "transition-all duration-300 ease-out",
             )}
           >
-            <span className="text-ink-muted/50 dark:text-ink-inverse-muted/50 text-sm font-light group-hover:text-ink-muted dark:group-hover:text-ink-inverse-muted transition-colors">
+            <span className="text-indigo-400 dark:text-indigo-500 text-sm font-light group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
               {suggestion.icon}
             </span>
-            <span className="text-body-sm text-ink-secondary dark:text-ink-inverse-secondary group-hover:text-ink dark:group-hover:text-ink-inverse transition-colors">
+            <span className="text-body-sm text-ink-secondary dark:text-ink-inverse-secondary group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">
               {suggestion.text}
             </span>
           </motion.button>

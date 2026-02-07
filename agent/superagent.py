@@ -1074,11 +1074,11 @@ class CLICallbackHandler:
 
 
 def create_litellm_model() -> LiteLLMModel:
-    """Create LiteLLM model with Grok 4.1 Fast Reasoning."""
+    """Create LiteLLM model with Kimi K2.5 via NVIDIA NIM."""
     return LiteLLMModel(
-        model_id="xai/grok-4-1-fast-reasoning",
+        model_id="nvidia_nim/moonshotai/kimi-k2.5",
         client_args={
-            "api_key": os.getenv("XAI_API_KEY"),
+            "api_key": os.getenv("NVIDIA_NIM_API_KEY"),
         },
         params={
             "temperature": 1.0,
@@ -1088,15 +1088,15 @@ def create_litellm_model() -> LiteLLMModel:
 
 
 def create_primary_model():
-    """Create the main model for SuperAgent, defaulting to Grok 4.1 Fast Reasoning."""
-    provider = os.getenv("SUPERAGENT_PROVIDER", "xai")
+    """Create the main model for SuperAgent, defaulting to Kimi K2.5 via NVIDIA NIM."""
+    provider = os.getenv("SUPERAGENT_PROVIDER", "nvidia_nim")
     model_override = os.getenv("SUPERAGENT_MODEL_ID")
-    if provider == "xai":
-        model_id = model_override or "xai/grok-4-1-fast-reasoning"
+    if provider == "nvidia_nim":
+        model_id = model_override or "nvidia_nim/moonshotai/kimi-k2.5"
         return LiteLLMModel(
             model_id=model_id,
             client_args={
-                "api_key": os.getenv("XAI_API_KEY"),
+                "api_key": os.getenv("NVIDIA_NIM_API_KEY"),
             },
             params={
                 "temperature": 1.0,
@@ -1110,15 +1110,15 @@ def create_primary_model():
 
 
 def create_summarization_model():
-    """Create a summarization model for SuperAgent using Grok."""
-    provider = os.getenv("SUPERAGENT_SUMMARIZER_PROVIDER") or os.getenv("SUPERAGENT_PROVIDER", "xai")
+    """Create a summarization model for SuperAgent using Kimi K2.5."""
+    provider = os.getenv("SUPERAGENT_SUMMARIZER_PROVIDER") or os.getenv("SUPERAGENT_PROVIDER", "nvidia_nim")
     model_override = os.getenv("SUPERAGENT_SUMMARIZER_MODEL_ID") or os.getenv("SUPERAGENT_MODEL_ID")
-    if provider == "xai":
-        model_id = model_override or "xai/grok-4-1-fast-reasoning"
+    if provider == "nvidia_nim":
+        model_id = model_override or "nvidia_nim/moonshotai/kimi-k2.5"
         return LiteLLMModel(
             model_id=model_id,
             client_args={
-                "api_key": os.getenv("XAI_API_KEY"),
+                "api_key": os.getenv("NVIDIA_NIM_API_KEY"),
             },
             params={
                 "temperature": 0.3,

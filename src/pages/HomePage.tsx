@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
-import { SearchBar } from '@/components/home/SearchBar'
 import { useAuthStore } from '@/stores/authStore'
 import { useOnboardingStore } from '@/stores/onboardingStore'
+import { useNavigationStore } from '@/stores/navigationStore'
 import { KanbanBoard, CalendarView } from '@/components/board'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { BuildWorkbenchPage } from '@/components/build'
@@ -19,7 +19,6 @@ import localData from '../../data/local.json'
 import { InterestsPreviewModal } from '@/components/interests/InterestInteraction'
 
 
-type HomeTab = 'discover' | 'tasks' | 'calendar' | 'vibe' | 'build'
 type CalendarMode = 'day' | 'week' | 'month'
 
 // Sophisticated easing curve
@@ -28,7 +27,7 @@ const EASE = [0.16, 1, 0.3, 1] as const
 export function HomePage() {
   useAuthStore() // Auth state available if needed
   const { answers } = useOnboardingStore() || { answers: [] }
-  const [activeTab, setActiveTab] = useState<HomeTab>('discover')
+  const { activeTab } = useNavigationStore()
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('week')
 
   // Derive interests from onboarding answers
@@ -90,32 +89,7 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Header Section - Search Bar + Minimal Tabs */}
-      <div className="flex-shrink-0 px-8 pt-6 pb-4 z-10 relative">
-        <div className="max-w-5xl mx-auto space-y-5">
-          {/* Search Bar - Always on top */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: EASE }}
-            className="max-w-2xl mx-auto"
-          >
-            <SearchBar />
-          </motion.div>
-
-          {/* Minimal Tab Navigation */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1, ease: EASE }}
-            className="flex justify-center"
-          >
-            <HomeTabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Content Section */}
+      {/* Content Section - No more duplicate tabs */}
       <div className="flex-1 overflow-hidden z-10">
         <LayoutGroup>
           <AnimatePresence mode="wait" initial={false}>
@@ -131,9 +105,9 @@ export function HomePage() {
                 <DiscoverContent topics={topics} />
               </motion.div>
             )}
-            {activeTab === 'tasks' && (
+            {activeTab === 'execute' && (
               <motion.div
-                key="tasks"
+                key="execute"
                 initial={{ opacity: 0, scale: 0.98, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.98, y: -20 }}
@@ -188,124 +162,7 @@ export function HomePage() {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TAB NAVIGATION - Premium Centered Navigation
-// The Soul of Ron Browser - Ultra-Premium Edition
-// ─────────────────────────────────────────────────────────────────────────────
 
-interface HomeTabNavigationProps {
-  activeTab: HomeTab
-  onTabChange: (tab: HomeTab) => void
-}
-
-
-const TAB_CONFIG: { id: HomeTab; label: string; icon: (isActive: boolean) => React.ReactNode }[] = [
-  {
-    id: 'discover',
-    label: 'Discover',
-    icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-      </svg>
-    ),
-  },
-  {
-    id: 'tasks',
-    label: 'Tasks',
-    icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="5" height="18" rx="1" />
-        <rect x="9.5" y="6" width="5" height="15" rx="1" />
-        <rect x="16" y="9" width="5" height="12" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    id: 'calendar',
-    label: 'Calendar',
-    icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-      </svg>
-    ),
-  },
-  {
-    id: 'vibe',
-    label: 'Vibe',
-    icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 18V5l12-2v13" />
-        <circle cx="6" cy="18" r="3" />
-        <circle cx="18" cy="16" r="3" />
-      </svg>
-    ),
-  },
-  {
-    id: 'build',
-    label: 'Build',
-    icon: () => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-      </svg>
-    ),
-  },
-]
-
-function HomeTabNavigation({ activeTab, onTabChange }: HomeTabNavigationProps) {
-  return (
-    <div className="flex justify-center w-full">
-      {/* Premium frosted glass container - perfectly centered */}
-      <div className="
-        relative flex items-center justify-center gap-2 px-3 py-2
-        rounded-2xl
-        bg-white/70 dark:bg-surface-800/60
-        backdrop-blur-xl
-        border border-indigo-300/30 dark:border-surface-700/50
-        shadow-[0_4px_32px_rgba(79,70,229,0.12)] dark:shadow-dark-soft
-      ">
-        {/* Tab buttons - each with individual frosted glass pill effect */}
-        {TAB_CONFIG.map((tab) => {
-          const isActive = activeTab === tab.id
-          return (
-            <motion.button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`
-                group relative flex items-center justify-center gap-2.5
-                px-5 py-2.5 rounded-xl
-                text-body-sm font-medium
-                transition-all duration-300 ease-out
-                ${isActive
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-800 text-white shadow-lg shadow-indigo-700/30'
-                  : 'bg-white/50 dark:bg-surface-800/50 text-ink-secondary dark:text-ink-inverse-secondary hover:text-ink dark:hover:text-ink-inverse hover:bg-white/80 dark:hover:bg-surface-700/80 border border-transparent hover:border-indigo-300/30 dark:hover:border-surface-600'
-                }
-              `}
-            >
-              {/* Icon with spin animation on hover */}
-              <span 
-                className={`
-                  w-4 h-4 flex-shrink-0
-                  transition-all duration-300
-                  group-hover:animate-[spin-slow_0.6s_ease-in-out]
-                  ${isActive ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}
-                `}
-              >
-                {tab.icon(isActive)}
-              </span>
-              <span>{tab.label}</span>
-            </motion.button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLACEHOLDER COMPONENTS

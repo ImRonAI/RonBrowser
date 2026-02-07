@@ -147,16 +147,15 @@ def create_search_agent(callback_handler=None, session_id="search"):
     # Filter out None values
     tools = [t for t in tools if t is not None]
 
-    # Grok 4.1 Fast Reasoning via LiteLLM
+    # Kimi K2.5 via NVIDIA NIM LiteLLM
     model = LiteLLMModel(
-        model_id="xai/grok-4-1-fast-reasoning",
+        model_id="nvidia_nim/moonshotai/kimi-k2.5",
         client_args={
-            "api_key": os.getenv("XAI_API_KEY"),
+            "api_key": os.getenv("NVIDIA_NIM_API_KEY"),
         },
         params={
             "temperature": 1.0,
             "max_tokens": 200000,
-            "reasoning_effort": "high",
             **LITELLM_DEFAULT_PARAMS,
         }
     )

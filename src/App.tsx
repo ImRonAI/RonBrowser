@@ -5,10 +5,14 @@ import { useTabStore } from '@/stores/tabStore'
 import { useOnboardingStore } from '@/stores/onboardingStore'
 import { useInterestsStore } from '@/stores/interestsStore'
 import { useSearchStore, selectShowFullResults, selectShowChat } from '@/stores/searchStore'
+import { useNavigationStore } from '@/stores/navigationStore'
 import { getSearchQueryFromRonUrl } from '@/components/chrome/UrlBar'
 import { BrowserLayout } from '@/layouts/BrowserLayout'
 import { AuthPageLayout } from '@/layouts/AuthPageLayout'
 import { HomePage } from '@/pages/HomePage'
+import { ExecutePage } from '@/pages/ExecutePage'
+import { ProjectsIndexPage } from '@/pages/ProjectsIndexPage'
+import { BuildWorkbenchPage } from '@/components/build'
 import { SignInPage } from '@/pages/SignInPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { AIElementsShowcase } from '@/pages/AIElementsShowcase'
@@ -34,6 +38,7 @@ export function App() {
   const { isAuthenticated } = useAuthStore()
   const { tabs, createTab } = useTabStore()
   const { isComplete } = useOnboardingStore()
+  const { activeTab } = useNavigationStore()
   const searchStore = useSearchStore()
   const { 
     phase: searchPhase, 
@@ -217,7 +222,7 @@ export function App() {
             />
           </div>
         ) : (
-          <HomePage />
+          <MainContent activeTab={activeTab} />
         )}
       </BrowserLayout>
 
@@ -230,7 +235,20 @@ export function App() {
   )
 }
 
+// Route content based on navigation tab
+function MainContent({ activeTab }: { activeTab: string }) {
+  switch (activeTab) {
+    case 'execute':
+      return <ExecutePage />
+    case 'build':
+      return <BuildWorkbenchPage />
+    default:
+      return <HomePage />
+  }
+}
+
 // ============================================
 // Search Agent Stream - Real Implementation with Strands
 // ============================================
 // Removed streamSonarReasoningPro - SearchAgentDisplay handles its own fetching
+

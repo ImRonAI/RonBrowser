@@ -59,6 +59,8 @@ interface ContextPickerProps {
   selectedContexts: ContextItem[]
   onContextsChange: (contexts: ContextItem[]) => void
   className?: string
+  /** Where the dropdown anchors relative to button. 'top' opens upward, 'bottom' opens downward */
+  anchor?: 'top' | 'bottom'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ const SAMPLE_DOCUMENTS: ContextItem[] = [
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ContextPicker({ selectedContexts, onContextsChange, className }: ContextPickerProps) {
+export function ContextPicker({ selectedContexts, onContextsChange, className, anchor = 'top' }: ContextPickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -128,11 +130,19 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
   const handleOpen = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
-      // Position menu ABOVE button using bottom anchor
-      setCoords({
-        bottom: window.innerHeight - rect.top + 8, // 8px gap above button
-        left: rect.left
-      })
+      if (anchor === 'bottom') {
+        // Position menu BELOW button (for search bar at top of page)
+        setCoords({
+          bottom: -(rect.bottom + 8), // Negative = use top instead
+          left: rect.left
+        })
+      } else {
+        // Position menu ABOVE button (default - for panels at bottom)
+        setCoords({
+          bottom: window.innerHeight - rect.top + 8,
+          left: rect.left
+        })
+      }
     }
     setIsOpen(true)
   }
@@ -294,7 +304,9 @@ export function ContextPicker({ selectedContexts, onContextsChange, className }:
                 transition={{ duration: 0.15 }}
                 style={{
                   position: 'fixed',
-                  bottom: coords.bottom,
+                  ...(anchor === 'bottom' 
+                    ? { top: -coords.bottom } 
+                    : { bottom: coords.bottom }),
                   left: coords.left
                 }}
                 className={cn(

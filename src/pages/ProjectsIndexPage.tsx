@@ -1,7 +1,6 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Grid2x2, List, Plus } from 'lucide-react'
 import { useProjectsStore } from '@/stores/projectsStore'
-import { useNavigationStore } from '@/stores/navigationStore'
 import { ProjectTypeBadge } from '@/components/projects/badges'
 import { CreateProjectDialog } from '@/components/projects/dialogs'
 import { Button } from '@catalyst/button'
@@ -10,14 +9,9 @@ import { cn } from '@/utils/cn'
 
 export function ProjectsIndexPage() {
   const { projects, issues } = useProjectsStore()
-  const { setActiveTab } = useNavigationStore()
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [showCreate, setShowCreate] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-
-  useEffect(() => {
-    setActiveTab('execute')
-  }, [setActiveTab])
 
   const metrics = useMemo(() => {
     return projects.map((project) => {

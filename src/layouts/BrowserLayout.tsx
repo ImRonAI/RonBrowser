@@ -7,6 +7,7 @@ import { ScreenVisionOverlay } from '@/components/agent-panel/ScreenVisionOverla
 import { InterestsWidget } from '@/components/interests/InterestsWidget'
 import { ContextMenu } from '@/components/shared/ContextMenu'
 import { BrowserGlowBorder } from '@/components/shared/BrowserGlowBorder'
+import { NavigationDrawer } from '@/components/navigation/NavigationDrawer'
 import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
 
@@ -95,12 +96,15 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
         <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/10 dark:via-accent-light/10 to-transparent" />
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 relative overflow-hidden flex">
+      {/* Navigation Drawer - OUTSIDE the relative container */}
+      <NavigationDrawer />
+
+      {/* Main Content Area - Below NavigationDrawer */}
+      <div className="flex-1 relative overflow-hidden">
         {/* React content - hidden when WebContentsView is showing external websites */}
         {!isExternalMode && (
           <motion.div 
-            className="flex-1 h-full overflow-auto scrollbar-thin"
+            className="h-full overflow-auto scrollbar-thin"
             animate={{
               marginRight: isPanelOpen ? 420 : 0,
             }}
@@ -110,7 +114,7 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
           </motion.div>
         )}
 
-        {/* Agent Panel - positioned within the content area */}
+        {/* Agent Panel - positioned within THIS container, below NavigationDrawer */}
         <AgentPanel />
 
         {/* Screen Vision Overlay */}
