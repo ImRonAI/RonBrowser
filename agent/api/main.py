@@ -772,10 +772,12 @@ async def search_agent_stream(request: Request):
     queue = asyncio.Queue()
     saw_finish = False
     saw_done = False
+    saw_callback_events = False
+    using_stream_fallback = False
+    fallback_logged = False
     emitter = AISDKStreamEmitter()
 
-    def emit(sse_event: str):
-        """Receive complete SSE strings from AISDKCallbackHandler."""
+    def emit_common(sse_event: str):
         nonlocal saw_finish, saw_done
         if '"type": "finish"' in sse_event:
             saw_finish = True
@@ -783,7 +785,30 @@ async def search_agent_stream(request: Request):
             saw_done = True
         queue.put_nowait(sse_event)
 
-    callback_handler = UICallbackHandler(emit)
+    def emit_from_callback(sse_event: str):
+        nonlocal saw_callback_events
+        if using_stream_fallback:
+            return
+        saw_callback_events = True
+        emit_common(sse_event)
+
+    def emit_from_stream(sse_event: str):
+        nonlocal using_stream_fallback, fallback_logged
+        if not using_stream_fallback:
+            using_stream_fallback = True
+            if not fallback_logged:
+                logger.warning(f"[SearchAgent] No callback events detected; using stream_async event fallback.")
+                fallback_logged = True
+        emit_common(sse_event)
+
+    def emit_any(sse_event: str):
+        if using_stream_fallback:
+            emit_from_stream(sse_event)
+        else:
+            emit_from_callback(sse_event)
+
+    callback_handler = UICallbackHandler(emit_from_callback)
+    fallback_handler = UICallbackHandler(emit_from_stream)
 
     search_agent = create_search_agent(callback_handler=callback_handler, session_id=session_id)
 
@@ -794,14 +819,21 @@ async def search_agent_stream(request: Request):
 
     async def run_agent():
         """Run the search agent stream and let the callback handler emit SSE events."""
-        async for _ in search_agent.stream_async(query):
-            pass
+        async for event in search_agent.stream_async(query):
+            if not saw_callback_events:
+                _forward_stream_event(event, fallback_handler, emit_from_stream)
 
     async def emit_terminal_events_and_drain(finish_reason: str = "stop"):
         """Ensure finish + [DONE] events are emitted and drain queued output."""
         events = []
-        if not callback_handler.is_finished:
-            callback_handler.finalize(finish_reason=finish_reason)
+        active_handler = fallback_handler if using_stream_fallback else callback_handler
+        emit_fn = emit_from_stream if using_stream_fallback else emit_from_callback
+        if not active_handler.is_finished:
+            active_handler.finalize(finish_reason=finish_reason)
+        if not saw_finish:
+            emit_fn(emitter.emit_finish(finish_reason))
+        if not saw_done:
+            emit_fn(emitter.emit_done())
         while not queue.empty():
             events.append(queue.get_nowait())
         return events
@@ -844,7 +876,7 @@ async def search_agent_stream(request: Request):
                 except Exception as e:
                     logger.error(f"[SearchAgent] Agent execution error: {e}")
                     agent_error = e
-                    emit(emitter.emit_error(str(e)))
+                    emit_any(emitter.emit_error(str(e)))
 
             # Drain remaining events
             while not queue.empty():
@@ -853,7 +885,7 @@ async def search_agent_stream(request: Request):
 
             finish_reason = "timeout" if agent_timed_out else "error" if agent_error else "stop"
             if agent_timed_out and not saw_finish:
-                emit(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
+                emit_any(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
 
             if not saw_finish or not saw_done:
                 terminal_events = await emit_terminal_events_and_drain(finish_reason)
@@ -862,7 +894,7 @@ async def search_agent_stream(request: Request):
                     yield event
         except Exception as e:
             logger.error(f"[SearchAgent] Streaming error: {e}")
-            emit(emitter.emit_error(str(e)))
+            emit_any(emitter.emit_error(str(e)))
             terminal_events = await emit_terminal_events_and_drain("error")
             for event in terminal_events:
                 yield event
@@ -971,6 +1003,89 @@ def _normalize_sse_chunk(chunk: str) -> str:
     # Wrap raw text so frontend can append it safely
     return f"data: {json.dumps({'data': chunk})}\n\n"
 
+# UIMessageStream v1 event types (AI SDK)
+_UI_MESSAGE_EVENT_TYPES = {
+    "start",
+    "start-step",
+    "text-start",
+    "text-delta",
+    "text-end",
+    "reasoning-start",
+    "reasoning-delta",
+    "reasoning-end",
+    "tool-input-start",
+    "tool-input-available",
+    "tool-output-available",
+    "tool-output-error",
+    "finish-step",
+    "finish",
+    "error",
+    "workflow_visualization",
+}
+
+def _is_ui_message_event_type(event_type: str) -> bool:
+    if not event_type:
+        return False
+    if event_type in _UI_MESSAGE_EVENT_TYPES:
+        return True
+    return event_type.startswith("data-")
+
+def _coerce_stream_event_payload(event: Any) -> Optional[Dict[str, Any]]:
+    """Best-effort conversion of stream_async events to plain dict payloads."""
+    if event is None:
+        return None
+    if isinstance(event, dict):
+        return event
+    if isinstance(event, str):
+        # Let caller decide how to handle raw strings
+        return None
+    if hasattr(event, "model_dump") and callable(getattr(event, "model_dump")):
+        try:
+            payload = event.model_dump()
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            pass
+    if hasattr(event, "dict") and callable(getattr(event, "dict")):
+        try:
+            payload = event.dict()
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            pass
+    if hasattr(event, "__dict__"):
+        payload = {k: v for k, v in vars(event).items() if not k.startswith("_")}
+        return payload or None
+    return None
+
+def _forward_stream_event(event: Any, fallback_handler, emit_fn) -> bool:
+    """
+    Forward a stream_async event through the fallback handler or emit it directly.
+    Returns True if the event was handled.
+    """
+    if event is None:
+        return False
+    if isinstance(event, str):
+        if event.lstrip().startswith(("data:", ":")):
+            emit_fn(_normalize_sse_chunk(event))
+        else:
+            # Treat raw text as a standard data chunk
+            fallback_handler(data=event)
+        return True
+
+    payload = _coerce_stream_event_payload(event)
+    if not payload:
+        return False
+
+    event_type = payload.get("type")
+    if isinstance(event_type, str) and _is_ui_message_event_type(event_type):
+        emit_fn(_normalize_sse_chunk(f"data: {json.dumps(payload)}"))
+        return True
+
+    # Default: treat as Strands-style callback payload
+    fallback_handler(**payload)
+    return True
+
 
 @app.post("/superagent/stream")
 async def superagent_stream(request: Request):
@@ -1053,10 +1168,12 @@ async def superagent_stream(request: Request):
     emit_count = 0  # Track number of events emitted for debugging
     saw_finish = False
     saw_done = False
+    saw_callback_events = False
+    using_stream_fallback = False
+    fallback_logged = False
     emitter = AISDKStreamEmitter()
 
-    def emit(sse_event: str):
-        """Receive complete SSE strings from AISDKCallbackHandler."""
+    def emit_common(sse_event: str):
         nonlocal emit_count, saw_finish, saw_done
         emit_count += 1
         if '"type": "finish"' in sse_event:
@@ -1066,7 +1183,30 @@ async def superagent_stream(request: Request):
         logger.debug(f"[Session {session_id}] Emit #{emit_count}: {sse_event[:80]}...")
         queue.put_nowait(sse_event)
 
-    callback_handler = UICallbackHandler(emit)
+    def emit_from_callback(sse_event: str):
+        nonlocal saw_callback_events
+        if using_stream_fallback:
+            return
+        saw_callback_events = True
+        emit_common(sse_event)
+
+    def emit_from_stream(sse_event: str):
+        nonlocal using_stream_fallback, fallback_logged
+        if not using_stream_fallback:
+            using_stream_fallback = True
+            if not fallback_logged:
+                logger.warning(f"[Session {session_id}] No callback events detected; using stream_async event fallback.")
+                fallback_logged = True
+        emit_common(sse_event)
+
+    def emit_any(sse_event: str):
+        if using_stream_fallback:
+            emit_from_stream(sse_event)
+        else:
+            emit_from_callback(sse_event)
+
+    callback_handler = UICallbackHandler(emit_from_callback)
+    fallback_handler = UICallbackHandler(emit_from_stream)
 
     # Use per-session agent to persist across the entire chat
     agent_session_id = SUPERAGENT_SESSION_ID if SUPERAGENT_LOCK_SESSION else session_id
@@ -1133,15 +1273,18 @@ async def superagent_stream(request: Request):
         """
         nonlocal saw_finish, saw_done
 
-        # Ask the callback handler to finalize first (closes open blocks + finish-step)
-        if hasattr(callback_handler, "finalize"):
-            callback_handler.finalize(finish_reason=finish_reason)
+        active_handler = fallback_handler if using_stream_fallback else callback_handler
+        emit_fn = emit_from_stream if using_stream_fallback else emit_from_callback
+
+        # Ask the active handler to finalize first (closes open blocks + finish-step)
+        if hasattr(active_handler, "finalize"):
+            active_handler.finalize(finish_reason=finish_reason)
 
         # Emit terminal events if not already seen (fallback)
         if not saw_finish:
-            emit(emitter.emit_finish(finish_reason))
+            emit_fn(emitter.emit_finish(finish_reason))
         if not saw_done:
-            emit(emitter.emit_done())
+            emit_fn(emitter.emit_done())
         
         # Yield all remaining events including terminal events
         events_to_yield = []
@@ -1167,7 +1310,7 @@ async def superagent_stream(request: Request):
                 await asyncio.wait_for(session_lock.acquire(), timeout=0.01)
                 lock_acquired = True
             except asyncio.TimeoutError:
-                emit(emitter.emit_error("Another request is already streaming for this session"))
+                emit_any(emitter.emit_error("Another request is already streaming for this session"))
                 terminal_events = await emit_terminal_events_and_drain("error")
                 for event in terminal_events:
                     yield event
@@ -1197,10 +1340,12 @@ async def superagent_stream(request: Request):
                     async for event in agent.stream_async(message):
                         event_count += 1
                         logger.debug(f"[Session {session_id}] Agent stream event #{event_count}: {str(event)[:80]}")
+                        if not saw_callback_events:
+                            _forward_stream_event(event, fallback_handler, emit_from_stream)
                 except Exception as e:
                     logger.error(f"[Session {session_id}] Agent stream error: {e}", exc_info=True)
                     agent_error = e
-                    emit(emitter.emit_error(str(e)))
+                    emit_any(emitter.emit_error(str(e)))
                     raise
 
                 logger.info(f"[Session {session_id}] Agent stream complete. Events: {event_count}")
@@ -1272,7 +1417,7 @@ async def superagent_stream(request: Request):
             if agent_timed_out:
                 finish_reason = "timeout"
                 if not saw_finish:
-                    emit(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
+                    emit_any(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
             elif agent_error:
                 finish_reason = "error"
             else:
@@ -1397,9 +1542,12 @@ async def task_agent_stream(request: Request):
     emit_count = 0
     saw_finish = False
     saw_done = False
+    saw_callback_events = False
+    using_stream_fallback = False
+    fallback_logged = False
     emitter = AISDKStreamEmitter()
 
-    def emit(sse_event: str):
+    def emit_common(sse_event: str):
         nonlocal emit_count, saw_finish, saw_done
         emit_count += 1
         if '"type": "finish"' in sse_event:
@@ -1409,7 +1557,30 @@ async def task_agent_stream(request: Request):
         logger.debug(f"[TaskAgent Session {session_id}] Emit #{emit_count}: {sse_event[:80]}...")
         queue.put_nowait(sse_event)
 
-    callback_handler = UICallbackHandler(emit)
+    def emit_from_callback(sse_event: str):
+        nonlocal saw_callback_events
+        if using_stream_fallback:
+            return
+        saw_callback_events = True
+        emit_common(sse_event)
+
+    def emit_from_stream(sse_event: str):
+        nonlocal using_stream_fallback, fallback_logged
+        if not using_stream_fallback:
+            using_stream_fallback = True
+            if not fallback_logged:
+                logger.warning(f"[TaskAgent Session {session_id}] No callback events detected; using stream_async event fallback.")
+                fallback_logged = True
+        emit_common(sse_event)
+
+    def emit_any(sse_event: str):
+        if using_stream_fallback:
+            emit_from_stream(sse_event)
+        else:
+            emit_from_callback(sse_event)
+
+    callback_handler = UICallbackHandler(emit_from_callback)
+    fallback_handler = UICallbackHandler(emit_from_stream)
 
     agent_session_id = TASK_AGENT_SESSION_ID if TASK_AGENT_LOCK_SESSION else session_id
     browser_session_override = TASK_AGENT_BROWSER_SESSION if TASK_AGENT_LOCK_SESSION else None
@@ -1460,13 +1631,16 @@ async def task_agent_stream(request: Request):
     async def emit_terminal_events_and_drain(finish_reason: str = "stop"):
         nonlocal saw_finish, saw_done
 
-        if hasattr(callback_handler, "finalize"):
-            callback_handler.finalize(finish_reason=finish_reason)
+        active_handler = fallback_handler if using_stream_fallback else callback_handler
+        emit_fn = emit_from_stream if using_stream_fallback else emit_from_callback
+
+        if hasattr(active_handler, "finalize"):
+            active_handler.finalize(finish_reason=finish_reason)
 
         if not saw_finish:
-            emit(emitter.emit_finish(finish_reason))
+            emit_fn(emitter.emit_finish(finish_reason))
         if not saw_done:
-            emit(emitter.emit_done())
+            emit_fn(emitter.emit_done())
 
         events_to_yield = []
         while not queue.empty():
@@ -1484,7 +1658,7 @@ async def task_agent_stream(request: Request):
                 await asyncio.wait_for(session_lock.acquire(), timeout=0.01)
                 lock_acquired = True
             except asyncio.TimeoutError:
-                emit(emitter.emit_error("Another request is already streaming for this session"))
+                emit_any(emitter.emit_error("Another request is already streaming for this session"))
                 terminal_events = await emit_terminal_events_and_drain("error")
                 for event in terminal_events:
                     yield event
@@ -1512,10 +1686,12 @@ async def task_agent_stream(request: Request):
                         logger.debug(
                             f"[TaskAgent Session {session_id}] Agent stream event #{event_count}: {str(event)[:80]}"
                         )
+                        if not saw_callback_events:
+                            _forward_stream_event(event, fallback_handler, emit_from_stream)
                 except Exception as e:
                     logger.error(f"[TaskAgent Session {session_id}] Agent stream error: {e}", exc_info=True)
                     agent_error = e
-                    emit(emitter.emit_error(str(e)))
+                    emit_any(emitter.emit_error(str(e)))
                     raise
 
                 logger.info(f"[TaskAgent Session {session_id}] Agent stream complete. Events: {event_count}")
@@ -1577,7 +1753,7 @@ async def task_agent_stream(request: Request):
             if agent_timed_out:
                 finish_reason = "timeout"
                 if not saw_finish:
-                    emit(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
+                    emit_any(emitter.emit_error(f"Agent silent for {AGENT_TIMEOUT_SECONDS}s - no response"))
             elif agent_error:
                 finish_reason = "error"
             else:
