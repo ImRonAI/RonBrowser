@@ -18,7 +18,7 @@ os.environ["STRANDS_NON_INTERACTIVE"] = "true"
 import sys
 sys.path.append(str(Path(__file__).parent / "tools" / "src"))
 # Also add strands-fun-tools for screen_reader and other fun utilities
-sys.path.append(str(Path(__file__).parent / "tools" / "strands-fun-tools"))
+sys.path.append(str(Path(__file__).parent / "tools" / "src" / "strands_tools" / "strands-fun-tools"))
 
 from strands import Agent, tool
 from strands.models.litellm import LiteLLMModel
