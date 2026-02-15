@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Dialog, DialogActions, DialogBody, DialogTitle } from '@catalyst/dialog'
-import { Button } from '@catalyst/button'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useProjectsStore, projectSelectors } from '@/stores/projectsStore'
 import {
   IssuePriority,
@@ -12,6 +11,12 @@ import {
   ISSUE_STATUS_CONFIG,
   ISSUE_TYPE_CONFIG,
 } from '@/types/projects'
+import { cn } from '@/utils/cn'
+import { X, FolderKanban, CheckSquare } from 'lucide-react'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREATE PROJECT DIALOG
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface CreateProjectDialogProps {
   isOpen: boolean
@@ -44,34 +49,41 @@ export function CreateProjectDialog({ isOpen, onClose }: CreateProjectDialogProp
   }
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} size="lg">
-      <DialogTitle>Create Project</DialogTitle>
-      <DialogBody className="space-y-4">
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Name</label>
+    <Dialog open={isOpen} onClose={handleClose}>
+      <DialogHeader 
+        icon={<FolderKanban className="w-5 h-5" />}
+        title="Create Project"
+        subtitle="Start a new project to organize your work"
+        onClose={handleClose}
+      />
+      
+      <div className="p-6 space-y-5">
+        {/* Project Name */}
+        <FormField label="Project Name">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Project name"
-            className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+            placeholder="e.g., Website Redesign"
+            autoFocus
+            className={inputClasses}
           />
-        </div>
+        </FormField>
+
+        {/* Key & Type Row */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Key</label>
+          <FormField label="Key (optional)">
             <input
               value={key}
               onChange={(e) => setKey(e.target.value.toUpperCase())}
-              placeholder="Optional"
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              placeholder="PROJ"
+              className={inputClasses}
             />
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Type</label>
+          </FormField>
+          <FormField label="Project Type">
             <select
               value={type}
               onChange={(e) => setType(e.target.value as ProjectTypeKey)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               {Object.values(PROJECT_TYPE_SCHEMES).map((scheme) => (
                 <option key={scheme.key} value={scheme.key}>
@@ -79,37 +91,34 @@ export function CreateProjectDialog({ isOpen, onClose }: CreateProjectDialogProp
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
         </div>
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Summary</label>
+
+        {/* Summary */}
+        <FormField label="Summary">
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            placeholder="What is this project about?"
-            className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm min-h-[120px]"
+            placeholder="Briefly describe what this project is about..."
+            rows={3}
+            className={cn(inputClasses, "resize-none")}
           />
-        </div>
-      </DialogBody>
-      <DialogActions className="mt-6 border-t border-white/10 pt-4 justify-end gap-2">
-        <Button
-          outline
-          onClick={handleClose}
-          className="rounded-full px-5 py-2.5 text-[12px] font-semibold tracking-wide"
-        >
-          Cancel
-        </Button>
-        <Button
-          color="indigo"
-          onClick={handleSubmit}
-          className="rounded-full px-5 py-2.5 text-[12px] font-semibold tracking-wide"
-        >
-          Create Project
-        </Button>
-      </DialogActions>
+        </FormField>
+      </div>
+
+      <DialogFooter
+        onCancel={handleClose}
+        onConfirm={handleSubmit}
+        confirmText="Create Project"
+        confirmDisabled={!name.trim()}
+      />
     </Dialog>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREATE ISSUE DIALOG
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface CreateIssueDialogProps {
   isOpen: boolean
@@ -217,16 +226,22 @@ export function CreateIssueDialog({
   }
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} size="xl">
-      <DialogTitle>Create Issue</DialogTitle>
-      <DialogBody className="space-y-4">
+    <Dialog open={isOpen} onClose={handleClose} size="lg">
+      <DialogHeader 
+        icon={<CheckSquare className="w-5 h-5" />}
+        title="Create Issue"
+        subtitle="Add a new issue to track your work"
+        onClose={handleClose}
+      />
+      
+      <div className="p-6 space-y-5">
+        {/* Project & Type Row */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Project</label>
+          <FormField label="Project">
             <select
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -234,13 +249,12 @@ export function CreateIssueDialog({
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Type</label>
+          </FormField>
+          <FormField label="Issue Type">
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value as IssueTypeKey)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               {allowedTypes.map((type) => (
                 <option key={type} value={type}>
@@ -248,54 +262,56 @@ export function CreateIssueDialog({
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
         </div>
 
+        {/* Parent Selection */}
         {allowParentSelection && parentOptions.length > 0 && (
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Parent</label>
+          <FormField label="Parent Issue">
             <select
               value={parent || ''}
               onChange={(e) => setParent(e.target.value || null)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               <option value="">No parent</option>
               {parentOptions.map((issue) => (
                 <option key={issue.id} value={issue.id}>
-                  {issue.title}
+                  {issue.id} - {issue.title}
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
         )}
 
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Title</label>
+        {/* Title */}
+        <FormField label="Title">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Issue title"
-            className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+            autoFocus
+            className={inputClasses}
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Description</label>
+        {/* Description */}
+        <FormField label="Description">
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional description"
-            className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm min-h-[120px]"
+            placeholder="Describe the issue..."
+            rows={3}
+            className={cn(inputClasses, "resize-none")}
           />
-        </div>
+        </FormField>
 
+        {/* Status & Priority Row */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Status</label>
+          <FormField label="Status">
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as IssueStatus)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               {Object.keys(ISSUE_STATUS_CONFIG).map((key) => (
                 <option key={key} value={key}>
@@ -303,13 +319,12 @@ export function CreateIssueDialog({
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Priority</label>
+          </FormField>
+          <FormField label="Priority">
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as IssuePriority)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               {Object.keys(ISSUE_PRIORITY_CONFIG).map((key) => (
                 <option key={key} value={key}>
@@ -317,16 +332,16 @@ export function CreateIssueDialog({
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
         </div>
 
+        {/* Assignee & Due Date Row */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Assignee</label>
+          <FormField label="Assignee">
             <select
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={selectClasses}
             >
               <option value="">Unassigned</option>
               {people.map((person) => (
@@ -335,43 +350,234 @@ export function CreateIssueDialog({
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">Due Date</label>
+          </FormField>
+          <FormField label="Due Date">
             <input
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="mt-2 w-full rounded-xl glass-subtle border border-white/10 dark:border-white/10 px-4 py-3 text-body-sm"
+              className={inputClasses}
             />
-          </div>
+          </FormField>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-body-xs text-rose-600 dark:text-rose-300">
+          <div className={cn(
+            "rounded-lg px-4 py-3 text-body-sm",
+            "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+            "border border-rose-500/20"
+          )}>
             {error}
           </div>
         )}
-      </DialogBody>
-      <DialogActions className="mt-6 border-t border-white/10 pt-4 justify-end gap-2">
-        <Button
-          outline
-          onClick={handleClose}
-          className="rounded-full px-5 py-2.5 text-[12px] font-semibold tracking-wide"
-        >
-          Cancel
-        </Button>
-        <Button
-          color="indigo"
-          onClick={handleSubmit}
-          className="rounded-full px-5 py-2.5 text-[12px] font-semibold tracking-wide"
-        >
-          Create Issue
-        </Button>
-      </DialogActions>
+      </div>
+
+      <DialogFooter
+        onCancel={handleClose}
+        onConfirm={handleSubmit}
+        confirmText="Create Issue"
+        confirmDisabled={!title.trim()}
+      />
     </Dialog>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BASE DIALOG COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DialogProps {
+  open: boolean
+  onClose: () => void
+  children: React.ReactNode
+  size?: 'md' | 'lg' | 'xl'
+}
+
+function Dialog({ open, onClose, children, size = 'md' }: DialogProps) {
+  const sizeClasses = {
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+  }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[200] bg-surface-900/50 dark:bg-surface-950/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className={cn(
+                "w-full",
+                sizeClasses[size],
+                "bg-surface-0 dark:bg-surface-900",
+                "rounded-2xl",
+                "border border-surface-200 dark:border-surface-800",
+                "shadow-2xl shadow-surface-900/20",
+                "overflow-hidden"
+              )}
+            >
+              {children}
+            </motion.div>
+          </div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIALOG COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DialogHeaderProps {
+  icon: React.ReactNode
+  title: string
+  subtitle?: string
+  onClose: () => void
+}
+
+function DialogHeader({ icon, title, subtitle, onClose }: DialogHeaderProps) {
+  return (
+    <div className={cn(
+      "flex items-start justify-between",
+      "px-6 py-5",
+      "border-b border-surface-200 dark:border-surface-800",
+      "bg-surface-50/50 dark:bg-surface-850/50"
+    )}>
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "w-10 h-10 rounded-xl",
+          "bg-indigo-500/10 dark:bg-indigo-500/20",
+          "flex items-center justify-center",
+          "text-indigo-600 dark:text-indigo-400"
+        )}>
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-ink dark:text-ink-inverse">
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="text-body-sm text-ink-muted dark:text-ink-inverse-muted">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
+      <button
+        onClick={onClose}
+        className={cn(
+          "p-2 rounded-lg",
+          "text-ink-muted hover:text-ink dark:hover:text-ink-inverse",
+          "hover:bg-surface-200 dark:hover:bg-surface-800",
+          "transition-colors"
+        )}
+      >
+        <X className="w-5 h-5" />
+      </button>
+    </div>
+  )
+}
+
+interface DialogFooterProps {
+  onCancel: () => void
+  onConfirm: () => void
+  confirmText: string
+  confirmDisabled?: boolean
+}
+
+function DialogFooter({ onCancel, onConfirm, confirmText, confirmDisabled }: DialogFooterProps) {
+  return (
+    <div className={cn(
+      "flex items-center justify-end gap-3",
+      "px-6 py-4",
+      "border-t border-surface-200 dark:border-surface-800",
+      "bg-surface-50/50 dark:bg-surface-850/50"
+    )}>
+      <button
+        onClick={onCancel}
+        className={cn(
+          "px-4 py-2 rounded-xl",
+          "text-body-sm font-medium",
+          "text-ink-muted dark:text-ink-inverse-muted",
+          "hover:text-ink dark:hover:text-ink-inverse",
+          "hover:bg-surface-200 dark:hover:bg-surface-800",
+          "transition-colors"
+        )}
+      >
+        Cancel
+      </button>
+      <button
+        onClick={onConfirm}
+        disabled={confirmDisabled}
+        className={cn(
+          "px-4 py-2 rounded-xl",
+          "text-body-sm font-medium text-white",
+          "bg-indigo-500 hover:bg-indigo-600",
+          "shadow-sm shadow-indigo-500/20",
+          "transition-colors",
+          confirmDisabled && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        {confirmText}
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORM COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+const inputClasses = cn(
+  "w-full px-3 py-2.5 rounded-xl",
+  "bg-surface-0 dark:bg-surface-900",
+  "border border-surface-200 dark:border-surface-800",
+  "text-body-sm text-ink dark:text-ink-inverse",
+  "placeholder:text-ink-muted/40",
+  "focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-600",
+  "transition-colors"
+)
+
+const selectClasses = cn(
+  "w-full px-3 py-2.5 rounded-xl",
+  "bg-surface-0 dark:bg-surface-900",
+  "border border-surface-200 dark:border-surface-800",
+  "text-body-sm text-ink dark:text-ink-inverse",
+  "focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-600",
+  "transition-colors cursor-pointer"
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
 
 const STANDARD_PARENT_BY_CHILD: Record<IssueTypeKey, IssueTypeKey | null> = {
   initiative: null,

@@ -24,7 +24,7 @@ if (!app.isPackaged) {
   process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'
 }
 
-async function startMcpBridge() {
+async function startMcpBridge(tabsManager: TabsManager) {
   if (mcpBridgeStarted) return
   try {
     const require = createRequire(import.meta.url)
@@ -37,7 +37,26 @@ async function startMcpBridge() {
     startElectronBridge({
       port: MCP_BRIDGE_PORT,
       cdpPort: CDP_PORT,
-      headless: false
+      headless: false,
+      getTargetInfo: async () => {
+        const activeTab = tabsManager.activeTab
+        if (activeTab?.isExternal && activeTab.view) {
+          const wc = activeTab.view.webContents
+          try {
+            if (!wc.debugger.isAttached()) wc.debugger.attach()
+            const { targetInfo } = await wc.debugger.sendCommand('Target.getTargetInfo')
+            wc.debugger.detach()
+            return {
+              targetId: targetInfo.targetId,
+              webContentsId: wc.id,
+              windowId: wc.hostWebContents?.id // or undefined
+            }
+          } catch (e) {
+            console.error('[MCP] Failed to get target info for tab', e)
+          }
+        }
+        return undefined // Fallback to default
+      }
     })
     mcpBridgeStarted = true
     console.log(`[MCP] Electron bridge listening on http://127.0.0.1:${MCP_BRIDGE_PORT}`)
@@ -384,7 +403,15 @@ class TabsManager {
   // Internal helpers
   private ensureView(tab: TabRecord) {
     if (tab.view) return
-    tab.view = new WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false } })
+    tab.view = new WebContentsView({
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        backgroundThrottling: false,
+        preload: join(__dirname, 'preload-external.js')
+      }
+    })
 
     // Bounds and events
     this.updateViewBounds(tab.view)
@@ -522,7 +549,7 @@ app.whenReady().then(async () => {
   // Create an initial tab so renderer has something to render/sync
   tabsManager.create('tab-initial', 'ron://home')
   tabsManager.switch('tab-initial')
-  await startMcpBridge()
+  await startMcpBridge(tabsManager)
 
   // Initialize Tool Management System (if feature flag enabled)
   if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {

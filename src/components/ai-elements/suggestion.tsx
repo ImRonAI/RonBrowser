@@ -83,8 +83,9 @@ export function Suggestion({
           'px-4 py-2 rounded-full',
           'bg-surface-50 dark:bg-surface-850',
           'border border-surface-200 dark:border-surface-700',
-          'hover:border-surface-300 dark:hover:border-surface-600',
-          'hover:bg-surface-100 dark:hover:bg-surface-800',
+          'hover:border-violet-400/30 dark:hover:border-violet-400/30',
+          'hover:bg-gradient-to-r hover:from-violet-500/5 hover:to-indigo-500/5',
+          'hover:shadow-[0_0_16px_rgba(139,92,246,0.15)]',
         ],
         
         // Card variant - fuller appearance
@@ -93,8 +94,9 @@ export function Suggestion({
           'p-3 rounded-xl',
           'bg-surface-50 dark:bg-surface-850',
           'border border-surface-200 dark:border-surface-700',
-          'hover:border-surface-300 dark:hover:border-surface-600',
-          'hover:bg-surface-100 dark:hover:bg-surface-800',
+          'hover:border-violet-400/30 dark:hover:border-violet-400/30',
+          'hover:bg-gradient-to-r hover:from-violet-500/5 hover:to-indigo-500/5',
+          'hover:shadow-[0_0_16px_rgba(139,92,246,0.15)]',
           'text-left',
         ],
         
@@ -153,8 +155,9 @@ export function SuggestionChip({ text, onClick, icon, className }: SuggestionChi
         'px-3 py-1.5 rounded-full',
         'bg-surface-50 dark:bg-surface-850',
         'border border-surface-200 dark:border-surface-700',
-        'hover:border-surface-300 dark:hover:border-surface-600',
-        'hover:bg-surface-100 dark:hover:bg-surface-800',
+        'hover:border-violet-400/30 dark:hover:border-violet-400/30',
+        'hover:bg-gradient-to-r hover:from-violet-500/5 hover:to-indigo-500/5',
+        'hover:shadow-[0_0_12px_rgba(139,92,246,0.12)]',
         'transition-all duration-300 ease-out',
         className
       )}
@@ -240,8 +243,9 @@ export function QuickActions({ actions, className }: QuickActionsProps) {
             'px-4 py-2 rounded-full',
             'bg-surface-50 dark:bg-surface-850',
             'border border-surface-200 dark:border-surface-700',
-            'hover:border-surface-300 dark:hover:border-surface-600',
-            'hover:bg-surface-100 dark:hover:bg-surface-800',
+            'hover:border-violet-400/30 dark:hover:border-violet-400/30',
+            'hover:bg-gradient-to-r hover:from-violet-500/5 hover:to-indigo-500/5',
+            'hover:shadow-[0_0_16px_rgba(139,92,246,0.15)]',
             'transition-all duration-300 ease-out',
           )}
         >

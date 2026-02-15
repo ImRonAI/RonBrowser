@@ -41,9 +41,17 @@ type MessagePart = UIMessage['parts'][number]
 type OrchestrationMode = 'workflow' | 'swarm' | 'graph'
 type ToolLikePart = { state?: string; output?: any }
 
+interface UrlAttachment {
+  id: string
+  url: string
+  domain: string
+  favicon: string
+}
+
 const EASE = [0.16, 1, 0.3, 1] as const
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
-const SUPERAGENT_API = 'http://localhost:8765/superagent/stream'
+const SUPERAGENT_API = 'http://localhost:8765/agents/super/stream'
+const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi
 
 function getDomainFromUrl(url: string): string {
   try {
@@ -159,6 +167,9 @@ export function SuperAgentInterface() {
       api: SUPERAGENT_API,
       body: () => ({
         session_id: sessionIdRef.current,
+        invocation_state: {
+          interaction_mode: 'text',
+        },
       }),
     }),
     onData: (dataPart) => {
@@ -170,6 +181,7 @@ export function SuperAgentInterface() {
   const [input, setInput] = useState('')
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
   const [textAttachments, setTextAttachments] = useState<TextAttachment[]>([])
+  const [urlAttachments, setUrlAttachments] = useState<UrlAttachment[]>([])
   const [isDeepResearch, setIsDeepResearch] = useState(false)
   const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('workflow')
   const [previewContent, setPreviewContent] = useState<{
@@ -240,6 +252,36 @@ export function SuperAgentInterface() {
     }
 
     const text = e.clipboardData.getData('text/plain')
+    
+    // Detect URLs in pasted text
+    const urls = text.match(URL_REGEX)
+    if (urls && urls.length > 0) {
+      e.preventDefault()
+      const newUrlAttachments: UrlAttachment[] = urls.map(url => {
+        let domain = 'link'
+        try {
+          domain = new URL(url).hostname.replace(/^www\./, '')
+        } catch { /* ignore */ }
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          url,
+          domain,
+          favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=32`,
+        }
+      })
+      // Remove duplicates by URL
+      setUrlAttachments(prev => {
+        const existing = new Set(prev.map(u => u.url))
+        return [...prev, ...newUrlAttachments.filter(u => !existing.has(u.url))]
+      })
+      // Keep any remaining text after removing URLs
+      const remainingText = text.replace(URL_REGEX, '').trim()
+      if (remainingText) {
+        setInput(prev => prev + remainingText)
+      }
+      return
+    }
+    
     if (text && text.length >= LARGE_PASTE_THRESHOLD_CHARS) {
       e.preventDefault()
       const file = new File([text], makePastedTextFilename(), { type: 'text/plain' })
@@ -267,6 +309,12 @@ export function SuperAgentInterface() {
     
     let finalMessage = messageText
     let tempFiles: { type: 'file'; mediaType: string; filename: string; url: string }[] = []
+
+    // Include URL attachments in the message
+    if (urlAttachments.length > 0) {
+      const urlList = urlAttachments.map(u => u.url).join('\n')
+      finalMessage = `${messageText}\n\nReferences:\n${urlList}`
+    }
 
     if (selectedContexts.length > 0) {
       // 1. Fetch full data for any 'tab' contexts
@@ -371,6 +419,7 @@ export function SuperAgentInterface() {
     }
     
     setTextAttachments([])
+    setUrlAttachments([])
     sendMessage({ text: finalMessage || 'Sent with attachments', files } as any)
   }
 
@@ -388,6 +437,7 @@ export function SuperAgentInterface() {
     setInput('')
     setSelectedContexts([])
     setTextAttachments([])
+    setUrlAttachments([])
     setPreviewContent(null)
     useOrchestrationStore.getState().reset()
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -404,6 +454,10 @@ export function SuperAgentInterface() {
     setTextAttachments(prev => prev.map(att =>
       att.id === id ? { ...att, ...next } : att
     ))
+  }
+
+  const handleUrlAttachmentRemove = (id: string) => {
+    setUrlAttachments(prev => prev.filter(u => u.id !== id))
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -503,6 +557,19 @@ export function SuperAgentInterface() {
                       key={context.id}
                       context={context}
                       onRemove={() => setSelectedContexts(prev => prev.filter(c => c.id !== context.id))}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* URL badges */}
+              {urlAttachments.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {urlAttachments.map(urlAtt => (
+                    <UrlBadge
+                      key={urlAtt.id}
+                      attachment={urlAtt}
+                      onRemove={() => handleUrlAttachmentRemove(urlAtt.id)}
                     />
                   ))}
                 </div>
@@ -862,6 +929,37 @@ function ContextChip({ context, onRemove }: { context: ContextItem; onRemove: ()
       </span>
       <button onClick={onRemove} className="p-0.5 rounded-full hover:bg-violet-100 dark:hover:bg-violet-800/40" aria-label="Remove context">
         <XIcon className="w-2.5 h-2.5 text-violet-400" />
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// URL Badge
+// ─────────────────────────────────────────────────────────────────────────────
+
+function UrlBadge({ attachment, onRemove }: { attachment: UrlAttachment; onRemove: () => void }) {
+  return (
+    <div className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-500/30">
+      <img 
+        src={attachment.favicon} 
+        alt="" 
+        className="w-3.5 h-3.5 rounded"
+        onError={(e) => {
+          e.currentTarget.style.display = 'none'
+          e.currentTarget.nextElementSibling?.classList.remove('hidden')
+        }}
+      />
+      <GlobeIcon className="w-3.5 h-3.5 text-blue-500 hidden" />
+      <span className="text-[11px] text-ink dark:text-ink-inverse max-w-[160px] truncate">
+        {attachment.domain}
+      </span>
+      <button 
+        onClick={onRemove} 
+        className="p-0.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/40" 
+        aria-label="Remove URL"
+      >
+        <XIcon className="w-2.5 h-2.5 text-blue-400" />
       </button>
     </div>
   )

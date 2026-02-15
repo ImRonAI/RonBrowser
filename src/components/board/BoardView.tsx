@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import { KanbanBoard } from './KanbanBoard'
 import { CalendarView } from './CalendarView'
+import { ListView } from './ListView'
+import { GanttView } from './GanttView'
 
-type ViewMode = 'kanban' | 'calendar'
-type CalendarMode = 'day' | 'week' | 'month'
+type ViewMode = 'kanban' | 'calendar' | 'list' | 'gantt'
+type CalendarMode = 'quarter' | 'month' | 'week' | 'day'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
@@ -46,7 +48,7 @@ export function BoardView() {
       <div className="flex-1 min-h-0 overflow-hidden px-8 pb-8">
         <LayoutGroup>
           <AnimatePresence mode="wait">
-            {viewMode === 'kanban' ? (
+            {viewMode === 'kanban' && (
               <motion.div
                 key="kanban"
                 className="h-full"
@@ -57,7 +59,8 @@ export function BoardView() {
               >
                 <KanbanBoard />
               </motion.div>
-            ) : (
+            )}
+            {viewMode === 'calendar' && (
               <motion.div
                 key="calendar"
                 className="h-full"
@@ -69,6 +72,30 @@ export function BoardView() {
                 <CalendarView mode={calendarMode} />
               </motion.div>
             )}
+            {viewMode === 'list' && (
+              <motion.div
+                key="list"
+                className="h-full"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                transition={{ duration: 0.5, ease: EASE }}
+              >
+                <ListView />
+              </motion.div>
+            )}
+            {viewMode === 'gantt' && (
+              <motion.div
+                key="gantt"
+                className="h-full"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                transition={{ duration: 0.5, ease: EASE }}
+              >
+                <GanttView />
+              </motion.div>
+            )}
           </AnimatePresence>
         </LayoutGroup>
       </div>
@@ -77,7 +104,7 @@ export function BoardView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VIEW TOGGLE - Bold minimal toggle
+// VIEW TOGGLE - 4 view modes
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ViewToggleProps {
@@ -85,7 +112,16 @@ interface ViewToggleProps {
   onViewChange: (mode: ViewMode) => void
 }
 
+const VIEW_OPTIONS: { id: ViewMode; label: string; icon: React.ReactNode }[] = [
+  { id: 'kanban', label: 'Board', icon: <KanbanIcon /> },
+  { id: 'calendar', label: 'Calendar', icon: <CalendarIcon /> },
+  { id: 'list', label: 'List', icon: <ListIcon /> },
+  { id: 'gantt', label: 'Gantt', icon: <GanttIcon /> },
+]
+
 function ViewToggle({ viewMode, onViewChange }: ViewToggleProps) {
+  const activeIdx = VIEW_OPTIONS.findIndex(v => v.id === viewMode)
+
   return (
     <div className="relative flex items-center p-1.5 rounded-xl glass-subtle border border-white/10 dark:border-white/5">
       {/* Sliding indicator */}
@@ -94,8 +130,8 @@ function ViewToggle({ viewMode, onViewChange }: ViewToggleProps) {
         layoutId="view-indicator"
         initial={false}
         style={{
-          left: viewMode === 'kanban' ? 6 : 'calc(50% + 3px)',
-          right: viewMode === 'kanban' ? 'calc(50% + 3px)' : 6,
+          width: `calc(${100 / VIEW_OPTIONS.length}% - 6px)`,
+          left: `calc(${activeIdx * (100 / VIEW_OPTIONS.length)}% + 6px)`,
         }}
         transition={{
           type: 'spring',
@@ -103,25 +139,22 @@ function ViewToggle({ viewMode, onViewChange }: ViewToggleProps) {
           damping: 35,
         }}
       />
-      
-      <ToggleButton
-        active={viewMode === 'kanban'}
-        onClick={() => onViewChange('kanban')}
-        icon={<KanbanIcon />}
-        label="Board"
-      />
-      <ToggleButton
-        active={viewMode === 'calendar'}
-        onClick={() => onViewChange('calendar')}
-        icon={<CalendarIcon />}
-        label="Calendar"
-      />
+
+      {VIEW_OPTIONS.map((opt) => (
+        <ToggleButton
+          key={opt.id}
+          active={viewMode === opt.id}
+          onClick={() => onViewChange(opt.id)}
+          icon={opt.icon}
+          label={opt.label}
+        />
+      ))}
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CALENDAR MODE TOGGLE
+// CALENDAR MODE TOGGLE — now with Quarter
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface CalendarModeToggleProps {
@@ -130,7 +163,7 @@ interface CalendarModeToggleProps {
 }
 
 function CalendarModeToggle({ mode, onModeChange }: CalendarModeToggleProps) {
-  const modes: CalendarMode[] = ['day', 'week', 'month']
+  const modes: CalendarMode[] = ['quarter', 'month', 'week', 'day']
   const activeIndex = modes.indexOf(mode)
   
   return (
@@ -141,8 +174,8 @@ function CalendarModeToggle({ mode, onModeChange }: CalendarModeToggleProps) {
         layoutId="calendar-mode-indicator"
         initial={false}
         style={{
-          width: `calc(${100/3}% - 4px)`,
-          left: `calc(${activeIndex * (100/3)}% + 4px)`,
+          width: `calc(${100 / modes.length}% - 4px)`,
+          left: `calc(${activeIndex * (100 / modes.length)}% + 4px)`,
         }}
         transition={{
           type: 'spring',
@@ -235,6 +268,29 @@ function CalendarIcon() {
       <line x1="16" y1="2" x2="16" y2="6" />
       <line x1="8" y1="2" x2="8" y2="6" />
       <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  )
+}
+
+function ListIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  )
+}
+
+function GanttIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="10" height="4" rx="1" />
+      <rect x="5" y="10" width="12" height="4" rx="1" />
+      <rect x="7" y="16" width="8" height="4" rx="1" />
     </svg>
   )
 }

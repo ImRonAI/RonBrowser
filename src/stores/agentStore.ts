@@ -476,30 +476,15 @@ export const useAgentStore = create<AgentState>((set, get) => {
       try {
         const token = await getAccessToken()
         
-        const request: ChatRequest = {
-          prompt: content,
-          conversationId: state.activeConversationId || undefined,
-          context,
-          stream: true,
+        // Backend expects: message, session_id (not prompt, conversationId)
+        const requestBody = {
+          message: content,
+          session_id: state.activeConversationId || `session-${Date.now()}`,
+          ...(context && { context }),
         }
         
-        // Check if we're in Electron with IPC streaming
-        if (window.electron?.agent) {
-          // Use Electron IPC for streaming (routes through main process)
-          await window.electron.agent.startStream(streamId, {
-            url: `${API_BASE_URL}${API_ENDPOINTS.agent.stream}`,
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'text/event-stream',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(request),
-          })
-        } else {
-          // Fallback: Direct fetch streaming (for web or testing)
-          await streamDirectly(streamId, request, token, get, set)
-        }
+        // Use direct fetch streaming (backend is at localhost:8765)
+        await streamDirectly(streamId, content, state.activeConversationId, token, get, set, context)
       } catch (error) {
         console.error('Failed to send message:', error)
         set({
@@ -567,8 +552,8 @@ export const useAgentStore = create<AgentState>((set, get) => {
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            prompt,
-            stream: false,
+            message: prompt,
+            session_id: `askron-${Date.now()}`,
           }),
         })
 
@@ -732,11 +717,19 @@ export const useAgentStore = create<AgentState>((set, get) => {
 
 async function streamDirectly(
   _streamId: string,
-  request: ChatRequest,
+  content: string,
+  conversationId: string | null,
   token: string | null,
   get: () => AgentState,
-  set: (partial: Partial<AgentState>) => void
+  set: (partial: Partial<AgentState>) => void,
+  _context?: ConversationContext
 ): Promise<void> {
+  // Backend expects: message and session_id
+  const requestBody = {
+    message: content,
+    session_id: conversationId || `session-${Date.now()}`,
+  }
+  
   const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.agent.stream}`, {
     method: 'POST',
     headers: {
@@ -744,7 +737,7 @@ async function streamDirectly(
       'Accept': 'text/event-stream',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(requestBody),
   })
 
   if (!response.ok) {

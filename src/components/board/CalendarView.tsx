@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-type CalendarMode = 'day' | 'week' | 'month'
+type CalendarMode = 'quarter' | 'month' | 'week' | 'day'
 
 // Sophisticated easing
 const EASE = [0.16, 1, 0.3, 1] as const
@@ -19,7 +19,8 @@ export function CalendarView({ mode, onModeChange }: CalendarViewProps) {
       const d = new Date(prev)
       if (mode === 'day') d.setDate(d.getDate() - 1)
       else if (mode === 'week') d.setDate(d.getDate() - 7)
-      else d.setMonth(d.getMonth() - 1)
+      else if (mode === 'month') d.setMonth(d.getMonth() - 1)
+      else d.setMonth(d.getMonth() - 3)
       return d
     })
   }
@@ -29,7 +30,8 @@ export function CalendarView({ mode, onModeChange }: CalendarViewProps) {
       const d = new Date(prev)
       if (mode === 'day') d.setDate(d.getDate() + 1)
       else if (mode === 'week') d.setDate(d.getDate() + 7)
-      else d.setMonth(d.getMonth() + 1)
+      else if (mode === 'month') d.setMonth(d.getMonth() + 1)
+      else d.setMonth(d.getMonth() + 3)
       return d
     })
   }
@@ -86,6 +88,18 @@ export function CalendarView({ mode, onModeChange }: CalendarViewProps) {
               <WeekView date={currentDate} />
             </motion.div>
           )}
+          {mode === 'quarter' && (
+            <motion.div
+              key={`quarter-${currentDate.toISOString()}`}
+              className="h-full"
+              initial={{ opacity: 0, x: 32 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -32 }}
+              transition={{ duration: 0.35, ease: EASE }}
+            >
+              <QuarterView date={currentDate} />
+            </motion.div>
+          )}
           {mode === 'month' && (
             <motion.div
               key={`month-${currentDate.toISOString()}`}
@@ -119,13 +133,14 @@ interface CalendarHeaderProps {
 
 function CalendarHeader({ currentDate, mode, onPrev, onNext, onToday }: CalendarHeaderProps) {
   const displayText = useMemo(() => {
-    if (mode === 'day') {
-      return currentDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        month: 'long', 
-        day: 'numeric',
-        year: 'numeric'
-      })
+    if (mode === 'quarter') {
+      const qStart = new Date(currentDate)
+      qStart.setMonth(Math.floor(qStart.getMonth() / 3) * 3)
+      const qEnd = new Date(qStart)
+      qEnd.setMonth(qEnd.getMonth() + 2)
+      return `${qStart.toLocaleDateString('en-US', { month: 'short' })} – ${qEnd.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} (Q${Math.floor(qStart.getMonth() / 3) + 1})`
+    } else if (mode === 'month') {
+      return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     } else if (mode === 'week') {
       const start = new Date(currentDate)
       start.setDate(start.getDate() - start.getDay())
@@ -133,7 +148,12 @@ function CalendarHeader({ currentDate, mode, onPrev, onNext, onToday }: Calendar
       end.setDate(end.getDate() + 6)
       return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
     } else {
-      return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      return currentDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'long', 
+        day: 'numeric',
+        year: 'numeric'
+      })
     }
   }, [currentDate, mode])
 
@@ -146,6 +166,10 @@ function CalendarHeader({ currentDate, mode, onPrev, onNext, onToday }: Calendar
       const end = new Date(start)
       end.setDate(end.getDate() + 6)
       return today >= start && today <= end
+    }
+    if (mode === 'quarter') {
+      const qMonth = Math.floor(currentDate.getMonth() / 3) * 3
+      return today.getFullYear() === currentDate.getFullYear() && today.getMonth() >= qMonth && today.getMonth() < qMonth + 3
     }
     return currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear()
   }, [currentDate, mode])
@@ -518,6 +542,100 @@ function MonthView({ date }: { date: Date }) {
               {/* Task indicator dots placeholder */}
               <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-0.5">
                 {/* Dots will go here */}
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUARTER VIEW — 3 mini months side-by-side
+// ─────────────────────────────────────────────────────────────────────────────
+
+function QuarterView({ date }: { date: Date }) {
+  const quarterStart = Math.floor(date.getMonth() / 3) * 3
+  const months = [0, 1, 2].map(offset => {
+    const d = new Date(date.getFullYear(), quarterStart + offset, 1)
+    return d
+  })
+
+  const today = new Date()
+  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+  return (
+    <div className="h-full flex flex-col p-5">
+      <div className="flex-1 grid grid-cols-3 gap-6">
+        {months.map((monthDate, mIdx) => {
+          const year = monthDate.getFullYear()
+          const month = monthDate.getMonth()
+          const firstDay = new Date(year, month, 1)
+          const startDate = new Date(firstDay)
+          startDate.setDate(startDate.getDate() - startDate.getDay())
+
+          const days: Date[] = []
+          const current = new Date(startDate)
+          for (let i = 0; i < 42; i++) {
+            days.push(new Date(current))
+            current.setDate(current.getDate() + 1)
+          }
+
+          return (
+            <motion.div
+              key={monthDate.toISOString()}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: mIdx * 0.08, duration: 0.35, ease: EASE }}
+              className="flex flex-col"
+            >
+              {/* Month title */}
+              <h3 className="text-sm font-semibold text-ink dark:text-ink-inverse mb-3 text-center">
+                {monthDate.toLocaleDateString('en-US', { month: 'long' })}
+              </h3>
+
+              {/* Day name headers */}
+              <div className="grid grid-cols-7 mb-1">
+                {dayNames.map((name, i) => (
+                  <div key={`${mIdx}-${name}-${i}`} className="text-center">
+                    <span className="text-[10px] uppercase tracking-wider text-ink-muted dark:text-ink-inverse-muted">
+                      {name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Day grid */}
+              <div className="grid grid-cols-7 gap-px flex-1">
+                {days.map((day, idx) => {
+                  const isCurrentMonth = day.getMonth() === month
+                  const isToday = day.toDateString() === today.toDateString()
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`
+                        flex items-center justify-center py-0.5
+                        ${!isCurrentMonth ? 'opacity-20' : ''}
+                      `}
+                    >
+                      <span
+                        className={`
+                          w-6 h-6 rounded-full flex items-center justify-center text-xs
+                          ${isToday
+                            ? 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white font-bold shadow-[0_0_8px_rgba(99,102,241,0.4)]'
+                            : isCurrentMonth
+                              ? 'text-ink dark:text-ink-inverse'
+                              : 'text-ink-muted dark:text-ink-inverse-muted'
+                          }
+                        `}
+                      >
+                        {day.getDate()}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </motion.div>
           )

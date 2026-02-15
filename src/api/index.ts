@@ -27,18 +27,3 @@ export {
   apiClient,
   api,
 } from './client'
-
-// Streaming Client
-export {
-  streamClient,
-  startAgentStream,
-  abortStream,
-  isStreamActive,
-  extractTextFromEvent,
-  isCompletionEvent,
-  isErrorEvent,
-  extractToolUse,
-  type StreamCallbacks,
-  type StreamController,
-} from './streaming'
-

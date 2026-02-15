@@ -178,26 +178,26 @@ export const PROJECT_TYPE_SCHEMES: Record<ProjectTypeKey, ProjectTypeScheme> = {
 }
 
 export const ISSUE_TYPE_CONFIG: Record<IssueTypeKey, { label: string; level: number; color: string }> = {
-  initiative: { label: 'Initiative', level: 1, color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-  epic: { label: 'Epic', level: 2, color: 'bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  story: { label: 'Story', level: 3, color: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
-  task: { label: 'Task', level: 4, color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
-  subtask: { label: 'Subtask', level: 5, color: 'bg-slate-500/15 text-slate-700 dark:text-slate-300' },
+  initiative: { label: 'Initiative', level: 1, color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300' },
+  epic: { label: 'Epic', level: 2, color: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
+  story: { label: 'Story', level: 3, color: 'bg-purple-500/15 text-purple-700 dark:text-purple-300' },
+  task: { label: 'Task', level: 4, color: 'bg-indigo-400/15 text-indigo-600 dark:text-indigo-400' },
+  subtask: { label: 'Subtask', level: 5, color: 'bg-surface-300/50 text-surface-600 dark:text-surface-400' },
 }
 
 export const ISSUE_STATUS_CONFIG: Record<IssueStatus, { label: string; color: string }> = {
   backlog: { label: 'Backlog', color: 'bg-surface-200 text-ink dark:bg-surface-800 dark:text-ink-inverse' },
   'in-progress': { label: 'In Progress', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300' },
-  review: { label: 'Review', color: 'bg-pink-500/15 text-pink-700 dark:text-pink-300' },
-  blocked: { label: 'Blocked', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-300' },
-  done: { label: 'Done', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  review: { label: 'Review', color: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
+  blocked: { label: 'Blocked', color: 'bg-purple-500/15 text-purple-700 dark:text-purple-300' },
+  done: { label: 'Done', color: 'bg-indigo-600/15 text-indigo-700 dark:text-indigo-300' },
 }
 
 export const ISSUE_PRIORITY_CONFIG: Record<IssuePriority, { label: string; color: string }> = {
-  critical: { label: 'Critical', color: 'bg-rose-500/20 text-rose-700 dark:text-rose-300' },
-  high: { label: 'High', color: 'bg-orange-500/20 text-orange-700 dark:text-orange-300' },
-  medium: { label: 'Medium', color: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' },
-  low: { label: 'Low', color: 'bg-slate-500/20 text-slate-700 dark:text-slate-300' },
+  critical: { label: 'Critical', color: 'bg-violet-600/20 text-violet-700 dark:text-violet-300' },
+  high: { label: 'High', color: 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300' },
+  medium: { label: 'Medium', color: 'bg-indigo-400/20 text-indigo-600 dark:text-indigo-400' },
+  low: { label: 'Low', color: 'bg-surface-400/20 text-surface-600 dark:text-surface-400' },
 }
 
 export const ISSUE_LINK_INVERSE: Record<IssueLinkType, IssueLinkType> = {

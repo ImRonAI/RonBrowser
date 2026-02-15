@@ -22,7 +22,8 @@ export default defineConfig({
       emptyOutDir: false,
       rollupOptions: {
         input: {
-          preload: resolve(__dirname, 'electron/preload.ts')
+          preload: resolve(__dirname, 'electron/preload.ts'),
+          preload_external: resolve(__dirname, 'electron/preload-external.ts')
         }
       }
     }

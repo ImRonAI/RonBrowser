@@ -67,6 +67,7 @@ export function ProjectsIndexPage() {
               <div className="flex items-center gap-1 rounded-full glass-subtle border border-white/10 dark:border-white/10 p-1">
                 <button
                   onClick={() => setView('grid')}
+                  title="Grid view"
                   className={cn(
                     'p-2 rounded-full transition-colors',
                     view === 'grid'
@@ -78,6 +79,7 @@ export function ProjectsIndexPage() {
                 </button>
                 <button
                   onClick={() => setView('list')}
+                  title="List view"
                   className={cn(
                     'p-2 rounded-full transition-colors',
                     view === 'list'

@@ -106,6 +106,7 @@ export function MessageContent({ children, variant = 'contained', className }: M
     >
       <div
         className={cn(
+          'break-words',
           variant === 'contained' && [
             'px-4 py-3 rounded-2xl',
             // User styling - blurple gradient matching selected tab

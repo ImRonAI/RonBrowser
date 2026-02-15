@@ -113,7 +113,7 @@ export interface FilterParams extends PaginationParams, SortParams {
 // API Endpoints
 // ============================================
 
-export const API_BASE_URL = 'https://api.ron-ai.io/v1'
+export const API_BASE_URL = 'http://localhost:8765'
 
 export const API_ENDPOINTS = {
   // Auth
@@ -124,12 +124,12 @@ export const API_ENDPOINTS = {
     me: '/auth/me',
   },
   
-  // Agent/Chat
+  // Agent/Chat - Using superagent endpoint with tools
   agent: {
-    chat: '/agent/chat',
-    stream: '/agent/stream',
-    conversations: '/agent/conversations',
-    conversation: (id: string) => `/agent/conversations/${id}`,
+    chat: '/superagent/stream',
+    stream: '/superagent/stream',
+    conversations: '/sessions',
+    conversation: (id: string) => `/chat/history/${id}`,
   },
   
   // User

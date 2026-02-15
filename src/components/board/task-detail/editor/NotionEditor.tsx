@@ -50,6 +50,8 @@ export function NotionEditor({
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         codeBlock: false, // We use lowlight
+        link: false, // Disable StarterKit's link (we use extension-link)
+        underline: false, // Disable StarterKit's underline (we use extension-underline)
       }),
       Placeholder.configure({ 
         placeholder: ({ node }) => {

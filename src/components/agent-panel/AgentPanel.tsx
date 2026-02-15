@@ -41,8 +41,8 @@ const SUGGESTIONS = [
   { icon: '?', text: 'What can you do?' },
 ]
 
-// API endpoint for superagent
-const SUPERAGENT_API = 'http://localhost:8765/superagent/stream'
+// API endpoint for superagent (Strands-based orchestration with meta-tooling)
+const SUPERAGENT_API = 'http://localhost:8765/agents/super/stream'
 
 export function AgentPanel() {
   const {
@@ -94,6 +94,9 @@ export function AgentPanel() {
         console.log('[AgentPanel] Sending request with session_id:', sessionIdRef.current)
         return {
           session_id: sessionIdRef.current,
+          invocation_state: {
+            interaction_mode: interactionMode,
+          },
         }
       },
     }),

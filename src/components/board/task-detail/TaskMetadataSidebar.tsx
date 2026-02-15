@@ -14,6 +14,7 @@ import {
     ExternalLink as ExternalLinkIcon,
     ArrowUpLeft as ArrowUpLeftIcon
 } from 'lucide-react'
+import { cn } from '@/utils/cn'
 
 interface TaskMetadataSidebarProps {
   task: Task
@@ -22,36 +23,42 @@ interface TaskMetadataSidebarProps {
 }
 
 export function TaskMetadataSidebar({ task, onUpdate: _onUpdate, onTaskClick }: TaskMetadataSidebarProps) {
-  // Access global tasks to find parent name if needed
   const tasks = useTaskStore(state => state.tasks)
   const parentTask = task.parentTaskId ? tasks.find(t => t.id === task.parentTaskId) : null
+  
   return (
-    <div className="
-      w-80 flex-shrink-0
-      bg-surface-50/30 dark:bg-surface-800/20 backdrop-blur-md
-      border-l border-white/10 dark:border-white/5
-      overflow-y-auto scrollbar-thin
-    ">
+    <div className={cn(
+      "w-72 flex-shrink-0",
+      "bg-surface-50/80 dark:bg-surface-850/80",
+      "border-l border-surface-200 dark:border-surface-800",
+      "overflow-y-auto scrollbar-thin"
+    )}>
       <div className="p-5 space-y-6">
         {/* Parent Task Navigation */}
         {task.parentTaskId && (
-            <MetadataSection title="Parent Task">
-                <button 
-                    onClick={() => onTaskClick?.(task.parentTaskId!)}
-                    className="flex items-center gap-2 p-2 w-full text-left rounded-lg bg-accent/5 hover:bg-accent/10 border border-accent/10 transition-colors group"
-                >
-                    <ArrowUpLeftIcon size={16} className="text-accent shrink-0" />
-                    <div className="min-w-0">
-                        <div className="text-xs font-medium text-accent">Return to Parent</div>
-                        <div className="text-sm text-ink dark:text-ink-inverse truncate">
-                            {parentTask?.title || task.parentTaskId}
-                        </div>
-                    </div>
-                </button>
-            </MetadataSection>
+          <MetadataSection title="Parent Task">
+            <button 
+              onClick={() => onTaskClick?.(task.parentTaskId!)}
+              className={cn(
+                "flex items-center gap-2 p-3 w-full text-left rounded-xl",
+                "bg-indigo-500/5 hover:bg-indigo-500/10",
+                "border border-indigo-500/10",
+                "transition-colors group"
+              )}
+            >
+              <ArrowUpLeftIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                  Return to Parent
+                </div>
+                <div className="text-sm text-ink dark:text-ink-inverse truncate">
+                  {parentTask?.title || task.parentTaskId}
+                </div>
+              </div>
+            </button>
+          </MetadataSection>
         )}
 
-        {/* Relationships */}
         {/* Relationships */}
         <MetadataSection title="Relationships">
           <ErrorBoundary componentName="RelationshipSummary">
@@ -61,7 +68,6 @@ export function TaskMetadataSidebar({ task, onUpdate: _onUpdate, onTaskClick }: 
           <RelationshipManager
             task={task}
             onRelationshipAdd={(_category, targetId, relType) => {
-              // Use the store to add the relationship
               useTaskStore.getState().addRelationship(
                 task.id, 
                 targetId, 
@@ -145,7 +151,7 @@ export function TaskMetadataSidebar({ task, onUpdate: _onUpdate, onTaskClick }: 
         </MetadataSection>
 
         {/* Timestamps */}
-        <MetadataSection title="Dates">
+        <MetadataSection title="History">
           <TimestampsList task={task} />
         </MetadataSection>
       </div>
@@ -164,12 +170,11 @@ interface MetadataSectionProps {
 
 function MetadataSection({ title, children }: MetadataSectionProps) {
   return (
-    <div className="space-y-2">
-      <h4 className="
-        text-[10px] font-bold uppercase tracking-wider
-        text-ink-muted dark:text-ink-inverse-muted
-        opacity-70
-      ">
+    <div className="space-y-2.5">
+      <h4 className={cn(
+        "text-[10px] font-bold uppercase tracking-wider",
+        "text-ink-muted dark:text-ink-inverse-muted"
+      )}>
         {title}
       </h4>
       {children}
@@ -178,7 +183,7 @@ function MetadataSection({ title, children }: MetadataSectionProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATUS SELECT
+// STATUS SELECT - Blurple palette only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StatusSelect({ value }: { value: TaskStatus }) {
@@ -186,21 +191,23 @@ function StatusSelect({ value }: { value: TaskStatus }) {
   
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className={`
-        w-full
-        flex items-center gap-2
-        px-3 py-2.5 rounded-xl
-        glass-card
-        hover:elevated
-        border transition-all duration-200
-        ${config.bgColor}
-        border-surface-200/50 dark:border-surface-700/50
-      `}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      className={cn(
+        "w-full",
+        "flex items-center gap-3",
+        "px-3 py-2.5 rounded-xl",
+        "bg-surface-0 dark:bg-surface-900",
+        "border border-surface-200 dark:border-surface-800",
+        "hover:border-indigo-300 dark:hover:border-indigo-700",
+        "transition-all duration-200"
+      )}
     >
-      <span className={`w-2 h-2 rounded-full shadow-glow-sm ${config.color.replace('text-', 'bg-')}`} />
-      <span className={`text-body-sm font-medium ${config.color}`}>
+      <span className={cn(
+        "w-2 h-2 rounded-full",
+        config.color.replace('text-', 'bg-')
+      )} />
+      <span className="text-body-sm font-medium text-ink dark:text-ink-inverse">
         {config.label}
       </span>
     </motion.button>
@@ -208,7 +215,7 @@ function StatusSelect({ value }: { value: TaskStatus }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRIORITY SELECT
+// PRIORITY SELECT - Blurple palette only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PrioritySelect({ value }: { value?: TaskPriority }) {
@@ -224,20 +231,20 @@ function PrioritySelect({ value }: { value?: TaskPriority }) {
   
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className={`
-        w-full
-        flex items-center gap-2
-        px-3 py-2.5 rounded-xl
-        glass-card
-        hover:elevated
-        border transition-all duration-200
-        ${config.bgColor}
-      `}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      className={cn(
+        "w-full",
+        "flex items-center gap-3",
+        "px-3 py-2.5 rounded-xl",
+        "bg-surface-0 dark:bg-surface-900",
+        "border border-surface-200 dark:border-surface-800",
+        "hover:border-indigo-300 dark:hover:border-indigo-700",
+        "transition-all duration-200"
+      )}
     >
       <PriorityIcon priority={value} />
-      <span className={`text-body-sm font-medium ${config.color}`}>
+      <span className="text-body-sm font-medium text-ink dark:text-ink-inverse">
         {config.label}
       </span>
     </motion.button>
@@ -246,18 +253,16 @@ function PrioritySelect({ value }: { value?: TaskPriority }) {
 
 function PriorityIcon({ priority }: { priority: TaskPriority }) {
   const colors = {
-    critical: 'text-danger',
-    high: 'text-warning',
-    medium: 'text-info',
+    critical: 'text-violet-500',
+    high: 'text-indigo-500',
+    medium: 'text-indigo-400',
     low: 'text-surface-400',
   }
   
   return (
-    <svg className={`w-4 h-4 ${colors[priority]}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={cn("w-4 h-4", colors[priority])} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       {priority === 'critical' && (
-        <>
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </>
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       )}
       {priority === 'high' && (
         <>
@@ -286,18 +291,18 @@ function AssigneeList({ assignees }: { assignees: Task['assignees'] }) {
   if (assignees.length === 0) {
     return (
       <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className="
-          w-full
-          flex items-center justify-center gap-2
-          px-3 py-2 rounded-lg
-          border border-dashed border-surface-300 dark:border-surface-600
-          text-ink-muted dark:text-ink-inverse-muted
-          hover:border-accent/50 dark:hover:border-accent-light/50
-          hover:text-accent dark:hover:text-accent-light
-          transition-all duration-200
-        "
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className={cn(
+          "w-full",
+          "flex items-center justify-center gap-2",
+          "px-3 py-2 rounded-xl",
+          "border border-dashed border-surface-300 dark:border-surface-700",
+          "text-ink-muted dark:text-ink-inverse-muted",
+          "hover:border-indigo-400 dark:hover:border-indigo-600",
+          "hover:text-indigo-600 dark:hover:text-indigo-400",
+          "transition-all duration-200"
+        )}
       >
         <PlusIcon className="w-4 h-4" />
         <span className="text-body-sm">Add assignee</span>
@@ -311,22 +316,22 @@ function AssigneeList({ assignees }: { assignees: Task['assignees'] }) {
         <motion.div
           key={assignee.id}
           whileHover={{ x: 2 }}
-          className="
-            flex items-center gap-3
-            px-3 py-2 rounded-lg
-            glass-subtle
-            cursor-pointer
-            hover:bg-surface-100/50 dark:hover:bg-surface-700/50
-            transition-colors duration-200
-          "
+          className={cn(
+            "flex items-center gap-3",
+            "px-3 py-2 rounded-xl",
+            "bg-surface-0 dark:bg-surface-900",
+            "border border-surface-200 dark:border-surface-800",
+            "cursor-pointer",
+            "hover:border-indigo-300 dark:hover:border-indigo-700",
+            "transition-colors duration-200"
+          )}
         >
-          <div className="
-            w-7 h-7 rounded-full
-            bg-accent dark:bg-accent-light
-            flex items-center justify-center
-            text-[10px] font-bold text-white
-            shadow-glow-sm
-          ">
+          <div className={cn(
+            "w-7 h-7 rounded-full",
+            "bg-gradient-to-br from-indigo-500 to-violet-600",
+            "flex items-center justify-center",
+            "text-[10px] font-bold text-white"
+          )}>
             {assignee.initials}
           </div>
           <span className="text-body-sm text-ink dark:text-ink-inverse font-medium">
@@ -346,18 +351,18 @@ function DateDisplay({ date }: { date?: number | null }) {
   if (!date) {
     return (
       <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className="
-          w-full
-          flex items-center justify-center gap-2
-          px-3 py-2 rounded-lg
-          border border-dashed border-surface-300 dark:border-surface-600
-          text-ink-muted dark:text-ink-inverse-muted
-          hover:border-accent/50 dark:hover:border-accent-light/50
-          hover:text-accent dark:hover:text-accent-light
-          transition-all duration-200
-        "
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className={cn(
+          "w-full",
+          "flex items-center justify-center gap-2",
+          "px-3 py-2 rounded-xl",
+          "border border-dashed border-surface-300 dark:border-surface-700",
+          "text-ink-muted dark:text-ink-inverse-muted",
+          "hover:border-indigo-400 dark:hover:border-indigo-600",
+          "hover:text-indigo-600 dark:hover:text-indigo-400",
+          "transition-all duration-200"
+        )}
       >
         <CalendarIcon className="w-4 h-4" />
         <span className="text-body-sm">Set due date</span>
@@ -371,36 +376,35 @@ function DateDisplay({ date }: { date?: number | null }) {
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className={`
-        w-full
-        flex items-center gap-2
-        px-3 py-2 rounded-lg
-        glass-subtle border
-        ${isOverdue 
-          ? 'bg-danger/10 text-danger border-danger/20' 
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      className={cn(
+        "w-full",
+        "flex items-center gap-3",
+        "px-3 py-2 rounded-xl",
+        "border transition-all duration-200",
+        isOverdue 
+          ? 'bg-rose-500/5 border-rose-500/20 text-rose-600 dark:text-rose-400' 
           : isDueSoon 
-            ? 'bg-warning/10 text-warning border-warning/20'
-            : 'text-ink dark:text-ink-inverse border-surface-200/50'
-        }
-        hover:shadow-sm
-        transition-all duration-200
-      `}
+            ? 'bg-amber-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400'
+            : 'bg-surface-0 dark:bg-surface-900 border-surface-200 dark:border-surface-800 text-ink dark:text-ink-inverse hover:border-indigo-300'
+      )}
     >
       <CalendarIcon className="w-4 h-4" />
       <span className="text-body-sm font-medium">
         {formatDate(dateObj)}
       </span>
       {isOverdue && (
-        <span className="text-[10px] font-bold uppercase tracking-wider ml-auto">OVERDUE</span>
+        <span className="text-[9px] font-bold uppercase tracking-wider ml-auto opacity-70">
+          Overdue
+        </span>
       )}
     </motion.button>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LABEL LIST
+// LABEL LIST - Blurple palette only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function LabelList({ labels }: { labels: TaskLabel[] }) {
@@ -409,13 +413,13 @@ function LabelList({ labels }: { labels: TaskLabel[] }) {
       {labels.map((label) => (
         <span
           key={label.id}
-          className={`
-            inline-flex items-center
-            px-2.5 py-1 rounded-md
-            text-[10px] font-bold uppercase tracking-wider
-            ${label.color} bg-opacity-10 dark:bg-opacity-20
-            border border-current border-opacity-20
-          `}
+          className={cn(
+            "inline-flex items-center",
+            "px-2.5 py-1 rounded-lg",
+            "text-[10px] font-semibold uppercase tracking-wider",
+            "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+            "border border-indigo-500/20"
+          )}
         >
           {label.label}
         </span>
@@ -435,15 +439,23 @@ function ProgressIndicator({ completed, total }: { completed: number; total: num
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
-          {completed} of {total} completed
+          {completed} of {total}
         </span>
-        <span className="text-body-xs font-bold text-ink dark:text-ink-inverse">
+        <span className={cn(
+          "text-body-xs font-medium",
+          percentage === 100 && "text-indigo-600 dark:text-indigo-400"
+        )}>
           {percentage}%
         </span>
       </div>
-      <div className="h-2 rounded-full bg-surface-200/50 dark:bg-surface-700/50 overflow-hidden box-border border border-surface-200/20">
+      <div className="h-2 rounded-full bg-surface-200 dark:bg-surface-800 overflow-hidden">
         <motion.div
-          className={`h-full rounded-full shadow-glow-sm ${percentage === 100 ? 'bg-success' : 'bg-accent dark:bg-accent-light'}`}
+          className={cn(
+            "h-full rounded-full",
+            percentage === 100 
+              ? 'bg-gradient-to-r from-indigo-500 to-violet-500' 
+              : 'bg-indigo-500'
+          )}
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -463,13 +475,14 @@ function EffortBadge({ effort }: { effort: Task['estimatedEffort'] }) {
     : `${effort} points`
   
   return (
-    <span className="
-      inline-flex items-center
-      px-3 py-1.5 rounded-lg
-      glass-subtle
-      text-body-sm font-medium
-      text-ink dark:text-ink-inverse
-    ">
+    <span className={cn(
+      "inline-flex items-center",
+      "px-3 py-1.5 rounded-xl",
+      "bg-surface-0 dark:bg-surface-900",
+      "border border-surface-200 dark:border-surface-800",
+      "text-body-sm font-medium",
+      "text-ink dark:text-ink-inverse"
+    )}>
       {label}
     </span>
   )
@@ -484,23 +497,29 @@ function TimeDisplay({ minutes }: { minutes: number }) {
   const mins = minutes % 60
   
   return (
-    <span className="
-      text-body-sm font-mono
-      text-ink dark:text-ink-inverse
-      glass-subtle px-2 py-1 rounded-md
-    ">
+    <span className={cn(
+      "text-body-sm font-mono",
+      "text-ink dark:text-ink-inverse",
+      "bg-surface-0 dark:bg-surface-900",
+      "px-3 py-1.5 rounded-xl",
+      "border border-surface-200 dark:border-surface-800"
+    )}>
       {hours > 0 ? `${hours}h ` : ''}{mins}m
     </span>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI INSIGHTS
+// AI INSIGHTS - Blurple palette only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AIInsights({ task }: { task: Task }) {
   return (
-    <div className="space-y-3 p-3 rounded-xl glass-subtle border border-accent/10">
+    <div className={cn(
+      "space-y-3 p-4 rounded-xl",
+      "bg-surface-0 dark:bg-surface-900",
+      "border border-surface-200 dark:border-surface-800"
+    )}>
       {task.complexityScore && (
         <InsightRow 
           label="Complexity" 
@@ -514,7 +533,7 @@ function AIInsights({ task }: { task: Task }) {
           label="Risk" 
           value={task.riskScore}
           max={10}
-          color={task.riskScore > 7 ? 'bg-danger' : task.riskScore > 4 ? 'bg-warning' : 'bg-success'}
+          color={task.riskScore > 7 ? 'bg-violet-600' : task.riskScore > 4 ? 'bg-indigo-500' : 'bg-indigo-400'}
         />
       )}
       {task.completionConfidence && (
@@ -522,7 +541,7 @@ function AIInsights({ task }: { task: Task }) {
           label="Confidence" 
           value={task.completionConfidence}
           max={100}
-          color="bg-accent dark:bg-accent-light"
+          color="bg-indigo-500"
           suffix="%"
         />
       )}
@@ -546,7 +565,7 @@ function InsightRow({
   const percentage = (value / max) * 100
   
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-medium text-ink-muted dark:text-ink-inverse-muted uppercase">
           {label}
@@ -555,9 +574,9 @@ function InsightRow({
           {value}{suffix}
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-surface-200/50 dark:bg-surface-700/50 overflow-hidden">
+      <div className="h-1.5 rounded-full bg-surface-200 dark:bg-surface-800 overflow-hidden">
         <motion.div
-          className={`h-full rounded-full shadow-sm ${color}`}
+          className={cn("h-full rounded-full", color)}
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -568,7 +587,7 @@ function InsightRow({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEPENDENCY LIST
+// DEPENDENCY LIST - Blurple palette only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DependencyList({ dependencies }: { dependencies: Task['dependencies'] }) {
@@ -579,17 +598,22 @@ function DependencyList({ dependencies }: { dependencies: Task['dependencies'] }
       {dependencies.map((dep) => (
         <div
           key={dep.id}
-          className="
-            flex items-center gap-2
-            px-3 py-2 rounded-lg
-            glass-subtle
-          "
+          className={cn(
+            "flex items-center gap-2",
+            "px-3 py-2 rounded-xl",
+            "bg-surface-0 dark:bg-surface-900",
+            "border border-surface-200 dark:border-surface-800"
+          )}
         >
-          <span className={`
-            text-[9px] font-bold uppercase
-            px-1.5 py-0.5 rounded
-            ${dep.type === 'blocks' ? 'bg-danger/10 text-danger' : dep.type === 'blocked-by' ? 'bg-warning/10 text-warning' : 'bg-surface-200 text-ink-muted'}
-          `}>
+          <span className={cn(
+            "text-[9px] font-bold uppercase",
+            "px-1.5 py-0.5 rounded",
+            dep.type === 'blocks' 
+              ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400' 
+              : dep.type === 'blocked-by' 
+                ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' 
+                : 'bg-surface-200 dark:bg-surface-800 text-ink-muted'
+          )}>
             {dep.type}
           </span>
           <span className="text-body-sm text-ink dark:text-ink-inverse truncate">
@@ -643,23 +667,24 @@ function LinkItem({ type, label, url }: { type: 'email' | 'meeting' | 'document'
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      whileHover={{ x: 2 }}
-      className="
-        flex items-center gap-2
-        px-3 py-2 rounded-lg
-        glass-subtle
-        text-ink dark:text-ink-inverse
-        hover:bg-surface-100/50 dark:hover:bg-surface-700/50
-        transition-colors duration-200
-        cursor-pointer
-        group
-      "
+      whileHover={url ? { x: 2 } : undefined}
+      className={cn(
+        "flex items-center gap-2",
+        "px-3 py-2 rounded-xl",
+        "bg-surface-0 dark:bg-surface-900",
+        "border border-surface-200 dark:border-surface-800",
+        "text-ink dark:text-ink-inverse",
+        url && "hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer group",
+        "transition-colors duration-200"
+      )}
     >
-      <span className="text-ink-muted dark:text-ink-inverse-muted group-hover:text-accent dark:group-hover:text-accent-light transition-colors">
+      <span className="text-ink-muted dark:text-ink-inverse-muted group-hover:text-indigo-500 transition-colors">
         {icons[type]}
       </span>
       <span className="text-body-sm truncate">{label}</span>
-      <ExternalLinkIcon className="w-3 h-3 ml-auto text-ink-muted dark:text-ink-inverse-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+      {url && (
+        <ExternalLinkIcon className="w-3 h-3 ml-auto text-ink-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+      )}
     </motion.a>
   )
 }
@@ -670,7 +695,12 @@ function LinkItem({ type, label, url }: { type: 'email' | 'meeting' | 'document'
 
 function TimestampsList({ task }: { task: Task }) {
   return (
-    <div className="space-y-2 text-[10px] text-ink-muted dark:text-ink-inverse-muted glass-subtle p-3 rounded-lg">
+    <div className={cn(
+      "space-y-2 text-[11px] text-ink-muted dark:text-ink-inverse-muted",
+      "bg-surface-0 dark:bg-surface-900",
+      "p-3 rounded-xl",
+      "border border-surface-200 dark:border-surface-800"
+    )}>
       <div className="flex justify-between">
         <span>Created</span>
         <span className="font-mono">{formatFullDate(new Date(task.createdAt))}</span>

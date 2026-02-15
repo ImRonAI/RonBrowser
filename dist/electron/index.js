@@ -609,7 +609,7 @@ let mcpBridgeStarted = false;
 if (!electron.app.isPackaged) {
   process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 }
-async function startMcpBridge() {
+async function startMcpBridge(tabsManager2) {
   if (mcpBridgeStarted) return;
   try {
     const require2 = node_module.createRequire(require("url").pathToFileURL(__filename).href);
@@ -622,7 +622,27 @@ async function startMcpBridge() {
     startElectronBridge({
       port: MCP_BRIDGE_PORT,
       cdpPort: CDP_PORT,
-      headless: false
+      headless: false,
+      getTargetInfo: async () => {
+        const activeTab = tabsManager2.activeTab;
+        if (activeTab?.isExternal && activeTab.view) {
+          const wc = activeTab.view.webContents;
+          try {
+            if (!wc.debugger.isAttached()) wc.debugger.attach();
+            const { targetInfo } = await wc.debugger.sendCommand("Target.getTargetInfo");
+            wc.debugger.detach();
+            return {
+              targetId: targetInfo.targetId,
+              webContentsId: wc.id,
+              windowId: wc.hostWebContents?.id
+              // or undefined
+            };
+          } catch (e) {
+            console.error("[MCP] Failed to get target info for tab", e);
+          }
+        }
+        return void 0;
+      }
     });
     mcpBridgeStarted = true;
     console.log(`[MCP] Electron bridge listening on http://127.0.0.1:${MCP_BRIDGE_PORT}`);
@@ -877,7 +897,15 @@ class TabsManager {
   // Internal helpers
   ensureView(tab) {
     if (tab.view) return;
-    tab.view = new electron.WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+    tab.view = new electron.WebContentsView({
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        backgroundThrottling: false,
+        preload: node_path.join(__dirname$1, "preload-external.js")
+      }
+    });
     this.updateViewBounds(tab.view);
     tab.view.webContents.on("did-navigate", (_e, url) => this.onUrlChanged(tab, url));
     tab.view.webContents.on("did-navigate-in-page", (_e, url) => this.onUrlChanged(tab, url));
@@ -985,7 +1013,7 @@ electron.app.whenReady().then(async () => {
   createWindow();
   tabsManager.create("tab-initial", "ron://home");
   tabsManager.switch("tab-initial");
-  await startMcpBridge();
+  await startMcpBridge(tabsManager);
   if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === "true") {
     console.log("[Main] Initializing Python Tool Management System...");
     registerToolManagerIPC();

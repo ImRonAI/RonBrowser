@@ -49,35 +49,35 @@ export function TaskDetailView({ task, onClose, onUpdate, onTaskClick }: TaskDet
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: EASE }}
-      className="absolute inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 md:p-10"
+      transition={{ duration: 0.25, ease: EASE }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10"
     >
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-surface-900/60 dark:bg-surface-900/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-surface-900/50 dark:bg-surface-950/70 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal Container */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 24 }}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 24 }}
-        transition={{ duration: 0.4, ease: EASE }}
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ duration: 0.35, ease: EASE }}
         className={cn(
           "relative z-10",
-          "glass-bold", // Replaced solid bg with glass-bold
+          "bg-surface-0 dark:bg-surface-950",
           "rounded-2xl",
-          "border border-white/20 dark:border-white/10", // Lighter, crisper border
-          "shadow-2xl shadow-indigo-500/10 dark:shadow-black/50", // Colored shadow
+          "border border-surface-200 dark:border-white/[0.06]",
+          "shadow-2xl shadow-surface-900/20 dark:shadow-[0_0_80px_rgba(99,102,241,0.08)]",
           "overflow-hidden",
           "flex flex-col",
           viewMode === 'fullscreen'
             ? "w-full h-full max-w-none max-h-none rounded-none border-0"
-            : "w-full max-w-5xl h-full max-h-[800px]"
+            : "w-full max-w-5xl h-full max-h-[85vh]"
         )}
       >
         {/* Header */}
@@ -90,7 +90,7 @@ export function TaskDetailView({ task, onClose, onUpdate, onTaskClick }: TaskDet
         {/* Main Content - Two Column Layout */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - Tabbed Content */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-white/10 dark:border-white/5">
+          <div className="flex-1 flex flex-col min-w-0 border-r border-surface-200 dark:border-surface-800">
             {/* Tab Navigation */}
             <TabNavigation 
               tabs={TABS} 
@@ -155,35 +155,47 @@ interface TaskDetailHeaderProps {
 
 function TaskDetailHeader({ task, onClose, onToggleFullscreen }: TaskDetailHeaderProps) {
   return (
-    <div className="
-      flex-shrink-0
-      px-4 py-3
-      border-b border-white/10 dark:border-white/5
-      glass-subtle
-    ">
+    <div className={cn(
+      "flex-shrink-0",
+      "px-4 py-3",
+      "border-b border-surface-200 dark:border-white/[0.06]",
+      "bg-surface-50/80 dark:bg-surface-900/80 backdrop-blur-xl"
+    )}>
       <div className="flex items-center justify-between gap-4">
-        {/* Left: Window Controls (macOS style) */}
+        {/* Left: Window Controls - Unified indigo/surface palette */}
         <div className="flex items-center gap-2">
           {/* Close */}
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="group w-3 h-3 rounded-full bg-rose-500 hover:bg-rose-600 flex items-center justify-center transition-colors"
+            className={cn(
+              "group w-8 h-8 rounded-lg",
+              "bg-surface-200 dark:bg-surface-800",
+              "hover:bg-indigo-500",
+              "flex items-center justify-center",
+              "transition-colors duration-200"
+            )}
             aria-label="Close"
           >
-            <CloseIcon className="w-1.5 h-1.5 text-rose-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <CloseIcon className="w-4 h-4 text-ink-muted group-hover:text-white transition-colors" />
           </motion.button>
           
-          {/* Minimize (visual only for now) */}
+          {/* Minimize */}
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="group w-3 h-3 rounded-full bg-amber-500 hover:bg-amber-600 flex items-center justify-center transition-colors"
+            className={cn(
+              "group w-8 h-8 rounded-lg",
+              "bg-surface-200 dark:bg-surface-800",
+              "hover:bg-indigo-500/80",
+              "flex items-center justify-center",
+              "transition-colors duration-200"
+            )}
             aria-label="Minimize"
           >
-            <MinimizeIcon className="w-1.5 h-1.5 text-amber-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <MinimizeIcon className="w-4 h-4 text-ink-muted group-hover:text-white transition-colors" />
           </motion.button>
           
           {/* Fullscreen */}
@@ -191,10 +203,16 @@ function TaskDetailHeader({ task, onClose, onToggleFullscreen }: TaskDetailHeade
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={onToggleFullscreen}
-            className="group w-3 h-3 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center transition-colors"
+            className={cn(
+              "group w-8 h-8 rounded-lg",
+              "bg-surface-200 dark:bg-surface-800",
+              "hover:bg-indigo-500/60",
+              "flex items-center justify-center",
+              "transition-colors duration-200"
+            )}
             aria-label="Fullscreen"
           >
-            <ExpandIcon className="w-1.5 h-1.5 text-emerald-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <ExpandIcon className="w-4 h-4 text-ink-muted group-hover:text-white transition-colors" />
           </motion.button>
         </div>
 
@@ -202,30 +220,31 @@ function TaskDetailHeader({ task, onClose, onToggleFullscreen }: TaskDetailHeade
         <div className="flex-1 min-w-0 flex items-center justify-center gap-3">
           {/* Task Type Icon */}
           {task.type && (
-            <span className="
-              flex-shrink-0
-              w-6 h-6 rounded-md
-              bg-accent/10 dark:bg-accent-light/10
-              flex items-center justify-center
-            ">
+            <span className={cn(
+              "flex-shrink-0",
+              "w-7 h-7 rounded-lg",
+              "bg-indigo-500/10 dark:bg-indigo-500/20",
+              "flex items-center justify-center",
+              "text-indigo-600 dark:text-indigo-400"
+            )}>
               <TaskTypeIcon type={task.type} />
             </span>
           )}
           
           {/* Task ID */}
-          <span className="
-            text-label uppercase tracking-wider
-            text-ink-muted dark:text-ink-inverse-muted
-          ">
+          <span className={cn(
+            "text-label uppercase tracking-wider",
+            "text-ink-muted dark:text-ink-inverse-muted"
+          )}>
             {task.id}
           </span>
 
           {/* Title */}
-          <h2 className="
-            text-body-md font-medium
-            text-ink dark:text-ink-inverse
-            truncate max-w-md
-          ">
+          <h2 className={cn(
+            "text-body-sm font-medium",
+            "text-ink dark:text-ink-inverse",
+            "truncate max-w-md"
+          )}>
             {task.title}
           </h2>
 
@@ -240,13 +259,13 @@ function TaskDetailHeader({ task, onClose, onToggleFullscreen }: TaskDetailHeade
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="
-              p-1.5 rounded-md
-              text-ink-muted dark:text-ink-inverse-muted
-              hover:bg-surface-100 dark:hover:bg-surface-700
-              hover:text-ink dark:hover:text-ink-inverse
-              transition-colors duration-200
-            "
+            className={cn(
+              "p-2 rounded-lg",
+              "text-ink-muted dark:text-ink-inverse-muted",
+              "hover:bg-surface-200 dark:hover:bg-surface-800",
+              "hover:text-ink dark:hover:text-ink-inverse",
+              "transition-colors duration-200"
+            )}
             aria-label="More options"
           >
             <MoreIcon className="w-4 h-4" />
@@ -269,28 +288,27 @@ interface TabNavigationProps {
 
 function TabNavigation({ tabs, activeTab, onTabChange }: TabNavigationProps) {
   return (
-    <div className="
-      flex-shrink-0
-      px-6 pt-4
-      border-b border-surface-200 dark:border-surface-700
-    ">
+    <div className={cn(
+      "flex-shrink-0",
+      "px-4 pt-3",
+      "border-b border-surface-200 dark:border-white/[0.06]"
+    )}>
       <div className="flex items-center gap-1">
         {tabs.map((tab) => (
           <motion.button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`
-              relative
-              flex items-center gap-2
-              px-4 py-3
-              text-body-sm font-medium
-              rounded-t-lg
-              transition-colors duration-200
-              ${activeTab === tab.id
-                ? 'text-accent dark:text-accent-light'
+            className={cn(
+              "relative",
+              "flex items-center gap-2",
+              "px-4 py-2.5",
+              "text-body-sm font-medium",
+              "rounded-t-lg",
+              "transition-colors duration-200",
+              activeTab === tab.id
+                ? 'text-indigo-600 dark:text-indigo-400'
                 : 'text-ink-muted dark:text-ink-inverse-muted hover:text-ink dark:hover:text-ink-inverse'
-              }
-            `}
+            )}
           >
             <span className="w-4 h-4">{tab.icon}</span>
             <span>{tab.label}</span>
@@ -299,10 +317,11 @@ function TabNavigation({ tabs, activeTab, onTabChange }: TabNavigationProps) {
             {activeTab === tab.id && (
               <motion.div
                 layoutId="tab-indicator"
-                className="
-                  absolute bottom-0 left-0 right-0 h-0.5
-                  bg-accent dark:bg-accent-light
-                "
+                className={cn(
+                  "absolute bottom-0 left-0 right-0 h-0.5",
+                  "bg-gradient-to-r from-indigo-500 to-violet-500",
+                  "shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                )}
                 transition={{
                   type: 'spring',
                   stiffness: 400,
@@ -324,10 +343,10 @@ function TabNavigation({ tabs, activeTab, onTabChange }: TabNavigationProps) {
 function TabPanel({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2, ease: EASE }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.15, ease: EASE }}
       className="h-full overflow-hidden"
     >
       {children}
@@ -336,27 +355,65 @@ function TabPanel({ children }: { children: React.ReactNode }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HEALTH BADGE
+// HEALTH BADGE - Using indigo/violet spectrum only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HealthBadge({ indicator }: { indicator: Task['healthIndicator'] }) {
   const config = {
-    'on-track': { emoji: '🟢', label: 'On Track', color: 'bg-success/10 text-success' },
-    'at-risk': { emoji: '🟡', label: 'At Risk', color: 'bg-warning/10 text-warning' },
-    'critical': { emoji: '🔴', label: 'Critical', color: 'bg-danger/10 text-danger' },
-    'blocked': { emoji: '⚫', label: 'Blocked', color: 'bg-surface-200 dark:bg-surface-700 text-ink-muted dark:text-ink-inverse-muted' },
+    'on-track': { 
+      icon: (
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M8 12l3 3 5-6" />
+        </svg>
+      ), 
+      label: 'On Track', 
+      color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' 
+    },
+    'at-risk': { 
+      icon: (
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <circle cx="12" cy="16" r="1" fill="currentColor" />
+        </svg>
+      ), 
+      label: 'At Risk', 
+      color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' 
+    },
+    'critical': { 
+      icon: (
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="15" y1="9" x2="9" y2="15" />
+          <line x1="9" y1="9" x2="15" y2="15" />
+        </svg>
+      ), 
+      label: 'Critical', 
+      color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' 
+    },
+    'blocked': { 
+      icon: (
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="8" y1="12" x2="16" y2="12" />
+        </svg>
+      ), 
+      label: 'Blocked', 
+      color: 'bg-surface-200 dark:bg-surface-700 text-ink-muted dark:text-ink-inverse-muted' 
+    },
   }
   
-  const { emoji, label, color } = config[indicator || 'on-track']
+  const { icon, label, color } = config[indicator || 'on-track']
   
   return (
-    <span className={`
-      inline-flex items-center gap-1.5
-      px-2 py-1 rounded-md
-      text-label uppercase tracking-wider
-      ${color}
-    `}>
-      <span>{emoji}</span>
+    <span className={cn(
+      "inline-flex items-center gap-1.5",
+      "px-2 py-1 rounded-md",
+      "text-[10px] font-semibold uppercase tracking-wider",
+      color
+    )}>
+      {icon}
       <span>{label}</span>
     </span>
   )
@@ -367,7 +424,7 @@ function HealthBadge({ indicator }: { indicator: Task['healthIndicator'] }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TaskTypeIcon({ type }: { type: Task['type'] }) {
-  const iconClass = "w-4 h-4 text-accent dark:text-accent-light"
+  const iconClass = "w-4 h-4 text-indigo-600 dark:text-indigo-400"
   
   switch (type) {
     case 'feature':
@@ -430,7 +487,7 @@ function ClockIcon({ className }: { className?: string }) {
 
 function CloseIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
@@ -439,7 +496,7 @@ function CloseIcon({ className }: { className?: string }) {
 
 function MinimizeIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   )
@@ -447,7 +504,7 @@ function MinimizeIcon({ className }: { className?: string }) {
 
 function ExpandIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="15 3 21 3 21 9" />
       <polyline points="9 21 3 21 3 15" />
       <line x1="21" y1="3" x2="14" y2="10" />
@@ -497,4 +554,3 @@ function SearchIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-

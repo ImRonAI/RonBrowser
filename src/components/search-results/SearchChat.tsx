@@ -5,7 +5,7 @@
  * Features streaming responses with reasoning, chain of thought, inline citations, and sources
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, memo } from 'react'
 import type { UIMessage } from '@ai-sdk/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
@@ -542,12 +542,15 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
   }
 
   return (
-    <div className="h-full flex flex-col bg-surface-0 dark:bg-surface-900">
+    <div className="h-full flex flex-col relative overflow-hidden bg-surface-0 dark:bg-surface-900">
+      <NeuralGridBackground isActive={isTyping} />
+      <AmbientBreathingGlow />
+
       {/* Header with back button */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex-shrink-0 px-6 py-4 flex items-center gap-4 border-b border-surface-100 dark:border-surface-800"
+        className="relative z-10 flex-shrink-0 px-6 py-4 flex items-center gap-4 border-b border-surface-100 dark:border-surface-800"
       >
         <motion.button
           onClick={onBack}
@@ -566,7 +569,7 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
       </motion.div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="relative z-10 flex-1 overflow-hidden">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -598,7 +601,7 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="flex-shrink-0 p-4 border-t border-surface-100 dark:border-surface-800"
+        className="relative z-10 flex-shrink-0 p-4 border-t border-surface-100 dark:border-surface-800"
       >
         <div className="max-w-3xl mx-auto">
           {/* Selected Contexts Display */}
@@ -828,5 +831,75 @@ function ArrowUpIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Neural Grid Background - Exactly from SuperAgentInterface
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NeuralGridBackground = memo(function NeuralGridBackground({ isActive }: { isActive: boolean }) {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <svg className="w-full h-full opacity-[0.07]">
+        {Array.from({ length: 100 }).map((_, i) => (
+          <circle
+            key={i}
+            cx={`${(i % 10) * 10 + 5}%`}
+            cy={`${Math.floor(i / 10) * 10 + 5}%`}
+            r={isActive ? 2 : 1.5}
+            className={cn(
+              "fill-violet-400 dark:fill-violet-500",
+              isActive && "animate-pulse"
+            )}
+            style={{ 
+              animationDelay: `${i * 0.02}s`,
+              opacity: isActive ? 0.6 : 0.3,
+            }}
+          />
+        ))}
+      </svg>
+    </div>
+  )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ambient Breathing Glow - Exactly from SuperAgentInterface
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AmbientBreathingGlow = memo(function AmbientBreathingGlow() {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* Core glow */}
+      <motion.div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px]"
+        animate={{ scale: [1, 1.05, 1], opacity: [0.06, 0.08, 0.06] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        style={{ 
+          background: 'radial-gradient(ellipse, rgba(139,92,246,0.12), transparent 70%)', 
+          filter: 'blur(80px)' 
+        }}
+      />
+      {/* Middle ring */}
+      <motion.div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px]"
+        animate={{ scale: [1, 1.03, 1], opacity: [0.04, 0.06, 0.04] }}
+        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+        style={{ 
+          background: 'radial-gradient(ellipse, rgba(124,58,237,0.08), transparent 70%)', 
+          filter: 'blur(100px)' 
+        }}
+      />
+      {/* Outer haze */}
+      <motion.div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px]"
+        animate={{ scale: [1, 1.02, 1], opacity: [0.02, 0.04, 0.02] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        style={{ 
+          background: 'radial-gradient(ellipse, rgba(99,102,241,0.06), transparent 70%)', 
+          filter: 'blur(120px)' 
+        }}
+      />
+    </div>
+  )
+})
 
 export default SearchChat

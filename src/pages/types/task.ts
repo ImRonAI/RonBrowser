@@ -60,6 +60,9 @@ export interface Subtask {
   priority?: TaskPriority
   assignee?: TaskContact
   status?: TaskStatus
+  estimatedTime?: number // in minutes
+  description?: string
+  dueDate?: number
 }
 
 // ============================================
@@ -394,32 +397,32 @@ export const TASK_STATUS_CONFIG: Record<TaskStatus, {
   },
   'in-progress': {
     label: 'In Progress',
-    color: 'text-accent dark:text-accent-light',
-    bgColor: 'bg-accent/10 dark:bg-accent-light/10',
+    color: 'text-indigo-500',
+    bgColor: 'bg-indigo-500/10',
     icon: 'play'
   },
   'review': {
     label: 'Review',
-    color: 'text-warning',
-    bgColor: 'bg-warning/10',
+    color: 'text-violet-500',
+    bgColor: 'bg-violet-500/10',
     icon: 'eye'
   },
   'blocked': {
     label: 'Blocked',
-    color: 'text-danger',
-    bgColor: 'bg-danger/10',
+    color: 'text-purple-500',
+    bgColor: 'bg-purple-500/10',
     icon: 'alert-circle'
   },
   'testing': {
     label: 'Testing',
-    color: 'text-info',
-    bgColor: 'bg-info/10',
+    color: 'text-indigo-400',
+    bgColor: 'bg-indigo-400/10',
     icon: 'beaker'
   },
   'done': {
     label: 'Done',
-    color: 'text-success',
-    bgColor: 'bg-success/10',
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-600/10',
     icon: 'check-circle'
   }
 }
@@ -432,20 +435,20 @@ export const TASK_PRIORITY_CONFIG: Record<TaskPriority, {
 }> = {
   'critical': {
     label: 'Critical',
-    color: 'text-danger',
-    bgColor: 'bg-danger/10',
+    color: 'text-violet-600',
+    bgColor: 'bg-violet-600/10',
     weight: 4
   },
   'high': {
     label: 'High',
-    color: 'text-warning',
-    bgColor: 'bg-warning/10',
+    color: 'text-indigo-500',
+    bgColor: 'bg-indigo-500/10',
     weight: 3
   },
   'medium': {
     label: 'Medium',
-    color: 'text-info',
-    bgColor: 'bg-info/10',
+    color: 'text-indigo-400',
+    bgColor: 'bg-indigo-400/10',
     weight: 2
   },
   'low': {
@@ -458,28 +461,28 @@ export const TASK_PRIORITY_CONFIG: Record<TaskPriority, {
 
 export const HEALTH_INDICATOR_CONFIG: Record<HealthIndicator, {
   label: string
-  emoji: string
+  icon: string
   color: string
 }> = {
   'on-track': {
     label: 'On Track',
-    emoji: '🟢',
-    color: 'text-success'
+    icon: 'check',
+    color: 'text-indigo-500'
   },
   'at-risk': {
     label: 'At Risk',
-    emoji: '🟡',
-    color: 'text-warning'
+    icon: 'alert',
+    color: 'text-violet-500'
   },
   'critical': {
     label: 'Critical',
-    emoji: '🔴',
-    color: 'text-danger'
+    icon: 'warning',
+    color: 'text-purple-500'
   },
   'blocked': {
     label: 'Blocked',
-    emoji: '⚫',
-    color: 'text-ink-muted dark:text-ink-inverse-muted'
+    icon: 'block',
+    color: 'text-surface-500'
   }
 }
 
