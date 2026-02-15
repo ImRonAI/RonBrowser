@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Path as PathParam
 from pydantic import BaseModel, Field
 
 from agent.api.core.config import DISCOVERY_MANIFEST_PATH
+from agent.api.endpoints.mcp_servers import _ensure_manifest_structure
 
 router = APIRouter()
 
@@ -57,28 +58,20 @@ class OpenAPISpec(BaseModel):
 def _load_manifest() -> Dict[str, Any]:
     """Load the discovery manifest."""
     if not DISCOVERY_MANIFEST_PATH.exists():
-        return {
-            "mcp_servers": [],
-            "openapi_specs": [],
-            "loadable_tools": []
-        }
+        return _ensure_manifest_structure({})
     
     try:
         with open(DISCOVERY_MANIFEST_PATH, 'r') as f:
-            return json.load(f)
+            return _ensure_manifest_structure(json.load(f))
     except Exception:
-        return {
-            "mcp_servers": [],
-            "openapi_specs": [],
-            "loadable_tools": []
-        }
+        return _ensure_manifest_structure({})
 
 
 def _save_manifest(manifest: Dict[str, Any]):
     """Save the discovery manifest."""
     DISCOVERY_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(DISCOVERY_MANIFEST_PATH, 'w') as f:
-        json.dump(manifest, f, indent=2)
+        json.dump(_ensure_manifest_structure(manifest), f, indent=2)
 
 
 # -----------------------------------------------------------------------------

@@ -126,9 +126,9 @@ export const API_ENDPOINTS = {
   
   // Agent/Chat - Using superagent endpoint with tools
   agent: {
-    chat: '/superagent/stream',
-    stream: '/superagent/stream',
-    conversations: '/sessions',
+    chat: '/agents/super/stream',
+    stream: '/agents/super/stream',
+    conversations: '/agents/sessions',
     conversation: (id: string) => `/chat/history/${id}`,
   },
   
@@ -168,4 +168,3 @@ export function isStreamEvent(value: unknown): value is StreamEvent {
     'timestamp' in value
   )
 }
-

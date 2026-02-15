@@ -294,11 +294,11 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
       resetState()
 
       try {
-        const response = await fetch('http://localhost:8765/api/search-agent/stream', {
+        const response = await fetch('http://localhost:8765/agents/search/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query,
+            message: query,
             session_id: sessionId,
           }),
         })

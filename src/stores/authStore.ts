@@ -91,11 +91,14 @@ function isMissingTableError(error: unknown): boolean {
   const status = (error as { status?: number }).status
   const code = (error as { code?: string }).code
   const message = (error as { message?: string }).message
+  const details = (error as { details?: string }).details
   return (
     status === 404 ||
     code === '42P01' ||
+    code === 'PGRST205' ||
     message?.includes('does not exist') === true ||
-    message?.includes('relation') === true
+    message?.includes('relation') === true ||
+    details?.includes('Could not find the table') === true
   )
 }
 

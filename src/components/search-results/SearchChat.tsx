@@ -352,13 +352,13 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
       }
 
       // Stream response from search agent
-      const response = await fetch(`${API_BASE_URL}/api/search-agent/stream`, {
+      const response = await fetch(`${API_BASE_URL}/agents/search/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: currentSessionId,
           persist_session: true,
-          query: requestText,
+          message: requestText,
         }),
         signal: abortControllerRef.current.signal,
       })

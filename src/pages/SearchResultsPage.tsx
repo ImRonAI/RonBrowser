@@ -336,11 +336,11 @@ export function SearchResultsPage() {
       setUsage(null)
 
       try {
-        const response = await fetch('http://localhost:8765/api/search-agent/stream', {
+        const response = await fetch('http://localhost:8765/agents/search/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: searchQuery,
+            message: searchQuery,
             session_id: 'search-page'
           })
         })

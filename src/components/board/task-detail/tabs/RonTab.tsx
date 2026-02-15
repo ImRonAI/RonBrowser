@@ -59,7 +59,7 @@ interface UrlAttachment {
 }
 
 // API endpoint for task agent (project manager flavor)
-const TASK_AGENT_API = 'http://localhost:8765/task-agent/stream'
+const TASK_AGENT_API = 'http://localhost:8765/agents/task/stream'
 
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi

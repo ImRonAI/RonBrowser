@@ -1,0 +1,1481 @@
+{
+  "mcp_servers": [
+    {
+      "id": "docker-mcp-gateway",
+      "name": "Docker MCP Gateway",
+      "description": "Docker MCP Gateway (stdio). Command: docker mcp gateway run",
+      "connection_command": "docker mcp gateway run",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "created_at": "2026-02-15T11:03:05.413322",
+      "updated_at": "2026-02-15T11:03:05.413322"
+    },
+    {
+      "id": "agent-sop-mcp-server",
+      "name": "Agent Sop Mcp Server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server",
+      "connection_command": "python /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server/server.py",
+      "connect_command": "python /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server/server.py",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "cms-coverage-mcp-server",
+      "name": "Cms Coverage Mcp Server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server",
+      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server && <configure-command>",
+      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server && <configure-command>",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "datacommons",
+      "name": "Datacommons",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons",
+      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons && <configure-command>",
+      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons && <configure-command>",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "healthcare-mcp-public",
+      "name": "Healthcare Mcp Public",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/healthcare-mcp-public",
+      "connection_command": "npx -y healthcare-mcp-public",
+      "connect_command": "npx -y healthcare-mcp-public",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/healthcare-mcp-public",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "mcp-installer",
+      "name": "Mcp Installer",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-installer",
+      "connection_command": "npx -y mcp-installer",
+      "connect_command": "npx -y mcp-installer",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-installer",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "mcp-playwright",
+      "name": "Mcp Playwright",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright",
+      "connection_command": "npx -y mcp-playwright",
+      "connect_command": "npx -y mcp-playwright",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "openapi-mcp",
+      "name": "Openapi Mcp",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/openapi-mcp",
+      "connection_command": "npx -y openapi-mcp",
+      "connect_command": "npx -y openapi-mcp",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/openapi-mcp",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "pophive-mcp-server",
+      "name": "Pophive Mcp Server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/pophive-mcp-server",
+      "connection_command": "npx -y pophive-mcp-server",
+      "connect_command": "npx -y pophive-mcp-server",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/pophive-mcp-server",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "telnyx-mcp-server",
+      "name": "Telnyx Mcp Server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server",
+      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server && <configure-command>",
+      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server && <configure-command>",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    },
+    {
+      "id": "unsloth-mcp-server",
+      "name": "Unsloth Mcp Server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/unsloth-mcp-server",
+      "connection_command": "npx -y unsloth-mcp-server",
+      "connect_command": "npx -y unsloth-mcp-server",
+      "transport": "stdio",
+      "configuration": {},
+      "env_vars": {},
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/unsloth-mcp-server",
+      "created_at": "2026-02-15T11:37:07.494135",
+      "updated_at": "2026-02-15T11:37:07.494135"
+    }
+  ],
+  "openapi_specs": [
+    {
+      "name": "Attachments_Retrieval_V1",
+      "file": "Attachments_Retrieval_V1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Retrieval_V1.json",
+      "description": "Auto-discovered OpenAPI spec from Attachments_Retrieval_V1.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Retrieval_V1.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Attachments_Status_V1",
+      "file": "Attachments_Status_V1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Status_V1.json",
+      "description": "Auto-discovered OpenAPI spec from Attachments_Status_V1.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Status_V1.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Attachments_Submission_V1",
+      "file": "Attachments_Submission_V1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Submission_V1.json",
+      "description": "Auto-discovered OpenAPI spec from Attachments_Submission_V1.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Submission_V1.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Authorization_v2",
+      "file": "Authorization_v2.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Authorization_v2.json",
+      "description": "Auto-discovered OpenAPI spec from Authorization_v2.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Authorization_v2.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Claim_Status_V2",
+      "file": "Claim_Status_V2.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Claim_Status_V2.json",
+      "description": "Auto-discovered OpenAPI spec from Claim_Status_V2.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Claim_Status_V2.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Eligibility",
+      "file": "Eligibility.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Eligibility.json",
+      "description": "Auto-discovered OpenAPI spec from Eligibility.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Eligibility.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Enhanced_Eligibility_API_v1",
+      "file": "Enhanced_Eligibility_API_v1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Enhanced_Eligibility_API_v1.json",
+      "description": "Auto-discovered OpenAPI spec from Enhanced_Eligibility_API_v1.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Enhanced_Eligibility_API_v1.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "InstitutionalClaims",
+      "file": "InstitutionalClaims.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/InstitutionalClaims.json",
+      "description": "Auto-discovered OpenAPI spec from InstitutionalClaims.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/InstitutionalClaims.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "MedicalNetworkClaims",
+      "file": "MedicalNetworkClaims.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MedicalNetworkClaims.json",
+      "description": "Auto-discovered OpenAPI spec from MedicalNetworkClaims.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MedicalNetworkClaims.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "MyHealth",
+      "file": "MyHealth.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MyHealth.json",
+      "description": "Auto-discovered OpenAPI spec from MyHealth.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MyHealth.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "ReportsandResponses",
+      "file": "ReportsandResponses.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/ReportsandResponses.json",
+      "description": "Auto-discovered OpenAPI spec from ReportsandResponses.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/ReportsandResponses.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "Telnyx",
+      "file": "Telnyx.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Telnyx.json",
+      "description": "Auto-discovered OpenAPI spec from Telnyx.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Telnyx.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "apiguru",
+      "file": "apiguru.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/apiguru.json",
+      "description": "Auto-discovered OpenAPI spec from apiguru.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/apiguru.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "calendar",
+      "file": "calendar.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/calendar.json",
+      "description": "Auto-discovered OpenAPI spec from calendar.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/calendar.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "coverageapi",
+      "file": "coverageapi.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/coverageapi.json",
+      "description": "Auto-discovered OpenAPI spec from coverageapi.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/coverageapi.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "cpthcpcsama",
+      "file": "cpthcpcsama.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/cpthcpcsama.json",
+      "description": "Auto-discovered OpenAPI spec from cpthcpcsama.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/cpthcpcsama.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "healthcare-gov",
+      "file": "healthcare-gov.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/healthcare-gov.json",
+      "description": "Auto-discovered OpenAPI spec from healthcare-gov.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/healthcare-gov.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "mistral",
+      "file": "mistral.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/mistral.json",
+      "description": "Auto-discovered OpenAPI spec from mistral.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/mistral.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "new_prod_token",
+      "file": "new_prod_token.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/new_prod_token.json",
+      "description": "Auto-discovered OpenAPI spec from new_prod_token.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/new_prod_token.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "payerListV1",
+      "file": "payerListV1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/payerListV1.json",
+      "description": "Auto-discovered OpenAPI spec from payerListV1.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/payerListV1.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "priorauthorizationv1",
+      "file": "priorauthorizationv1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/priorauthorizationv1.json",
+      "description": "Auto-discovered OpenAPI spec from priorauthorizationv1.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/priorauthorizationv1.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "providers",
+      "file": "providers.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/providers.json",
+      "description": "Auto-discovered OpenAPI spec from providers.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/providers.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "teamChat",
+      "file": "teamChat.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/teamChat.json",
+      "description": "Auto-discovered OpenAPI spec from teamChat.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/teamChat.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "zoom_meetings",
+      "file": "zoom_meetings.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/zoom_meetings.json",
+      "description": "Auto-discovered OpenAPI spec from zoom_meetings.json",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/zoom_meetings.json'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "agenticResearch",
+      "file": "agenticResearch.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/agenticResearch.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/agenticResearch.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/agenticResearch.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "asyncCompletions",
+      "file": "asyncCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/asyncCompletions.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/asyncCompletions.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/asyncCompletions.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "chatCompletions",
+      "file": "chatCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/chatCompletions.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/chatCompletions.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/chatCompletions.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "generateauthtoken",
+      "file": "generateauthtoken.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/generateauthtoken.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/generateauthtoken.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/generateauthtoken.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "getasyncCompletions",
+      "file": "getasyncCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/getasyncCompletions.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/getasyncCompletions.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/getasyncCompletions.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "listasyncCompletions",
+      "file": "listasyncCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/listasyncCompletions.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/listasyncCompletions.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/listasyncCompletions.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "revokeauthToken",
+      "file": "revokeauthToken.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/revokeauthToken.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/revokeauthToken.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/revokeauthToken.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "searchAPI",
+      "file": "searchAPI.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/searchAPI.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/searchAPI.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/searchAPI.yml'",
+      "created_at": "2026-02-15T11:37:07.509915",
+      "updated_at": "2026-02-15T11:37:07.509915"
+    }
+  ],
+  "loadable_tools": [
+    {
+      "name": "check_fda_drug_info",
+      "description": "Check FDA drug information for a specific medication.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tool.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tool.py', name='check_fda_drug_info')",
+      "unload_command": "unload_tool(name='check_fda_drug_info')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "get_fda_drug_summary",
+      "description": "Get a formatted summary of FDA drug information.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tool.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tool.py', name='get_fda_drug_summary')",
+      "unload_command": "unload_tool(name='get_fda_drug_summary')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "analyze_text_for_medications",
+      "description": "Analyze text for medication mentions and retrieve FDA information.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tool.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tool.py', name='analyze_text_for_medications')",
+      "unload_command": "unload_tool(name='analyze_text_for_medications')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "searchDrugLabel",
+      "description": "Search for a drug by name and get its detailed label information.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='searchDrugLabel')",
+      "unload_command": "unload_tool(name='searchDrugLabel')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "searchAdverseEffects",
+      "description": "Search for reported adverse effects of a drug in the FDA database.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='searchAdverseEffects')",
+      "unload_command": "unload_tool(name='searchAdverseEffects')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getSpecialPopulations",
+      "description": "Get comprehensive information about drug use in special populations.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getSpecialPopulations')",
+      "unload_command": "unload_tool(name='getSpecialPopulations')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getBoxedWarning",
+      "description": "Get serious warnings (black box warnings) for a drug.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getBoxedWarning')",
+      "unload_command": "unload_tool(name='getBoxedWarning')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getDrugInteractions",
+      "description": "Get detailed information about drug interactions.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getDrugInteractions')",
+      "unload_command": "unload_tool(name='getDrugInteractions')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getAbuse",
+      "description": "Retrieves information about the types of abuse that can occur with the drug.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getAbuse')",
+      "unload_command": "unload_tool(name='getAbuse')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getAbuseTable",
+      "description": "Retrieves tabular information about drug abuse.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getAbuseTable')",
+      "unload_command": "unload_tool(name='getAbuseTable')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getActiveIngredient",
+      "description": "Retrieves a list of the active, medicinal ingredients in the drug product.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getActiveIngredient')",
+      "unload_command": "unload_tool(name='getActiveIngredient')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getAdverseReactions",
+      "description": "Retrieves information about undesirable effects associated with use of the drug.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getAdverseReactions')",
+      "unload_command": "unload_tool(name='getAdverseReactions')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getClinicalPharmacology",
+      "description": "Retrieves information about the clinical pharmacology and actions of the drug in humans.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getClinicalPharmacology')",
+      "unload_command": "unload_tool(name='getClinicalPharmacology')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getContraindications",
+      "description": "Retrieves information about situations in which the drug product should not be used.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getContraindications')",
+      "unload_command": "unload_tool(name='getContraindications')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getDescription",
+      "description": "Retrieves general information about the drug product.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getDescription')",
+      "unload_command": "unload_tool(name='getDescription')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getDosageAndAdministration",
+      "description": "Retrieves information about the drug product's dosage and administration recommendations.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getDosageAndAdministration')",
+      "unload_command": "unload_tool(name='getDosageAndAdministration')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getWarnings",
+      "description": "Retrieves information about serious adverse reactions and potential safety hazards.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getWarnings')",
+      "unload_command": "unload_tool(name='getWarnings')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getPregnancy",
+      "description": "Retrieves information about effects the drug may have on pregnant women or on a fetus.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getPregnancy')",
+      "unload_command": "unload_tool(name='getPregnancy')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getPediatricUse",
+      "description": "Retrieves information about any limitations on pediatric indications and hazards.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getPediatricUse')",
+      "unload_command": "unload_tool(name='getPediatricUse')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getGeriatricUse",
+      "description": "Retrieves information about any limitations on geriatric indications and hazards.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getGeriatricUse')",
+      "unload_command": "unload_tool(name='getGeriatricUse')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getIndicationsAndUsage",
+      "description": "Retrieves a statement of each of the drug product's indications for use.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getIndicationsAndUsage')",
+      "unload_command": "unload_tool(name='getIndicationsAndUsage')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getMechanismOfAction",
+      "description": "Retrieves information about the established mechanism(s) of the drug's action in humans.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getMechanismOfAction')",
+      "unload_command": "unload_tool(name='getMechanismOfAction')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getOverdosage",
+      "description": "Retrieves information about signs, symptoms, and laboratory findings of acute overdosage.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getOverdosage')",
+      "unload_command": "unload_tool(name='getOverdosage')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getPharmacokinetics",
+      "description": "Retrieves information about the clinically significant pharmacokinetics of a drug.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getPharmacokinetics')",
+      "unload_command": "unload_tool(name='getPharmacokinetics')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getControlledSubstance",
+      "description": "Retrieves information about the schedule in which the drug is controlled by the DEA.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getControlledSubstance')",
+      "unload_command": "unload_tool(name='getControlledSubstance')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "getNursingMothers",
+      "description": "Retrieves information about excretion of the drug in human milk and effects on nursing infant.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/FDA/fda_drug_tools.py', name='getNursingMothers')",
+      "unload_command": "unload_tool(name='getNursingMothers')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "a2a_discover_agent",
+      "description": "Discover an A2A agent and return its agent card with capabilities.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/a2a_client.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/a2a_client.py', name='a2a_discover_agent')",
+      "unload_command": "unload_tool(name='a2a_discover_agent')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "a2a_list_discovered_agents",
+      "description": "List all discovered A2A agents and their capabilities.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/a2a_client.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/a2a_client.py', name='a2a_list_discovered_agents')",
+      "unload_command": "unload_tool(name='a2a_list_discovered_agents')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "a2a_send_message",
+      "description": "Send a message to a specific A2A agent and return the response.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/a2a_client.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/a2a_client.py', name='a2a_send_message')",
+      "unload_command": "unload_tool(name='a2a_send_message')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "agent_core_memory",
+      "description": "Work with agent memories - create, search, retrieve, list, and manage memory records.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/agent_core_memory.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/agent_core_memory.py', name='agent_core_memory')",
+      "unload_command": "unload_tool(name='agent_core_memory')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "agent_graph",
+      "description": "Create and manage graphs of agents with different topologies and communication patterns.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/agent_graph.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/agent_graph.py', name='agent_graph')",
+      "unload_command": "unload_tool(name='agent_graph')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "batch",
+      "description": "Invoke multiple other tool calls simultaneously.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/batch.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/batch.py', name='batch')",
+      "unload_command": "unload_tool(name='batch')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "bright_data",
+      "description": "Web scraping and data extraction tool powered by Bright Data.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/bright_data.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/bright_data.py', name='bright_data')",
+      "unload_command": "unload_tool(name='bright_data')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "browser",
+      "description": "Browser automation tool for web scraping, testing, and automation tasks.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/browser/browser.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/browser/browser.py', name='browser')",
+      "unload_command": "unload_tool(name='browser')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "calculator",
+      "description": "Calculator powered by SymPy for comprehensive mathematical operations.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/calculator.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/calculator.py', name='calculator')",
+      "unload_command": "unload_tool(name='calculator')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "chat_video",
+      "description": "Chat with video content using TwelveLabs' Pegasus model for video understanding.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/chat_video.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/chat_video.py', name='chat_video')",
+      "unload_command": "unload_tool(name='chat_video')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "code_interpreter",
+      "description": "Execute code in isolated sandbox environments.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/code_interpreter/code_interpreter.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/code_interpreter/code_interpreter.py', name='code_interpreter')",
+      "unload_command": "unload_tool(name='code_interpreter')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "cron",
+      "description": "Manage crontab entries for scheduling tasks, with special support for Strands agent jobs.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/cron.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/cron.py', name='cron')",
+      "unload_command": "unload_tool(name='cron')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "current_time",
+      "description": "Get the current time in ISO 8601 format.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/current_time.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/current_time.py', name='current_time')",
+      "unload_command": "unload_tool(name='current_time')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "diagram",
+      "description": "Create diagrams including AWS cloud diagrams and all 14 UML diagram types.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/diagram.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/diagram.py', name='diagram')",
+      "unload_command": "unload_tool(name='diagram')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "editor",
+      "description": "Editor tool designed to do changes iteratively on multiple files.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/editor.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/editor.py', name='editor')",
+      "unload_command": "unload_tool(name='editor')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "elasticsearch_memory",
+      "description": "Work with Elasticsearch memories - create, search, retrieve, list, and manage memory records.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/elasticsearch_memory.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/elasticsearch_memory.py', name='elasticsearch_memory')",
+      "unload_command": "unload_tool(name='elasticsearch_memory')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "shell",
+      "description": "Execute shell commands in the secure agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py', name='shell')",
+      "unload_command": "unload_tool(name='shell')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "file_read",
+      "description": "Read files from the secure agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py', name='file_read')",
+      "unload_command": "unload_tool(name='file_read')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "file_write",
+      "description": "Write files to the secure agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py', name='file_write')",
+      "unload_command": "unload_tool(name='file_write')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "list_files",
+      "description": "List files in the secure agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/electron_sandbox_tools.py', name='list_files')",
+      "unload_command": "unload_tool(name='list_files')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "exa_search",
+      "description": "Search the web intelligently using Exa's neural and keyword search capabilities.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/exa.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/exa.py', name='exa_search')",
+      "unload_command": "unload_tool(name='exa_search')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "exa_get_contents",
+      "description": "Get full page contents, summaries, and metadata for a list of URLs using Exa.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/exa.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/exa.py', name='exa_get_contents')",
+      "unload_command": "unload_tool(name='exa_get_contents')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "generate_image",
+      "description": "Generate images from text prompts using Stable Diffusion models via Amazon Bedrock.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/generate_image.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/generate_image.py', name='generate_image')",
+      "unload_command": "unload_tool(name='generate_image')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "generate_image_stability",
+      "description": "Generate images from text prompts using Stability Platform API.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/generate_image_stability.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/generate_image_stability.py', name='generate_image_stability')",
+      "unload_command": "unload_tool(name='generate_image_stability')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "graph",
+      "description": "Create and manage multi-agent graphs using Strands SDK Graph implementation.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/graph.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/graph.py', name='graph')",
+      "unload_command": "unload_tool(name='graph')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "image_reader",
+      "description": "Read an image file from disk and prepare it for use with Converse API.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/image_reader.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/image_reader.py', name='image_reader')",
+      "unload_command": "unload_tool(name='image_reader')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "journal",
+      "description": "Create and manage daily journal entries with tasks and notes.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/journal.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/journal.py', name='journal')",
+      "unload_command": "unload_tool(name='journal')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "load_tool",
+      "description": "Dynamically load a Python tool file and register it with the Strands Agent.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/load_tool.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/load_tool.py', name='load_tool')",
+      "unload_command": "unload_tool(name='load_tool')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "mcp_client",
+      "description": "MCP client tool for autonomously connecting to external MCP servers.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp_client.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp_client.py', name='mcp_client')",
+      "unload_command": "unload_tool(name='mcp_client')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "memory",
+      "description": "Manage content in a Bedrock Knowledge Base (store, delete, list, get, or retrieve).",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/memory.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/memory.py', name='memory')",
+      "unload_command": "unload_tool(name='memory')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "mongodb_memory",
+      "description": "Work with MongoDB Atlas memories - create, search, retrieve, list, and manage memory records.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mongodb_memory.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mongodb_memory.py', name='mongodb_memory')",
+      "unload_command": "unload_tool(name='mongodb_memory')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "nova_reels",
+      "description": "Create high-quality videos using Amazon Nova Reel.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/nova_reels.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/nova_reels.py', name='nova_reels')",
+      "unload_command": "unload_tool(name='nova_reels')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "perplexity_deep_research",
+      "description": "Conduct deep research using Perplexity's Sonar Deep Research model.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/perplexity/perplexity_deep_research.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/perplexity/perplexity_deep_research.py', name='perplexity_deep_research')",
+      "unload_command": "unload_tool(name='perplexity_deep_research')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "perplexity_search_api",
+      "description": "Execute Perplexity Search API requests with optional advanced filtering and media enrichment.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/perplexity/perplexity_search_api.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/perplexity/perplexity_search_api.py', name='perplexity_search_api')",
+      "unload_command": "unload_tool(name='perplexity_search_api')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "perplexity_sonar_pro",
+      "description": "Search using Perplexity Sonar Pro for complex multi-criteria analysis with streaming support",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/perplexity/perplexity_sonar_pro.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/perplexity/perplexity_sonar_pro.py', name='perplexity_sonar_pro')",
+      "unload_command": "unload_tool(name='perplexity_sonar_pro')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_search",
+      "description": "Search PubMed for articles matching the query.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_search')",
+      "unload_command": "unload_tool(name='pubmed_search')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_fetch_abstracts",
+      "description": "Fetch abstracts and metadata for a list of PMIDs.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_fetch_abstracts')",
+      "unload_command": "unload_tool(name='pubmed_fetch_abstracts')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_fetch_summaries",
+      "description": "Fetch document summaries for a list of PMIDs.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_fetch_summaries')",
+      "unload_command": "unload_tool(name='pubmed_fetch_summaries')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_fetch_related",
+      "description": "Find articles related to a given PMID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_fetch_related')",
+      "unload_command": "unload_tool(name='pubmed_fetch_related')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_fetch_citations",
+      "description": "Fetch citations for a given article.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_fetch_citations')",
+      "unload_command": "unload_tool(name='pubmed_fetch_citations')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_search_clinical_trials",
+      "description": "Search for clinical trials related to a condition or intervention.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_search_clinical_trials')",
+      "unload_command": "unload_tool(name='pubmed_search_clinical_trials')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "pubmed_mesh_search",
+      "description": "Search PubMed using MeSH (Medical Subject Headings) terms.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/pubmed /pubmed_tools.py', name='pubmed_mesh_search')",
+      "unload_command": "unload_tool(name='pubmed_mesh_search')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "python_repl",
+      "description": "Execute Python code in a REPL environment with interactive PTY support and state persistence.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/python_repl.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/python_repl.py', name='python_repl')",
+      "unload_command": "unload_tool(name='python_repl')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "retrieve",
+      "description": "Retrieve relevant knowledge from Amazon Bedrock Knowledge Base.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/retrieve.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/retrieve.py', name='retrieve')",
+      "unload_command": "unload_tool(name='retrieve')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "rss",
+      "description": "Interact with RSS feeds - fetch, subscribe, search, and manage feeds.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/rss.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/rss.py', name='rss')",
+      "unload_command": "unload_tool(name='rss')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "sandboxed_file_read",
+      "description": "Read a file from the agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py', name='sandboxed_file_read')",
+      "unload_command": "unload_tool(name='sandboxed_file_read')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "sandboxed_file_write",
+      "description": "Write a file to the agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py', name='sandboxed_file_write')",
+      "unload_command": "unload_tool(name='sandboxed_file_write')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "sandboxed_list_files",
+      "description": "List files in a sandbox directory.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py', name='sandboxed_list_files')",
+      "unload_command": "unload_tool(name='sandboxed_list_files')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "sandboxed_delete_file",
+      "description": "Delete a file from the agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py', name='sandboxed_delete_file')",
+      "unload_command": "unload_tool(name='sandboxed_delete_file')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "get_sandbox_info",
+      "description": "Get information about the agent sandbox.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sandboxed_tools.py', name='get_sandbox_info')",
+      "unload_command": "unload_tool(name='get_sandbox_info')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "search_video",
+      "description": "Search video content using TwelveLabs semantic search.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/search_video.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/search_video.py', name='search_video')",
+      "unload_command": "unload_tool(name='search_video')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "slack",
+      "description": "Slack integration for messaging, events, and interactions.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/slack.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/slack.py', name='slack')",
+      "unload_command": "unload_tool(name='slack')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "slack_send_message",
+      "description": "Send a message to a Slack channel.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/slack.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/slack.py', name='slack_send_message')",
+      "unload_command": "unload_tool(name='slack_send_message')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "sleep",
+      "description": "Pause execution for the specified number of seconds.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sleep.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/sleep.py', name='sleep')",
+      "unload_command": "unload_tool(name='sleep')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "speak",
+      "description": "Generate speech from text using either say command (fast mode) on macOS, or Amazon Polly (high quality mode) on other operating systems.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/speak.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/speak.py', name='speak')",
+      "unload_command": "unload_tool(name='speak')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "stop",
+      "description": "Stops the current event loop cycle by setting the stop_event_loop flag.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/stop.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/stop.py', name='stop')",
+      "unload_command": "unload_tool(name='stop')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "asciimatics_ui",
+      "description": "Create dynamic terminal UIs with asciimatics - effects, widgets, animations, particles.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/asciimatics_ui.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/asciimatics_ui.py', name='asciimatics_ui')",
+      "unload_command": "unload_tool(name='asciimatics_ui')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "bluetooth",
+      "description": "Bluetooth monitoring and control tool with GATT operations.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/bluetooth.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/bluetooth.py', name='bluetooth')",
+      "unload_command": "unload_tool(name='bluetooth')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "chess",
+      "description": "Play chess and analyze positions using Stockfish",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/chess.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/chess.py', name='chess')",
+      "unload_command": "unload_tool(name='chess')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "clipboard",
+      "description": "Clipboard monitoring and control tool.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/clipboard.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/clipboard.py', name='clipboard')",
+      "unload_command": "unload_tool(name='clipboard')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "cursor",
+      "description": "Control mouse cursor and keyboard.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/cursor.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/cursor.py', name='cursor')",
+      "unload_command": "unload_tool(name='cursor')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "dialog",
+      "description": "Create interactive dialog interfaces with advanced features.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/dialog.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/dialog.py', name='dialog')",
+      "unload_command": "unload_tool(name='dialog')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "dynamic_package",
+      "description": "Dynamically load and execute functions from any installed Python package",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/dynamic_package.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/dynamic_package.py', name='dynamic_package')",
+      "unload_command": "unload_tool(name='dynamic_package')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "face_recognition",
+      "description": "Face recognition with AWS Rekognition",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/face_recognition.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/face_recognition.py', name='face_recognition')",
+      "unload_command": "unload_tool(name='face_recognition')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "human_typer",
+      "description": "Simulate human-like typing with emotions and natural patterns",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/human_typer.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/human_typer.py', name='human_typer')",
+      "unload_command": "unload_tool(name='human_typer')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "listen",
+      "description": "Background speech listener that segments and transcribes audio with Whisper.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/listen.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/listen.py', name='listen')",
+      "unload_command": "unload_tool(name='listen')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "npm",
+      "description": "Dynamically execute NPM package functions",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/npm.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/npm.py', name='npm')",
+      "unload_command": "unload_tool(name='npm')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "screen_reader",
+      "description": "Background screen monitoring with OCR and UI element detection.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/screen_reader.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/screen_reader.py', name='screen_reader')",
+      "unload_command": "unload_tool(name='screen_reader')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "spinner_generator",
+      "description": "Generate and display custom spinner with various styles",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/spinner_generator.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/spinner_generator.py', name='spinner_generator')",
+      "unload_command": "unload_tool(name='spinner_generator')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "take_photo",
+      "description": "Capture photos using computer's camera(s) with multi-camera support",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/take_photo.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/take_photo.py', name='take_photo')",
+      "unload_command": "unload_tool(name='take_photo')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "template",
+      "description": "Template engine for generating text from Jinja2 templates",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/template.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/template.py', name='template')",
+      "unload_command": "unload_tool(name='template')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "utility",
+      "description": "Multi-purpose utility for common operations",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/utility.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/utility.py', name='utility')",
+      "unload_command": "unload_tool(name='utility')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "yolo_vision",
+      "description": "YOLO object detection for screen analysis and UI element detection.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/yolo_vision.py",
+      "category": "strands_fun_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-fun-tools/strands_fun_tools/yolo_vision.py', name='yolo_vision')",
+      "unload_command": "unload_tool(name='yolo_vision')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "gmail_send",
+      "description": "Send an email via Gmail with automatic message formatting.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/gmail_helpers.py",
+      "category": "strands_google",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/gmail_helpers.py', name='gmail_send')",
+      "unload_command": "unload_tool(name='gmail_send')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "gmail_reply",
+      "description": "Reply to an existing Gmail message.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/gmail_helpers.py",
+      "category": "strands_google",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/gmail_helpers.py', name='gmail_reply')",
+      "unload_command": "unload_tool(name='gmail_reply')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "google_auth",
+      "description": "Authenticate with Google OAuth 2.0 and generate access token.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/google_auth.py",
+      "category": "strands_google",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/google_auth.py', name='google_auth')",
+      "unload_command": "unload_tool(name='google_auth')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "use_google",
+      "description": "Execute Google API operations with comprehensive validation and error handling.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/use_google.py",
+      "category": "strands_google",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/strands-google/strands_google/use_google.py', name='use_google')",
+      "unload_command": "unload_tool(name='use_google')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "swarm",
+      "description": "Create and coordinate a custom team of AI agents for collaborative task solving.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/swarm.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/swarm.py', name='swarm')",
+      "unload_command": "unload_tool(name='swarm')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "tavily_search",
+      "description": "Search the web for real-time information using Tavily's AI-optimized search engine.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py', name='tavily_search')",
+      "unload_command": "unload_tool(name='tavily_search')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "tavily_extract",
+      "description": "Extract clean, structured content from one or more web pages using Tavily's extraction service.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py', name='tavily_extract')",
+      "unload_command": "unload_tool(name='tavily_extract')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "tavily_crawl",
+      "description": "Crawl multiple pages from a website starting from a base URL using Tavily's crawling service.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py', name='tavily_crawl')",
+      "unload_command": "unload_tool(name='tavily_crawl')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "tavily_map",
+      "description": "Map website structure starting from a base URL using Tavily's mapping service.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tavily.py', name='tavily_map')",
+      "unload_command": "unload_tool(name='tavily_map')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "think",
+      "description": "Recursive thinking tool with model switching support for sophisticated thought generation.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/think.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/think.py', name='think')",
+      "unload_command": "unload_tool(name='think')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "tool_catalog",
+      "description": "Access the tool catalog.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tool_catalog.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tool_catalog.py', name='tool_catalog')",
+      "unload_command": "unload_tool(name='tool_catalog')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "tool_execute",
+      "description": "Execute a tool by name, optionally loading it first.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tool_execute.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/tool_execute.py', name='tool_execute')",
+      "unload_command": "unload_tool(name='tool_execute')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "unload_tool",
+      "description": "Unload a tool from the agent's tool registry.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/unload_tool.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/unload_tool.py', name='unload_tool')",
+      "unload_command": "unload_tool(name='unload_tool')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "use_agent",
+      "description": "Start a new AI event loop with a specified prompt and optionally different model.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/use_agent.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/use_agent.py', name='use_agent')",
+      "unload_command": "unload_tool(name='use_agent')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "use_aws",
+      "description": "Execute AWS service operations using boto3 with comprehensive error handling and validation.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/use_aws.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/use_aws.py', name='use_aws')",
+      "unload_command": "unload_tool(name='use_aws')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "use_computer",
+      "description": "Control computer using mouse, keyboard, and capture screenshots.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/use_computer.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/use_computer.py', name='use_computer')",
+      "unload_command": "unload_tool(name='use_computer')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "workflow",
+      "description": "Advanced workflow orchestration with granular model and tool control.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/workflow.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/workflow.py', name='workflow')",
+      "unload_command": "unload_tool(name='workflow')",
+      "last_updated": "2026-02-15T12:05:27.562738"
+    }
+  ]
+}

@@ -14,8 +14,10 @@ Uses:
 from __future__ import annotations
 
 import asyncio
+import ast
 import logging
 import os
+from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -62,6 +64,7 @@ from agent.api.core.config import (
     SUPERAGENT_BIDI_PROVIDER,
     SUPERAGENT_BIDI_REQUIRE_PROVIDER,
     SUMMARY_RATIO,
+    TOOLS_SRC_DIR,
 )
 from agent.api.core.hooks import build_agent_hooks
 
@@ -82,7 +85,7 @@ class AgentFactory:
     _locks: Dict[str, asyncio.Lock] = {}
     _SUPER_TEXT_AGENT_TYPE = "super_text"
     _SUPER_VOICE_AGENT_TYPE = "super_voice"
-
+    _external_catalog_seeded = False
     @classmethod
     def _get_lock(cls, session_id: str) -> asyncio.Lock:
         """Get or create a lock for a session."""
@@ -208,127 +211,144 @@ class AgentFactory:
         """Get available tools for agents."""
         tools: list[Any] = []
 
-        try:
-            from strands_tools.tool_catalog import tool_catalog
+        def attempt(module_path: str, attr_name: str, label: str | None = None):
+            try:
+                module = __import__(module_path, fromlist=[attr_name])
+                tools.append(getattr(module, attr_name))
+            except Exception as exc:
+                logger.warning("Failed to load %s: %s", label or attr_name, exc)
 
-            tools.append(tool_catalog)
-        except Exception as exc:
-            logger.warning("Failed to load tool_catalog: %s", exc)
+        attempt("strands_tools.tool_catalog", "tool_catalog", "tool_catalog")
+        attempt("strands_tools.mem0_memory", "mem0_memory", "mem0_memory")
+        attempt("strands_tools.editor", "editor", "editor")
+        attempt("strands_tools.shell", "shell", "shell")
+        attempt("strands_tools.load_tool", "load_tool", "load_tool")
+        attempt("strands_tools.environment", "environment", "environment")
+        attempt("strands_tools.mcp_client", "mcp_client", "mcp_client")
+        attempt("strands_tools.use_agent", "use_agent", "use_agent")
+        attempt("strands_tools.workflow", "workflow", "workflow")
+        attempt("strands_tools.graph", "graph", "graph")
+        attempt("strands_tools.swarm", "swarm", "swarm")
+        attempt("strands_tools.batch", "batch", "batch")
+        # keep tool_execute for catalog-driven execution without pre-loading
+        attempt("strands_tools.tool_execute", "tool_execute", "tool_execute")
 
-        try:
-            from strands_tools.mcp_client import mcp_client
-
-            tools.append(mcp_client)
-        except Exception as exc:
-            logger.warning("Failed to load mcp_client: %s", exc)
-
-        try:
-            from strands_tools.shell import shell
-
-            tools.append(shell)
-        except Exception as exc:
-            logger.warning("Failed to load shell: %s", exc)
-
-        try:
-            from strands_tools.editor import editor
-
-            tools.append(editor)
-        except Exception as exc:
-            logger.warning("Failed to load editor: %s", exc)
-
-        try:
-            from strands_tools.file_read import file_read
-
-            tools.append(file_read)
-        except Exception as exc:
-            logger.warning("Failed to load file_read: %s", exc)
-
-        try:
-            from strands_tools.file_write import file_write
-
-            tools.append(file_write)
-        except Exception as exc:
-            logger.warning("Failed to load file_write: %s", exc)
-
-        try:
-            from strands_tools.mem0_memory import mem0_memory
-
-            tools.append(mem0_memory)
-        except Exception as exc:
-            logger.warning("Failed to load mem0_memory: %s", exc)
-
-        try:
-            from strands_tools.journal import journal
-
-            tools.append(journal)
-        except Exception as exc:
-            logger.warning("Failed to load journal: %s", exc)
-
-        try:
-            from strands_tools.think import think
-
-            tools.append(think)
-        except Exception as exc:
-            logger.warning("Failed to load think: %s", exc)
-
-        try:
-            from strands_tools.http_request import http_request
-
-            tools.append(http_request)
-        except Exception as exc:
-            logger.warning("Failed to load http_request: %s", exc)
-
-        try:
-            from strands_tools.load_tool import load_tool
-
-            tools.append(load_tool)
-        except Exception as exc:
-            logger.warning("Failed to load load_tool: %s", exc)
-
-        try:
-            from strands_tools.unload_tool import unload_tool
-
-            tools.append(unload_tool)
-        except Exception as exc:
-            logger.warning("Failed to load unload_tool: %s", exc)
-
-        try:
-            from strands_tools.swarm import swarm
-
-            tools.append(swarm)
-        except Exception as exc:
-            logger.warning("Failed to load swarm: %s", exc)
-
-        try:
-            from strands_tools.graph import graph
-
-            tools.append(graph)
-        except Exception as exc:
-            logger.warning("Failed to load graph: %s", exc)
-
-        try:
-            from strands_tools.workflow import workflow
-
-            tools.append(workflow)
-        except Exception as exc:
-            logger.warning("Failed to load workflow: %s", exc)
-
-        try:
-            from strands_tools.use_agent import use_agent
-
-            tools.append(use_agent)
-        except Exception as exc:
-            logger.warning("Failed to load use_agent: %s", exc)
-
-        try:
-            from strands_tools.browser import LocalChromiumBrowser
-
-            browser = LocalChromiumBrowser()
-            tools.append(browser.browser)
-        except Exception as exc:
-            logger.warning("Failed to load browser: %s", exc)
-
+        cls._sync_tools_with_catalog(tools)
+        cls._seed_external_tool_catalog()
         return tools
+
+    @classmethod
+    def _sync_tools_with_catalog(cls, tools: list[Any]) -> None:
+        """Register currently available tools in the shared tool catalog."""
+        if not tools:
+            return
+        try:
+            from strands_tools.tool_catalog_manager import get_tool_catalog_manager
+
+            get_tool_catalog_manager().register_tools(
+                tools,
+                origin="built-in",
+                category="built_in",
+            )
+        except Exception as exc:
+            logger.debug("Failed to sync tools with tool catalog: %s", exc)
+
+    @staticmethod
+    def _resolve_existing_path(candidates: tuple[Path, ...]) -> Path | None:
+        for candidate in candidates:
+            if candidate.exists() and candidate.is_dir():
+                return candidate
+        return None
+
+    @staticmethod
+    def _has_tool_decorator(decorator: ast.AST) -> bool:
+        if isinstance(decorator, ast.Name):
+            return decorator.id == "tool"
+        if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
+            return decorator.func.id == "tool"
+        return False
+
+    @classmethod
+    def _collect_decorated_tools_in_file(cls, file_path: Path) -> list[tuple[str, str]]:
+        try:
+            source = file_path.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except Exception as exc:
+            logger.debug("Skipping tool catalog seed for %s: %s", file_path, exc)
+            return []
+
+        tools: list[tuple[str, str]] = []
+        seen_names: set[str] = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not any(cls._has_tool_decorator(decorator) for decorator in node.decorator_list):
+                continue
+            doc = ast.get_docstring(node) or ""
+            summary = next((line.strip() for line in doc.splitlines() if line.strip()), "")
+            if node.name in seen_names:
+                continue
+            seen_names.add(node.name)
+            tools.append((node.name, summary))
+        return tools
+
+    @staticmethod
+    def _escape_single_quotes(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("'", "\\'")
+
+    @classmethod
+    def _seed_external_tool_catalog(cls) -> None:
+        if cls._external_catalog_seeded:
+            return
+        try:
+            from strands_tools.tool_catalog_manager import get_tool_catalog_manager
+        except Exception as exc:
+            logger.debug("Tool catalog manager unavailable for external seeding: %s", exc)
+            return
+
+        catalog = get_tool_catalog_manager()
+        seeded_count = 0
+
+        tool_root = TOOLS_SRC_DIR
+        if not tool_root.exists():
+            cls._external_catalog_seeded = True
+            return
+
+        for file_path in sorted(tool_root.rglob("*.py")):
+            if "__pycache__" in file_path.parts:
+                continue
+            if file_path.name == "__init__.py" or file_path.name.startswith("test_"):
+                continue
+
+            decorated_tools = cls._collect_decorated_tools_in_file(file_path)
+            if not decorated_tools:
+                continue
+
+            relative = file_path.relative_to(tool_root)
+            category = relative.parts[0] if len(relative.parts) > 1 else relative.stem
+            category = category.replace("-", "_").strip() or "strands_tools"
+
+            escaped_path = cls._escape_single_quotes(str(file_path.resolve()))
+            for tool_name, description in decorated_tools:
+                escaped_name = cls._escape_single_quotes(tool_name)
+                catalog.register_entry(
+                    name=tool_name,
+                    description=description or f"Tool from {file_path.name}",
+                    input_schema={},
+                    origin=f"{category}_pack",
+                    category=category,
+                    path=str(file_path.resolve()),
+                    load_pathway=f"load_tool(path='{escaped_path}', name='{escaped_name}')",
+                    execute_pathway=(
+                        f"tool_execute(name='{escaped_name}', arguments={{...}}, "
+                        f"load_path='{escaped_path}', load_if_missing=True)"
+                    ),
+                    unload_pathway=f"unload_tool(name='{escaped_name}')",
+                )
+                seeded_count += 1
+
+        cls._external_catalog_seeded = True
+        logger.info("Seeded external tool catalog entries: %d", seeded_count)
 
     @classmethod
     def _superagent_system_prompt(cls) -> str:
@@ -353,6 +373,20 @@ Best practices:
 - Always cite sources when providing information
 - Use multi-agent patterns for complex tasks
 """
+
+    @classmethod
+    def _bidi_superagent_system_prompt(cls) -> str:
+        """Voice-specialized prompt that preserves superagent parity."""
+        return (
+            cls._superagent_system_prompt()
+            + """
+
+Voice/Bidi nuances:
+- Operate as the same SuperAgent while optimizing for real-time, multimodal interaction.
+- Keep responses interruption-friendly and concise when speaking.
+- Confirm critical tool actions before execution when user intent is ambiguous.
+"""
+        )
 
     @classmethod
     def _bidi_provider_order(cls) -> list[str]:
@@ -470,7 +504,7 @@ Best practices:
 
                 agent = _RuntimeBidiAgent(
                     model=model,
-                    system_prompt=cls._superagent_system_prompt(),
+                    system_prompt=cls._bidi_superagent_system_prompt(),
                     tools=bidi_tools,
                     hooks=hooks,
                     session_manager=session_manager,

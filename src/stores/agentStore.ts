@@ -662,7 +662,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
     fetchSessions: async () => {
       set({ isLoadingSessions: true })
       try {
-        const response = await fetch(`${API_BASE_URL}/sessions`)
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.agent.conversations}`)
         if (response.ok) {
           const sessions = await response.json()
           set({ sessionsList: sessions, isLoadingSessions: false })
@@ -687,7 +687,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
     loadSession: async (sessionId: string) => {
       set({ isLoadingSessions: true })
       try {
-        const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`)
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.agent.conversation(sessionId)}`)
         if (response.ok) {
           const data = await response.json()
           // Convert to Message format
@@ -698,6 +698,13 @@ export const useAgentStore = create<AgentState>((set, get) => {
           set({
             currentSessionId: sessionId,
             messages: loadedMessages,
+            isLoadingSessions: false,
+          })
+        } else if (response.status === 404) {
+          // Session history endpoint is optional in some backend deployments.
+          set({
+            currentSessionId: sessionId,
+            messages: [],
             isLoadingSessions: false,
           })
         } else {

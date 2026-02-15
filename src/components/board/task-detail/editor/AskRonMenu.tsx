@@ -18,7 +18,7 @@ import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-car
 import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
 import type { TextAttachment } from '@/components/ai-elements/types'
 
-const TASK_AGENT_API = 'http://localhost:8765/task-agent/stream'
+const TASK_AGENT_API = 'http://localhost:8765/agents/task/stream'
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
 
 // Options for the menu

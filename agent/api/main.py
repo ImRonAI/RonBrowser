@@ -54,6 +54,14 @@ async def lifespan(app: FastAPI):
     # Ensure session storage directory exists
     from agent.api.core.config import SESSION_STORAGE_DIR
     SESSION_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Ensure MCP discovery manifest exists with default Docker MCP Gateway entry.
+    try:
+        from agent.api.endpoints.mcp_servers import ensure_default_mcp_server_manifest
+
+        ensure_default_mcp_server_manifest()
+    except Exception as exc:
+        logger.warning("Failed to seed default MCP server manifest: %s", exc)
     
     yield
     

@@ -119,7 +119,15 @@ MCP_TIMEOUT_SECONDS = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
 # Tool Discovery
 TOOLS_SRC_DIR = Path(__file__).parent.parent.parent / "tools" / "src" / "strands_tools"
 
-# Discovery manifest path
-DISCOVERY_MANIFEST_PATH = Path(os.getenv("TOOL_DISCOVERY_MANIFEST", 
-    Path(__file__).parent.parent.parent / "tool_manifests" / "tools_discovery_manifest.json"
-))
+# Discovery manifest path (shared by API endpoints and tool catalog manager)
+_DEFAULT_DISCOVERY_MANIFEST_PATH = Path(__file__).parent.parent.parent / "tool_manifests" / "tools_discovery_manifest.json"
+_configured_discovery_manifest = os.getenv("STRANDS_TOOL_DISCOVERY_MANIFEST") or os.getenv("TOOL_DISCOVERY_MANIFEST")
+DISCOVERY_MANIFEST_PATH = (
+    Path(_configured_discovery_manifest).expanduser()
+    if _configured_discovery_manifest
+    else _DEFAULT_DISCOVERY_MANIFEST_PATH
+)
+
+# Keep both env names aligned so all components read/write the same manifest.
+os.environ.setdefault("TOOL_DISCOVERY_MANIFEST", str(DISCOVERY_MANIFEST_PATH))
+os.environ.setdefault("STRANDS_TOOL_DISCOVERY_MANIFEST", str(DISCOVERY_MANIFEST_PATH))
