@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -9,6 +10,8 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Type
 
 from pydantic import BaseModel
+
+from agent.api.core.config import AGENT_STREAM_EVENT_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +207,9 @@ def _handle_bidi_event(event: dict[str, Any], state: StreamState) -> tuple[list[
         reason = event.get("reason")
         if isinstance(reason, str):
             state.finish_reason = _map_bidi_close_reason(reason)
+            if reason == "error":
+                error_text = event.get("message") or event.get("error") or "Bidi connection closed with reason=error"
+                return [sse("error", {"errorText": str(error_text)})], True
         return [], True
 
     if event_type == "bidi_error":
@@ -483,12 +489,39 @@ async def _stream_standard_agent_response(
 
     yield sse("start", {"messageId": state.message_id})
 
+    event_stream = agent.stream_async(
+        message,
+        invocation_state=invocation_state,
+        structured_output_model=structured_output_model,
+    )
+
     try:
-        async for event in agent.stream_async(
-            message,
-            invocation_state=invocation_state,
-            structured_output_model=structured_output_model,
-        ):
+        while True:
+            try:
+                event = await asyncio.wait_for(
+                    event_stream.__anext__(),
+                    timeout=AGENT_STREAM_EVENT_TIMEOUT_SECONDS,
+                )
+            except StopAsyncIteration:
+                break
+            except TimeoutError:
+                timeout_seconds = AGENT_STREAM_EVENT_TIMEOUT_SECONDS
+                logger.error(
+                    "Agent stream inactivity timeout after %ss without events",
+                    timeout_seconds,
+                )
+                state.finish_reason = "error"
+                yield sse(
+                    "error",
+                    {
+                        "errorText": (
+                            f"Agent stream timed out after {timeout_seconds}s without output. "
+                            "Please retry."
+                        )
+                    },
+                )
+                break
+
             for chunk in convert_event(event, state):
                 yield chunk
     except Exception as exc:
@@ -496,6 +529,14 @@ async def _stream_standard_agent_response(
         state.finish_reason = "error"
         yield sse("error", {"errorText": str(exc)})
     finally:
+        # Ensure underlying async generator is closed when we time out or exit early.
+        aclose = getattr(event_stream, "aclose", None)
+        if callable(aclose):
+            try:
+                await aclose()
+            except Exception:
+                logger.debug("Error while closing agent stream generator", exc_info=True)
+
         if state.active_text_id is not None:
             yield sse("text-end", {"id": state.active_text_id})
             state.active_text_id = None
@@ -518,6 +559,9 @@ async def _stream_bidi_agent_response(
 ) -> AsyncIterator[str]:
     state = StreamState(message_id=str(uuid.uuid4()))
     started = False
+    fallback_to_standard = False
+    fallback_reason: str | None = None
+    emitted_assistant_text = False
 
     yield sse("start", {"messageId": state.message_id})
     yield sse("start-step")
@@ -535,11 +579,43 @@ async def _stream_bidi_agent_response(
                 logger.debug("Skipping non-dict bidi event: %r", raw_event)
                 continue
 
+            event_type = raw_event.get("type")
+            if event_type == "bidi_transcript_stream":
+                if raw_event.get("role") == "assistant" and isinstance(raw_event.get("text"), str) and raw_event.get("text"):
+                    emitted_assistant_text = True
+
+            if not emitted_assistant_text:
+                if event_type == "bidi_error":
+                    fallback_to_standard = True
+                    fallback_reason = str(raw_event.get("message") or raw_event.get("error") or "bidi_error")
+                    logger.warning("Bidi emitted error before assistant output. Falling back to standard stream: %s", fallback_reason)
+                    break
+                if event_type == "bidi_connection_close" and raw_event.get("reason") == "error":
+                    fallback_to_standard = True
+                    fallback_reason = str(
+                        raw_event.get("message") or raw_event.get("error") or "bidi_connection_close:error"
+                    )
+                    logger.warning("Bidi closed before assistant output. Falling back to standard stream: %s", fallback_reason)
+                    break
+
             chunks, should_stop = _handle_bidi_event(raw_event, state)
             for chunk in chunks:
                 yield chunk
 
             if should_stop:
+                if not emitted_assistant_text and state.finish_reason == "error":
+                    fallback_to_standard = True
+                    fallback_reason = str(
+                        raw_event.get("message")
+                        or raw_event.get("error")
+                        or raw_event.get("stop_reason")
+                        or raw_event.get("reason")
+                        or "bidi_stream_terminated"
+                    )
+                    logger.warning(
+                        "Bidi terminated with error before assistant output. Falling back to standard stream: %s",
+                        fallback_reason,
+                    )
                 break
     except Exception as exc:
         logger.error("Bidi agent stream error: %s", exc, exc_info=True)
@@ -554,6 +630,73 @@ async def _stream_bidi_agent_response(
                 if state.finish_reason != "error":
                     state.finish_reason = "error"
                     yield sse("error", {"errorText": str(stop_exc)})
+
+        if fallback_to_standard:
+            try:
+                from agent.api.core.agent_factory import AgentFactory
+
+                session_id = "default"
+                if isinstance(invocation_state, dict):
+                    state_session_id = invocation_state.get("session_id")
+                    if isinstance(state_session_id, str) and state_session_id.strip():
+                        session_id = state_session_id
+                fallback_session_id = f"{session_id}__text_fallback"
+
+                fallback_agent = await AgentFactory.get_or_create_agent(
+                    session_id=fallback_session_id,
+                    agent_type="super",
+                    interaction_mode="text",
+                )
+                if not _is_standard_agent(fallback_agent):
+                    raise TypeError("Fallback agent is not a standard streaming agent")
+
+                if fallback_reason:
+                    yield sse(
+                        "data-bidi-fallback",
+                        {"data": {"reason": fallback_reason, "mode": "text"}},
+                    )
+
+                event_stream = fallback_agent.stream_async(
+                    message,
+                    invocation_state=invocation_state,
+                    structured_output_model=structured_output_model,
+                )
+
+                try:
+                    while True:
+                        try:
+                            event = await asyncio.wait_for(
+                                event_stream.__anext__(),
+                                timeout=AGENT_STREAM_EVENT_TIMEOUT_SECONDS,
+                            )
+                        except StopAsyncIteration:
+                            break
+                        except TimeoutError:
+                            state.finish_reason = "error"
+                            yield sse(
+                                "error",
+                                {
+                                    "errorText": (
+                                        f"Fallback stream timed out after {AGENT_STREAM_EVENT_TIMEOUT_SECONDS}s "
+                                        "without output."
+                                    )
+                                },
+                            )
+                            break
+
+                        for chunk in convert_event(event, state):
+                            yield chunk
+                finally:
+                    aclose = getattr(event_stream, "aclose", None)
+                    if callable(aclose):
+                        try:
+                            await aclose()
+                        except Exception:
+                            logger.debug("Error while closing fallback stream generator", exc_info=True)
+            except Exception as fallback_exc:
+                logger.error("Bidi -> standard fallback failed: %s", fallback_exc, exc_info=True)
+                state.finish_reason = "error"
+                yield sse("error", {"errorText": f"Bidi fallback failed: {fallback_exc}"})
 
         if state.active_text_id is not None:
             yield sse("text-end", {"id": state.active_text_id})

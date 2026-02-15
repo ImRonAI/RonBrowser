@@ -31,6 +31,12 @@ export default defineConfig({
   renderer: {
     root: '.',
     plugins: [react()],
+    server: {
+      watch: {
+        // Prevent dev-server reload storms from nested tool repos.
+        ignored: ['**/agent/tools/**', '**/dist/**'],
+      },
+    },
     resolve: {
       alias: {
         '@': resolve(__dirname, './src'),

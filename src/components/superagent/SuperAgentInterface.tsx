@@ -175,6 +175,11 @@ export function SuperAgentInterface() {
     onData: (dataPart) => {
       handleOrchestrationDataPart(dataPart as { type: string; data?: any })
     },
+    onError: (error: Error) => {
+      console.error('[SuperAgentInterface] API Error:', error)
+      console.error('[SuperAgentInterface] Failed to connect to backend at:', SUPERAGENT_API)
+      console.error('[SuperAgentInterface] Make sure backend is running: npm run dev:backend')
+    },
   })
 
   // State

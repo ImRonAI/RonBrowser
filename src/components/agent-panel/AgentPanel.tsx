@@ -412,7 +412,13 @@ export function AgentPanel() {
               <div className="flex-1 min-h-0 overflow-hidden">
                 <AnimatePresence mode="wait">
                   {interactionMode === 'voice' ? (
-                    <VoiceMode key="voice" />
+                    <VoiceMode
+                      key="voice"
+                      messages={messages}
+                      isTyping={isTyping}
+                      onSubmit={handleSubmit}
+                      messagesEndRef={messagesEndRef}
+                    />
                   ) : (
                     <TextMode
                       key="text"
@@ -612,8 +618,106 @@ function ModeToggle({ mode, onChange }: ModeToggleProps) {
 // VOICE MODE - Minimal & Elegant
 // ─────────────────────────────────────────────────────────────────────────────
 
-function VoiceMode() {
+interface VoiceModeProps {
+  messages: Array<{ id: string; role: string; parts: MessagePart[] }>
+  isTyping: boolean
+  onSubmit: (text: string) => void
+  messagesEndRef: React.RefObject<HTMLDivElement | null>
+}
+
+function VoiceMode({ messages, isTyping, onSubmit, messagesEndRef }: VoiceModeProps) {
   const [isListening, setIsListening] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [interimTranscript, setInterimTranscript] = useState('')
+  const [speechError, setSpeechError] = useState<string | null>(null)
+  const recognitionRef = useRef<any>(null)
+
+  const SpeechRecognitionCtor =
+    typeof window !== 'undefined'
+      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      : null
+  const supportsSpeech = Boolean(SpeechRecognitionCtor)
+
+  const stopListening = () => {
+    const recognition = recognitionRef.current
+    if (!recognition) {
+      setIsListening(false)
+      return
+    }
+    try {
+      recognition.stop()
+    } catch {
+      // no-op: stop may throw if recognition was not active
+    }
+    setIsListening(false)
+  }
+
+  const startListening = () => {
+    if (!supportsSpeech || !SpeechRecognitionCtor) {
+      setSpeechError('Speech recognition is unavailable in this build.')
+      return
+    }
+
+    setSpeechError(null)
+
+    const recognition = new SpeechRecognitionCtor()
+    recognition.lang = 'en-US'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event: any) => {
+      let nextInterim = ''
+      let finalized = ''
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i]
+        const chunk = result?.[0]?.transcript ?? ''
+        if (!chunk) continue
+        if (result.isFinal) {
+          finalized += chunk
+        } else {
+          nextInterim += chunk
+        }
+      }
+
+      if (finalized.trim()) {
+        setTranscript((prev) => `${prev} ${finalized}`.trim())
+      }
+      setInterimTranscript(nextInterim.trim())
+    }
+
+    recognition.onerror = (event: any) => {
+      setSpeechError(event?.error ? `Speech error: ${event.error}` : 'Speech recognition failed.')
+      setIsListening(false)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsListening(true)
+  }
+
+  useEffect(() => {
+    return () => {
+      stopListening()
+    }
+  }, [])
+
+  const finalTranscript = `${transcript} ${interimTranscript}`.trim()
+  const canSend = finalTranscript.length > 0
+  const isEmpty = messages.length === 0
+
+  const handleSend = () => {
+    const text = finalTranscript.trim()
+    if (!text) return
+    stopListening()
+    setTranscript('')
+    setInterimTranscript('')
+    onSubmit(text)
+  }
 
   return (
     <motion.div
@@ -621,77 +725,104 @@ function VoiceMode() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
       transition={{ ease: EASE }}
-      className="h-full flex flex-col items-center justify-center px-8"
+      className="h-full flex flex-col min-h-0"
     >
-      {/* Voice Orb - Ultra minimal */}
-      <motion.button
-        onClick={() => setIsListening(!isListening)}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className="relative"
-      >
-        {/* Subtle pulse rings */}
-        {isListening && (
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
+        {isEmpty ? (
+          <div className="h-full flex flex-col items-center justify-center px-8">
+            <motion.button
+              onClick={isListening ? stopListening : startListening}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative"
+            >
+              {isListening && (
+                <>
+                  <motion.div
+                    className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
+                    animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <motion.div
+                    className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
+                    animate={{ scale: [1, 1.4], opacity: [0.3, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                  />
+                </>
+              )}
+              <div className={cn(
+                "relative w-24 h-24 rounded-full",
+                "flex items-center justify-center",
+                "transition-all duration-500",
+                isListening
+                  ? "bg-ink dark:bg-ink-inverse"
+                  : "bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700"
+              )}>
+                <MicIcon className={cn(
+                  "w-8 h-8 transition-colors duration-300",
+                  isListening ? "text-surface-0 dark:text-surface-900" : "text-ink-muted dark:text-ink-inverse-muted"
+                )} />
+              </div>
+            </motion.button>
+            <p className="mt-8 text-body-sm text-ink-muted dark:text-ink-inverse-muted text-center">
+              {isListening ? 'Listening...' : 'Tap to speak and stream in voice mode'}
+            </p>
+            {!supportsSpeech && (
+              <p className="mt-2 text-body-xs text-red-500/90 text-center">
+                Speech recognition unavailable. You can still type in voice mode.
+              </p>
+            )}
+          </div>
+        ) : (
           <>
-            <motion.div
-              className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
-              animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-            <motion.div
-              className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
-              animate={{ scale: [1, 1.4], opacity: [0.3, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-            />
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+            {isTyping && messages[messages.length - 1]?.role === 'user' && (
+              <TypingIndicator />
+            )}
+            <div ref={messagesEndRef} />
           </>
         )}
-        
-        {/* Main orb */}
-        <div className={cn(
-          "relative w-24 h-24 rounded-full",
-          "flex items-center justify-center",
-          "transition-all duration-500",
-          isListening
-            ? "bg-ink dark:bg-ink-inverse"
-            : "bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700"
-        )}>
-          <MicIcon className={cn(
-            "w-8 h-8 transition-colors duration-300",
-            isListening ? "text-surface-0 dark:text-surface-900" : "text-ink-muted dark:text-ink-inverse-muted"
-          )} />
-        </div>
-      </motion.button>
+      </div>
 
-      {/* Status text */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="mt-8 text-body-sm text-ink-muted dark:text-ink-inverse-muted text-center"
-      >
-        {isListening ? (
-          <span className="flex items-center gap-2">
-            <motion.span
-              animate={{ opacity: [0.3, 1, 0.3] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="w-1.5 h-1.5 rounded-full bg-ink dark:bg-ink-inverse"
-            />
-            Listening
-          </span>
-        ) : (
-          "Tap to speak"
+      <div className="flex-shrink-0 p-4 border-t border-indigo-100/50 dark:border-surface-800/80 bg-gradient-to-t from-white/80 via-white/60 to-transparent dark:from-surface-900/80 dark:via-surface-900/60 dark:to-transparent">
+        {speechError && (
+          <p className="mb-2 text-body-xs text-red-500">{speechError}</p>
         )}
-      </motion.p>
-
-      {/* Keyboard hint */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="mt-3 text-body-xs text-ink-muted/40 dark:text-ink-inverse-muted/40"
-      >
-        or press Space
-      </motion.p>
+        <div className="mb-2 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50/70 dark:bg-surface-850/70 px-3 py-2 min-h-[44px] text-body-sm text-ink dark:text-ink-inverse">
+          {finalTranscript || (
+            <span className="text-ink-muted dark:text-ink-inverse-muted">
+              {isListening ? 'Listening...' : 'Voice transcript will appear here'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={isListening ? stopListening : startListening}
+            className={cn(
+              "px-3 py-2 rounded-lg text-body-sm transition-colors",
+              isListening
+                ? "bg-red-500 text-white"
+                : "bg-surface-200 dark:bg-surface-700 text-ink dark:text-ink-inverse"
+            )}
+          >
+            {isListening ? 'Stop' : 'Listen'}
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={!canSend}
+            className={cn(
+              "ml-auto px-3 py-2 rounded-lg text-body-sm transition-colors",
+              canSend
+                ? "bg-ink dark:bg-ink-inverse text-surface-0 dark:text-surface-900"
+                : "bg-surface-200 dark:bg-surface-700 text-ink-muted/50 dark:text-ink-inverse-muted/50"
+            )}
+          >
+            Send
+          </button>
+        </div>
+      </div>
     </motion.div>
   )
 }

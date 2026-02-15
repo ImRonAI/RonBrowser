@@ -86,6 +86,9 @@ const tableAvailability: Record<SupabaseTable, boolean | null> = {
   user_preferences: null,
 }
 
+let authSubscription: { unsubscribe: () => void } | null = null
+let initializePromise: Promise<void> | null = null
+
 function isMissingTableError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const status = (error as { status?: number }).status
@@ -139,122 +142,145 @@ export const useAuthStore = create<AuthState>()(
       // ----------------------------------------
       initialize: async () => {
         if (get().isInitialized) return
+        if (initializePromise) return initializePromise
+        initializePromise = (async () => {
+          set({ isLoading: true })
 
-        set({ isLoading: true })
+          try {
+            // Keep exactly one auth state listener in development + HMR.
+            if (authSubscription) {
+              authSubscription.unsubscribe()
+            }
+            authSubscription = onAuthStateChange((event, session) => {
+              get().handleAuthStateChange(event, session)
+            })
 
-        try {
-          // Set up auth state listener
-          onAuthStateChange((event, session) => {
-            get().handleAuthStateChange(event, session)
-          })
-
-          // Check for existing session
-          const session = await getSession()
-          
-          if (session) {
-            // Try to fetch user profile from database (may not exist yet)
-            let userProfile: Record<string, unknown> | null = null
-            let preferences: Record<string, unknown> | null = null
+            // Check for existing session
+            const session = await getSession()
             
-            if (shouldQueryTable('users')) {
-              try {
-                const { data, error } = await supabase
-                  .from('users')
-                  .select('*')
-                  .eq('id', session.user.id)
-                  .single()
-                if (error) {
+            if (session) {
+              // Try to fetch user profile from database (may not exist yet)
+              let userProfile: Record<string, unknown> | null = null
+              let preferences: Record<string, unknown> | null = null
+              
+              if (shouldQueryTable('users')) {
+                try {
+                  const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single()
+                  if (error) {
+                    if (!handleTableError('users', error)) {
+                      console.warn('Failed to fetch user profile:', error)
+                    }
+                  } else {
+                    markTableAvailable('users')
+                    userProfile = data
+                  }
+                } catch (error) {
                   if (!handleTableError('users', error)) {
                     console.warn('Failed to fetch user profile:', error)
                   }
-                } else {
-                  markTableAvailable('users')
-                  userProfile = data
-                }
-              } catch (error) {
-                if (!handleTableError('users', error)) {
-                  console.warn('Failed to fetch user profile:', error)
                 }
               }
-            }
 
-            if (shouldQueryTable('user_preferences')) {
-              try {
-                const { data, error } = await supabase
-                  .from('user_preferences')
-                  .select('*')
-                  .eq('user_id', session.user.id)
-                  .single()
-                if (error) {
+              if (shouldQueryTable('user_preferences')) {
+                try {
+                  const { data, error } = await supabase
+                    .from('user_preferences')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                    .single()
+                  if (error) {
+                    if (!handleTableError('user_preferences', error)) {
+                      console.warn('Failed to fetch user preferences:', error)
+                    }
+                  } else {
+                    markTableAvailable('user_preferences')
+                    preferences = data
+                  }
+                } catch (error) {
                   if (!handleTableError('user_preferences', error)) {
                     console.warn('Failed to fetch user preferences:', error)
                   }
-                } else {
-                  markTableAvailable('user_preferences')
-                  preferences = data
-                }
-              } catch (error) {
-                if (!handleTableError('user_preferences', error)) {
-                  console.warn('Failed to fetch user preferences:', error)
                 }
               }
-            }
 
-            const user = mapSessionToUser(session, {
-              name: (userProfile?.name as string) || session.user.user_metadata?.name,
-              avatar: (userProfile?.avatar_url as string) || undefined,
-              preferences: preferences ? {
-                theme: preferences.theme as UserPreferences['theme'],
-                interactionMode: preferences.interaction_mode as UserPreferences['interactionMode'],
-                searchMode: preferences.search_mode as UserPreferences['searchMode'],
-                contentDensity: preferences.content_density as UserPreferences['contentDensity'],
-                showAnimations: preferences.show_animations as boolean,
-                reduceMotion: preferences.reduce_motion as boolean,
-              } : undefined,
-            })
+              const user = mapSessionToUser(session, {
+                name: (userProfile?.name as string) || session.user.user_metadata?.name,
+                avatar: (userProfile?.avatar_url as string) || undefined,
+                preferences: preferences ? {
+                  theme: preferences.theme as UserPreferences['theme'],
+                  interactionMode: preferences.interaction_mode as UserPreferences['interactionMode'],
+                  searchMode: preferences.search_mode as UserPreferences['searchMode'],
+                  contentDensity: preferences.content_density as UserPreferences['contentDensity'],
+                  showAnimations: preferences.show_animations as boolean,
+                  reduceMotion: preferences.reduce_motion as boolean,
+                } : undefined,
+              })
 
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-              isInitialized: true,
-            })
+              set({
+                user,
+                isAuthenticated: true,
+                isLoading: false,
+                isInitialized: true,
+              })
 
-            // Store tokens in Electron's secure storage
-            if (window.electron?.auth) {
-              await window.electron.auth.storeTokens({
-                accessToken: session.access_token,
-                refreshToken: session.refresh_token,
-                expiresAt: session.expires_at || 0,
+              // Store tokens in Electron's secure storage
+              if (window.electron?.auth) {
+                await window.electron.auth.storeTokens({
+                  accessToken: session.access_token,
+                  refreshToken: session.refresh_token,
+                  expiresAt: session.expires_at || 0,
+                })
+              }
+            } else {
+              set({
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+                isInitialized: true,
               })
             }
-          } else {
+          } catch (error) {
+            console.error('Auth initialization error:', error)
             set({
-              user: null,
-              isAuthenticated: false,
+              error: mapAuthError(error),
               isLoading: false,
               isInitialized: true,
             })
+          } finally {
+            initializePromise = null
           }
-        } catch (error) {
-          console.error('Auth initialization error:', error)
-          set({
-            error: mapAuthError(error),
-            isLoading: false,
-            isInitialized: true,
-          })
-        }
+        })()
+
+        return initializePromise
       },
 
       // ----------------------------------------
       // Handle Auth State Changes
       // ----------------------------------------
       handleAuthStateChange: (event: AuthChangeEvent, session: Session | null) => {
-        console.log('Auth state change:', event, session?.user?.email)
+        if (event !== 'INITIAL_SESSION') {
+          console.log('Auth state change:', event, session?.user?.email)
+        }
 
         switch (event) {
           case 'SIGNED_IN':
             if (session) {
+              const currentUser = get().user
+              if (get().isAuthenticated && currentUser?.id === session.user.id) {
+                if (window.electron?.auth) {
+                  window.electron.auth.storeTokens({
+                    accessToken: session.access_token,
+                    refreshToken: session.refresh_token,
+                    expiresAt: session.expires_at || 0,
+                  })
+                }
+                break
+              }
+
               const user = mapSessionToUser(session)
               set({
                 user,

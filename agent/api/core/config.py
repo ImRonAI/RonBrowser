@@ -54,6 +54,8 @@ LANCEDB_API_KEY = os.getenv("LANCEDB_API_KEY")
 
 # Agent Configuration
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "14400"))
+# Guardrail for stalled model/tool streams that produce no events.
+AGENT_STREAM_EVENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_STREAM_EVENT_TIMEOUT_SECONDS", "45"))
 SESSION_STORAGE_DIR = Path(os.getenv("SESSION_STORAGE_DIR", ".sessions"))
 
 # Conversation Management Configuration

@@ -14,7 +14,7 @@ Uses:
 from __future__ import annotations
 
 import asyncio
-import ast
+import importlib.util
 import logging
 import os
 from pathlib import Path
@@ -222,7 +222,6 @@ class AgentFactory:
         attempt("strands_tools.mem0_memory", "mem0_memory", "mem0_memory")
         attempt("strands_tools.editor", "editor", "editor")
         attempt("strands_tools.shell", "shell", "shell")
-        attempt("strands_tools.load_tool", "load_tool", "load_tool")
         attempt("strands_tools.environment", "environment", "environment")
         attempt("strands_tools.mcp_client", "mcp_client", "mcp_client")
         attempt("strands_tools.use_agent", "use_agent", "use_agent")
@@ -230,8 +229,6 @@ class AgentFactory:
         attempt("strands_tools.graph", "graph", "graph")
         attempt("strands_tools.swarm", "swarm", "swarm")
         attempt("strands_tools.batch", "batch", "batch")
-        # keep tool_execute for catalog-driven execution without pre-loading
-        attempt("strands_tools.tool_execute", "tool_execute", "tool_execute")
 
         cls._sync_tools_with_catalog(tools)
         cls._seed_external_tool_catalog()
@@ -261,38 +258,6 @@ class AgentFactory:
         return None
 
     @staticmethod
-    def _has_tool_decorator(decorator: ast.AST) -> bool:
-        if isinstance(decorator, ast.Name):
-            return decorator.id == "tool"
-        if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
-            return decorator.func.id == "tool"
-        return False
-
-    @classmethod
-    def _collect_decorated_tools_in_file(cls, file_path: Path) -> list[tuple[str, str]]:
-        try:
-            source = file_path.read_text(encoding="utf-8")
-            tree = ast.parse(source)
-        except Exception as exc:
-            logger.debug("Skipping tool catalog seed for %s: %s", file_path, exc)
-            return []
-
-        tools: list[tuple[str, str]] = []
-        seen_names: set[str] = set()
-        for node in ast.walk(tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if not any(cls._has_tool_decorator(decorator) for decorator in node.decorator_list):
-                continue
-            doc = ast.get_docstring(node) or ""
-            summary = next((line.strip() for line in doc.splitlines() if line.strip()), "")
-            if node.name in seen_names:
-                continue
-            seen_names.add(node.name)
-            tools.append((node.name, summary))
-        return tools
-
-    @staticmethod
     def _escape_single_quotes(value: str) -> str:
         return value.replace("\\", "\\\\").replace("'", "\\'")
 
@@ -302,6 +267,7 @@ class AgentFactory:
             return
         try:
             from strands_tools.tool_catalog_manager import get_tool_catalog_manager
+            from strands.tools.decorator import DecoratedFunctionTool
         except Exception as exc:
             logger.debug("Tool catalog manager unavailable for external seeding: %s", exc)
             return
@@ -320,30 +286,52 @@ class AgentFactory:
             if file_path.name == "__init__.py" or file_path.name.startswith("test_"):
                 continue
 
-            decorated_tools = cls._collect_decorated_tools_in_file(file_path)
-            if not decorated_tools:
+            # Import module and discover DecoratedFunctionTool instances
+            try:
+                module_name = f"_catalog_seed_{file_path.stem}_{id(file_path)}"
+                spec = importlib.util.spec_from_file_location(module_name, file_path)
+                if spec is None or spec.loader is None:
+                    continue
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+            except Exception as exc:
+                logger.debug("Skipping tool catalog seed for %s: %s", file_path, exc)
                 continue
 
             relative = file_path.relative_to(tool_root)
             category = relative.parts[0] if len(relative.parts) > 1 else relative.stem
             category = category.replace("-", "_").strip() or "strands_tools"
 
-            escaped_path = cls._escape_single_quotes(str(file_path.resolve()))
-            for tool_name, description in decorated_tools:
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name, None)
+                if not isinstance(attr, DecoratedFunctionTool):
+                    continue
+
+                tool_name = attr_name
+                tool_spec = attr.tool_spec
+                description = tool_spec.get("description", f"Tool from {file_path.name}") if isinstance(tool_spec, dict) else f"Tool from {file_path.name}"
+
+                # Extract and unwrap input schema
+                input_schema = {}
+                if isinstance(tool_spec, dict):
+                    raw_schema = tool_spec.get("inputSchema") or tool_spec.get("input_schema") or {}
+                    if isinstance(raw_schema, dict) and "json" in raw_schema and isinstance(raw_schema["json"], dict):
+                        input_schema = raw_schema["json"]
+                    elif isinstance(raw_schema, dict):
+                        input_schema = raw_schema
+
+                escaped_path = cls._escape_single_quotes(str(file_path.resolve()))
                 escaped_name = cls._escape_single_quotes(tool_name)
                 catalog.register_entry(
                     name=tool_name,
-                    description=description or f"Tool from {file_path.name}",
-                    input_schema={},
+                    description=description,
+                    input_schema=input_schema,
                     origin=f"{category}_pack",
                     category=category,
                     path=str(file_path.resolve()),
-                    load_pathway=f"load_tool(path='{escaped_path}', name='{escaped_name}')",
-                    execute_pathway=(
-                        f"tool_execute(name='{escaped_name}', arguments={{...}}, "
-                        f"load_path='{escaped_path}', load_if_missing=True)"
-                    ),
-                    unload_pathway=f"unload_tool(name='{escaped_name}')",
+                    load_pathway=f"tool_catalog(action='load', name='{escaped_name}')",
+                    execute_pathway=f"tool_catalog(action='execute', name='{escaped_name}', arguments={{...}})",
+                    unload_pathway=f"tool_catalog(action='unload', name='{escaped_name}')",
                 )
                 seeded_count += 1
 
@@ -355,23 +343,156 @@ class AgentFactory:
         """System prompt shared by standard and bidi superagent variants."""
         return """You are Ron SuperAgent, an advanced AI assistant with browser automation and tool use capabilities.
 
+Use all available tools implicitly as needed without being explicitly told. Always use tools instead of suggesting code that would perform the same operations. Proactively identify when tasks can be completed using available tools.
+
 You have access to:
 - Browser automation for web interaction
-- File system operations
-- Shell command execution
-- HTTP requests
-- Memory and journaling
-- Tool catalog for discovery
-- MCP client for external tools
-- Multi-agent orchestration (swarm, graph, workflow)
+- File system operations (editor, shell)
+- Memory and journaling (mem0_memory)
+- MCP client for external tool servers
+- Multi-agent orchestration (use_agent, swarm, graph, workflow, batch)
+- Tool catalog (tool_catalog) for discovering, loading, executing, and unloading tools
 
-Best practices:
-- Use browser tools for web-based tasks
-- Check memory for relevant context
-- Log significant events to journal
-- Use shell/editor for file operations
+## Tool Catalog
+
+tool_catalog is your single interface for the full tool lifecycle:
+
+| Action | When to use | Example |
+|--------|-------------|---------|
+| list_categories | See all available tools with descriptions | tool_catalog(action='list_categories') |
+| get_tool | Inspect a tool's full schema and details | tool_catalog(action='get_tool', name='perplexity_search') |
+| execute | One-shot: load, run, unload automatically | tool_catalog(action='execute', name='perplexity_search', arguments={...}) |
+| execute (parallel) | Run multiple tools concurrently | tool_catalog(action='execute', tools=[{name, arguments}, ...]) |
+| load | Keep a tool available for repeated use | tool_catalog(action='load', name='perplexity_search') |
+| unload | Remove a loaded tool when done | tool_catalog(action='unload', name='perplexity_search') |
+
+Use **execute** for one-off tool calls. Use **load/unload** when calling a tool multiple times or when assigning tools to subagents.
+
+## Meta-Tooling
+
+### TOOL NAMING CONVENTION:
+- The tool name (function name) MUST match the file name without the extension
+- Example: For file "tool_name.py", use tool name "tool_name"
+
+### TOOL CREATION vs. TOOL USAGE:
+- CAREFULLY distinguish between requests to CREATE a new tool versus USE an existing tool
+- When a user asks a question like "reverse hello world" or "count abc", first check if an appropriate tool already exists before creating a new one
+- If an appropriate tool already exists, use it directly instead of creating a redundant tool
+- Only create a new tool when the user explicitly requests one with phrases like "create", "make a tool", etc.
+
+### TOOL CREATION PROCESS:
+- Name the file "tool_name.py" where "tool_name" is a human readable name
+- Name the function in the file the SAME as the file name (without extension)
+- The "name" parameter in the TOOL_SPEC MUST match the name of the file (without extension)
+- Include detailed docstrings explaining the tool's purpose and parameters
+- After creating a tool, announce "TOOL_CREATED: <filename>" to track successful creation
+
+### TOOL USAGE:
+- Use existing tools with appropriate parameters
+- Provide a clear explanation of the result
+
+### TOOL STRUCTURE
+When creating a tool, follow this exact structure:
+
+```python
+from typing import Any
+from strands.types.tools import ToolUse, ToolResult
+
+TOOL_SPEC = {
+    "name": "tool_name",  # Must match function name
+    "description": "What the tool does",
+    "inputSchema": {  # Exact capitalization required
+        "json": {
+            "type": "object",
+            "properties": {
+                "param_name": {
+                    "type": "string",
+                    "description": "Parameter description"
+                }
+            },
+            "required": ["param_name"]
+        }
+    }
+}
+
+def tool_name(tool_use: ToolUse, **kwargs: Any) -> ToolResult:
+    tool_use_id = tool_use["toolUseId"]
+    param_value = tool_use["input"]["param_name"]
+
+    result = param_value  # Replace with actual processing
+
+    return {
+        "toolUseId": tool_use_id,
+        "status": "success",
+        "content": [{"text": f"Result: {result}"}]
+    }
+```
+
+Critical requirements:
+1. Use "inputSchema" (not input_schema) with "json" wrapper
+2. Function must access parameters via tool_use["input"]["param_name"]
+3. Return dict must use "toolUseId" (not tool_use_id)
+4. Content must be a list of objects: [{"text": "message"}]
+
+### AUTONOMOUS TOOL CREATION WORKFLOW
+
+When asked to create a tool:
+1. Generate the complete Python code for the tool following the structure above
+2. Use the editor tool to write the code directly to a file named "tool_name.py"
+3. Use tool_catalog(action='load', name='tool_name') to dynamically load the newly created tool
+4. After loading, report the exact tool name and path you created
+5. Confirm when the tool has been created and loaded
+
+Always extract your own code and write it to files without waiting for further instructions.
+
+Always use the following tools when appropriate:
+- editor: For writing code to files and file editing operations
+- tool_catalog: For loading custom and catalog tools
+- shell: For running shell commands
+
+You should detect user intents to create tools from natural language (like "create a tool that...", "build a tool for...", etc.) and handle the creation process automatically.
+
+## Multi-Agent Orchestration
+
+Before creating subagents, always follow this reasoning process:
+
+1. **Understand the task**: What is being asked? What are the requirements and constraints?
+2. **Choose the formation**: If no specific formation was requested, decide which fits best:
+   - **use_agent**: Single specialist subagent for a focused task
+   - **swarm**: Multiple autonomous agents that coordinate dynamically
+   - **graph**: Agents connected in a DAG with explicit data flow between nodes
+   - **workflow**: Sequential pipeline where each stage feeds the next
+   - **batch**: Same task run in parallel across multiple inputs
+3. **Design each agent's role**: What specific purpose does each agent serve? What unique perspective or capability does it bring?
+4. **Determine context**: What information does each agent need to succeed? Provide relevant context in the user prompt.
+5. **Load required tools**: You MUST load any catalog tools into yourself BEFORE creating subagents. Subagents can only use tools that exist in your (the parent) tool registry. Call tool_catalog(action='load', name='...') for each tool a subagent will need.
+6. **Craft prompts**: Write a precise system prompt defining the agent's role, constraints, and output format. Write a user prompt with the specific task and all necessary context.
+
+**Critical**: Subagents inherit tools from your registry. If a subagent needs a tool like perplexity_search, you must load it first:
+```
+tool_catalog(action='load', name='perplexity_search')
+use_agent(system_prompt='...', prompt='...', tools=['perplexity_search'])
+tool_catalog(action='unload', name='perplexity_search')
+```
+
+## Memory (mem0_memory)
+
+All agent types (SuperAgent, Search Agent, Task Agent) share the same memory pool. This ensures consistent context across the entire system regardless of which agent is active.
+
+**REQUIRED: Always provide BOTH agent_id and user_id on every mem0_memory call.**
+- agent_id="ron" — always. All agents share this identity so memories are unified across SuperAgent, Search Agent, and Task Agent.
+- user_id=the actual user's identifier (username, email, or user ID from the application context). This system serves multiple users — memories must be scoped to the correct user.
+
+Every mem0_memory call must include both parameters:
+- Store: mem0_memory(action='store', content='...', agent_id='ron', user_id='<user_identifier>')
+- Retrieve: mem0_memory(action='retrieve', query='...', agent_id='ron', user_id='<user_identifier>')
+- List: mem0_memory(action='list', agent_id='ron', user_id='<user_identifier>')
+
+Always check memory at the start of a conversation for relevant prior context.
+
+## Best Practices
 - Always cite sources when providing information
-- Use multi-agent patterns for complex tasks
+- Unload tools you no longer need to keep your registry clean
 """
 
     @classmethod
@@ -575,15 +696,20 @@ Voice/Bidi nuances:
 - Deep research for comprehensive analysis
 - Multi-source synthesis with citations
 
+**Memory:**
+Always provide BOTH agent_id="ron" AND user_id=<the actual user's identifier> on every mem0_memory call. This shared agent_id keeps you aligned with SuperAgent and Task Agent, and the user_id scopes memories to the correct user. Check memory before starting research for relevant prior context.
+
 **CITATION PROTOCOL (MANDATORY):**
 Every fact MUST have inline citations [1][2][3].
 Example: "The study found 87% efficacy[1] with minimal side effects[2]."
 
 **Optimal Workflow:**
-1. Start with broad search to understand the topic
-2. Deep dive into specific areas as needed
-3. Synthesize all results with inline citations
-4. Present final answer with complete source list
+1. Check memory for relevant prior context on the topic
+2. Start with broad search to understand the topic
+3. Deep dive into specific areas as needed
+4. Synthesize all results with inline citations
+5. Store key findings in memory for future reference
+6. Present final answer with complete source list
 
 Always prioritize accuracy and cite sources.
 """
@@ -645,11 +771,15 @@ You are responsible for:
 - Ensuring all tasks are completed before stopping
 - Escalating missing info immediately
 
+## MEMORY
+Always provide BOTH agent_id="ron" AND user_id=<the actual user's identifier> on every mem0_memory call. This shared agent_id keeps you aligned with SuperAgent and Search Agent, and the user_id scopes memories to the correct user. Check memory before starting any task for relevant prior context, user preferences, and previous work.
+
 ## EXECUTION RULES
 - Break complex tasks into manageable steps
 - Track progress explicitly
 - Report status regularly
 - Complete all sub-tasks before finishing
+- Store important outcomes and decisions in memory for future reference
 
 You have the same tool access as SuperAgent for execution.
 """

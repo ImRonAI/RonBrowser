@@ -1476,6 +1476,24 @@
       "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/workflow.py', name='workflow')",
       "unload_command": "unload_tool(name='workflow')",
       "last_updated": "2026-02-15T12:05:27.562738"
+    },
+    {
+      "name": "mem0_memory",
+      "description": "Memory management tool for storing, retrieving, and managing memories in Mem0.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mem0_memory.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mem0_memory.py', name='mem0_memory')",
+      "unload_command": "unload_tool(name='mem0_memory')",
+      "last_updated": "2026-02-15T13:05:44.245796"
+    },
+    {
+      "name": "environment",
+      "description": "Environment variable management tool for listing, getting, setting, and deleting environment variables.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/environment.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/environment.py', name='environment')",
+      "unload_command": "unload_tool(name='environment')",
+      "last_updated": "2026-02-15T20:31:22.120077"
     }
   ]
 }
