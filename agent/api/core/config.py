@@ -121,6 +121,22 @@ MCP_TIMEOUT_SECONDS = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
 # Tool Discovery
 TOOLS_SRC_DIR = Path(__file__).parent.parent.parent / "tools" / "src" / "strands_tools"
 
+# Agent Sandbox — all file/shell/journal operations are rooted here
+import platform as _platform
+
+def _default_sandbox_root() -> Path:
+    if _platform.system() == "Darwin":
+        base = Path.home() / "Library" / "Application Support"
+    elif _platform.system() == "Windows":
+        base = Path(os.getenv("APPDATA", str(Path.home())))
+    else:
+        base = Path(os.getenv("XDG_DATA_HOME", str(Path.home() / ".local" / "share")))
+    return base / "RonBrowser" / "agent-sandbox"
+
+AGENT_SANDBOX_ROOT = Path(os.getenv("RON_AGENT_SANDBOX_ROOT", str(_default_sandbox_root())))
+AGENT_SANDBOX_ROOT.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("RON_AGENT_SANDBOX_ROOT", str(AGENT_SANDBOX_ROOT))
+
 # Discovery manifest path (shared by API endpoints and tool catalog manager)
 _DEFAULT_DISCOVERY_MANIFEST_PATH = Path(__file__).parent.parent.parent / "tool_manifests" / "tools_discovery_manifest.json"
 _configured_discovery_manifest = os.getenv("STRANDS_TOOL_DISCOVERY_MANIFEST") or os.getenv("TOOL_DISCOVERY_MANIFEST")

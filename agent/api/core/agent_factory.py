@@ -261,6 +261,39 @@ class AgentFactory:
     def _escape_single_quotes(value: str) -> str:
         return value.replace("\\", "\\\\").replace("'", "\\'")
 
+    # Directories that should NEVER be imported during catalog seeding.
+    # These contain non-tool files (servers, utilities, packages, docs, MCP servers, specs).
+    _SEED_SKIP_DIRS: set[str] = {
+        "__pycache__",
+        "utils",
+        "mcp",
+        "open-api-specs",
+        "api-documents",
+        ".github",
+        "workflows",
+        # Residual package scaffolding (tools already moved to top level)
+        "strands_fun_tools",
+        "strands_google",
+        "FDA",
+        "perplexity",
+        "pubmed ",          # Note: trailing space — that's the actual directory name
+        "pubmed",
+        # Sub-package dirs with __init__.py that should be imported via
+        # their specific entry-point files, not by globbing every .py
+        "browser",
+        "code_interpreter",
+    }
+
+    # Filenames that should never be imported regardless of location.
+    _SEED_SKIP_FILENAMES: set[str] = {
+        "__init__.py",
+        "__main__.py",
+        "setup.py",
+        "conftest.py",
+        "__version__.py",
+        "models.py",
+    }
+
     @classmethod
     def _seed_external_tool_catalog(cls) -> None:
         if cls._external_catalog_seeded:
@@ -281,12 +314,25 @@ class AgentFactory:
             return
 
         for file_path in sorted(tool_root.rglob("*.py")):
-            if "__pycache__" in file_path.parts:
-                continue
-            if file_path.name == "__init__.py" or file_path.name.startswith("test_"):
+            # ── Skip entire directory trees ──
+            if any(part in cls._SEED_SKIP_DIRS for part in file_path.relative_to(tool_root).parts[:-1]):
                 continue
 
-            # Import module and discover DecoratedFunctionTool instances
+            # ── Skip known non-tool filenames ──
+            if file_path.name in cls._SEED_SKIP_FILENAMES:
+                continue
+            if file_path.name.startswith("test_"):
+                continue
+
+            # ── Pre-scan: only import files that actually define tools ──
+            try:
+                source = file_path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if "@tool" not in source and "TOOL_SPEC" not in source:
+                continue
+
+            # ── Import module and discover DecoratedFunctionTool instances ──
             try:
                 module_name = f"_catalog_seed_{file_path.stem}_{id(file_path)}"
                 spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -294,7 +340,7 @@ class AgentFactory:
                     continue
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-            except Exception as exc:
+            except BaseException as exc:
                 logger.debug("Skipping tool catalog seed for %s: %s", file_path, exc)
                 continue
 
@@ -346,9 +392,10 @@ class AgentFactory:
 Use all available tools implicitly as needed without being explicitly told. Always use tools instead of suggesting code that would perform the same operations. Proactively identify when tasks can be completed using available tools.
 
 You have access to:
-- Browser automation for web interaction
-- File system operations (editor, shell)
-- Memory and journaling (mem0_memory)
+- Browser automation (load 'browser' from catalog — uses browser/browser.py)
+- Code execution (load 'electron_code_interpreter' from catalog — runs in Electron sandbox)
+- File system operations (editor, shell, journal) — ALL operate inside the agent sandbox at ~/Library/Application Support/RonBrowser/agent-sandbox/. Paths are relative to the sandbox root. These tools NEVER touch the host project files.
+- Memory (mem0_memory) for persistent context across conversations
 - MCP client for external tool servers
 - Multi-agent orchestration (use_agent, swarm, graph, workflow, batch)
 - Tool catalog (tool_catalog) for discovering, loading, executing, and unloading tools
@@ -446,9 +493,10 @@ When asked to create a tool:
 Always extract your own code and write it to files without waiting for further instructions.
 
 Always use the following tools when appropriate:
-- editor: For writing code to files and file editing operations
+- editor: For writing code to files and file editing operations (operates in agent sandbox)
 - tool_catalog: For loading custom and catalog tools
-- shell: For running shell commands
+- shell: For running shell commands (operates in agent sandbox)
+- journal: For daily notes and task tracking (stores in agent sandbox)
 
 You should detect user intents to create tools from natural language (like "create a tool that...", "build a tool for...", etc.) and handle the creation process automatically.
 
@@ -744,7 +792,7 @@ Always prioritize accuracy and cite sources.
         except Exception:
             pass
 
-        tools.extend([cls._get_tool_by_name("think"), cls._get_tool_by_name("journal")])
+        tools.extend([cls._get_tool_by_name("think")])
 
         agent = cls._build_agent(
             session_id=session_id,
