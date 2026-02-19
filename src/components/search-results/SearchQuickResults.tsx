@@ -27,9 +27,12 @@ import {
   ChainOfThoughtHeader,
   ChainOfThoughtContent,
   ChainOfThoughtStep,
+  ChainOfThoughtSearchResults,
+  ChainOfThoughtSearchResult,
+  ChainOfThoughtImage,
 } from '@/components/ai-elements/chain-of-thought'
-import { ChainOfThoughtSearch, ChainOfThoughtSearchImages } from '@/components/ai-elements/chain-of-thought-search'
-import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
+import { Task, TaskTrigger, TaskContent } from '@/components/ai-elements/task'
+import { Agent, AgentHeader, AgentContent } from '@/components/ai-elements/agent'
 
 // AI Elements - Reasoning
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
@@ -306,23 +309,32 @@ function ReasoningStepRenderer({ step, isStreaming, onSourceClick }: ReasoningSt
     )
   }
 
-  // If step has search results, render with ChainOfThoughtSearch
+  // If step has search results, render with ChainOfThoughtStep + SearchResults
   if (step.searchResults && step.searchResults.length > 0) {
+    const cotStatus: 'pending' | 'active' | 'complete' = isRunning ? 'active' : step.status === 'complete' ? 'complete' : 'pending'
     return (
-      <ChainOfThoughtSearch
-        provider="perplexity"
-        query={step.description}
-        results={step.searchResults.map(sr => ({
-          id: sr.id,
-          title: sr.title,
-          url: sr.url,
-          snippet: sr.snippet,
-          favicon: sr.favicon,
-          thumbnail: sr.thumbnail,
-        }))}
-        isSearching={isRunning}
-        onResultClick={onSourceClick}
-      />
+      <ChainOfThoughtStep
+        label={step.description || 'Searching...'}
+        status={cotStatus}
+      >
+        <ChainOfThoughtSearchResults>
+          {step.searchResults.map((sr, i) => {
+            let hostname = sr.title
+            try {
+              if (sr.url) hostname = new URL(sr.url).hostname.replace(/^www\./, '')
+            } catch { /* use title */ }
+            return (
+              <ChainOfThoughtSearchResult
+                key={sr.id || `${sr.url}-${i}`}
+                className="cursor-pointer"
+                onClick={() => onSourceClick?.(sr)}
+              >
+                {hostname}
+              </ChainOfThoughtSearchResult>
+            )
+          })}
+        </ChainOfThoughtSearchResults>
+      </ChainOfThoughtStep>
     )
   }
 
@@ -356,41 +368,72 @@ function ReasoningStepRenderer({ step, isStreaming, onSourceClick }: ReasoningSt
     )
   }
 
-  // If step has subagent result, render with ChainOfThoughtOrchestration
+  // If step has subagent result, render with Task + Agent (70/30 layout)
   if (step.subagentResult) {
+    const taskStatus = step.subagentResult.status === 'complete' ? 'success' as const
+      : step.subagentResult.status === 'error' ? 'error' as const
+      : step.subagentResult.status === 'running' ? 'running' as const
+      : 'pending' as const
+    const cotStatus: 'pending' | 'active' | 'complete' = step.subagentResult.status === 'running' ? 'active' : step.subagentResult.status === 'complete' || step.subagentResult.status === 'error' ? 'complete' : 'pending'
     return (
-      <ChainOfThoughtOrchestration
-        tool={{
-          type: step.subagentResult.type,
-          toolCallId: step.subagentResult.agentId,
-          toolName: step.subagentResult.type,
-          state: step.subagentResult.status,
-          input: { agentName: step.subagentResult.agentName },
-          output: step.subagentResult.result,
-        }}
-      />
+      <ChainOfThoughtStep
+        label={step.subagentResult.agentName}
+        status={cotStatus}
+      >
+        <div className="flex gap-3">
+          <div className="flex-[7] min-w-0">
+            <Task defaultOpen={false}>
+              <TaskTrigger
+                title={step.subagentResult.agentName}
+                status={taskStatus}
+                description={step.subagentResult.type}
+              />
+              <TaskContent>
+                {step.subagentResult.result && (
+                  <ToolOutput output={step.subagentResult.result} />
+                )}
+              </TaskContent>
+            </Task>
+          </div>
+          <div className="flex-[3] min-w-0">
+            <Agent>
+              <AgentHeader name={step.subagentResult.agentName} />
+              <AgentContent>
+                <div className="text-xs text-muted-foreground">
+                  {step.subagentResult.status === 'running' ? 'Working...' : step.subagentResult.status}
+                </div>
+              </AgentContent>
+            </Agent>
+          </div>
+        </div>
+      </ChainOfThoughtStep>
     )
   }
 
-  // If step has images, render with ChainOfThoughtSearchImages
+  // If step has images, render with ChainOfThoughtImage
   if (step.images && step.images.length > 0) {
     return (
-      <ChainOfThoughtSearchImages
-        images={step.images.map(img => ({
-          id: img.id,
-          url: img.src,
-          title: img.alt,
-        }))}
-      />
+      <div className="grid grid-cols-2 gap-3">
+        {step.images.map((img) => (
+          <ChainOfThoughtImage key={img.id} caption={img.caption}>
+            <img
+              src={img.src}
+              alt={img.alt || ''}
+              className="max-h-full max-w-full object-contain"
+            />
+          </ChainOfThoughtImage>
+        ))}
+      </div>
     )
   }
 
   // Default: render as a ChainOfThoughtStep
+  const cotStatus: 'pending' | 'active' | 'complete' = step.status === 'running' ? 'active' : step.status === 'complete' ? 'complete' : 'pending'
   return (
     <ChainOfThoughtStep
       label={step.label}
       description={step.description}
-      status={step.status}
+      status={cotStatus}
     >
       {step.reasoning && (
         <Reasoning isStreaming={isRunning && isStreaming} defaultOpen={isRunning}>

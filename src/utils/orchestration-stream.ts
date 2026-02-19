@@ -148,7 +148,9 @@ function applyVisualizationSnapshot(event: OrchestrationStreamEvent) {
   if (event.activeAgents) {
     event.activeAgents.forEach((agent) => {
       const agentId = String(agent.id || agent.name || "");
-      const steps = agent.chainOfThought?.steps as AIChainOfThoughtStep[] | undefined;
+      // Cast to expected structure with chainOfThought
+      const agentData = agent as { chainOfThought?: { steps?: AIChainOfThoughtStep[] } };
+      const steps = agentData.chainOfThought?.steps;
       if (agentId && steps && steps.length > 0) {
         store.syncStreamingData(agentId, { chainOfThought: steps });
       }
@@ -303,18 +305,22 @@ function buildWorkflowState(input: Record<string, unknown>): WorkflowState | nul
   if (tasks.length === 0) return null;
 
   const workflowId = String(input.workflow_id || input.workflowId || `workflow-${Date.now()}`);
-  const normalizedTasks = tasks.map((task, index) => ({
-    taskId: String(task.task_id || task.taskId || `task-${index + 1}`),
-    description: String(task.description || task.task_prompt || "Task"),
-    dependencies: Array.isArray(task.dependencies) ? task.dependencies : [],
-    tools: Array.isArray(task.tools) ? task.tools : undefined,
-    modelProvider: task.model_provider || task.modelProvider,
-    modelSettings: task.model_settings || task.modelSettings,
-    systemPrompt: task.system_prompt || task.systemPrompt,
-    priority: task.priority,
-    timeout: task.timeout,
-    status: "pending",
-  })) as WorkflowTask[];
+  const normalizedTasks = tasks.map((task, index) => {
+    // Cast task to Record<string, unknown> to access potential snake_case properties from backend
+    const rawTask = task as unknown as Record<string, unknown>;
+    return {
+      taskId: String(rawTask.task_id || rawTask.taskId || `task-${index + 1}`),
+      description: String(rawTask.description || rawTask.task_prompt || "Task"),
+      dependencies: Array.isArray(rawTask.dependencies) ? rawTask.dependencies : [],
+      tools: Array.isArray(rawTask.tools) ? rawTask.tools : undefined,
+      modelProvider: rawTask.model_provider || rawTask.modelProvider,
+      modelSettings: rawTask.model_settings || rawTask.modelSettings,
+      systemPrompt: rawTask.system_prompt || rawTask.systemPrompt,
+      priority: rawTask.priority,
+      timeout: rawTask.timeout,
+      status: "pending",
+    };
+  }) as WorkflowTask[];
 
   return {
     workflowId,

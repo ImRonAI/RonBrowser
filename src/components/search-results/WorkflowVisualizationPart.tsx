@@ -7,7 +7,7 @@
 import { memo, useCallback } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Canvas } from '@/components/ai-elements/canvas'
-import { CollapsibleTask as Task } from '@/components/ai-elements/task'
+import { Task, TaskTrigger, TaskContent } from '@/components/ai-elements/task'
 import {
   ChainOfThought,
   ChainOfThoughtHeader,
@@ -112,11 +112,11 @@ export const WorkflowVisualizationPart = memo(({ part, messageId, partIndex }: {
   return (
     <Task
       key={`${messageId}-${partIndex}`}
-      title={part.title || 'Agent Orchestration Workflow'}
-      status="running"
-      defaultExpanded={true}
+      defaultOpen
     >
-      <div className="flex flex-col md:flex-row min-h-[520px] md:h-[540px] rounded-xl border border-surface-200/70 dark:border-surface-700/70 overflow-hidden bg-surface-0/70 dark:bg-surface-900/40">
+      <TaskTrigger title={part.title || 'Agent Orchestration Workflow'} status="running" />
+      <TaskContent>
+        <div className="flex flex-col md:flex-row min-h-[520px] md:h-[540px] rounded-xl border border-surface-200/70 dark:border-surface-700/70 overflow-hidden bg-surface-0/70 dark:bg-surface-900/40">
         {/* Left 70% - Canvas Workflow Visualization */}
         <div className="flex-[7] min-h-[320px] md:min-h-0 border-b md:border-b-0 md:border-r border-surface-200/70 dark:border-surface-700/70 bg-surface-50/70 dark:bg-surface-900/50">
           <ReactFlowProvider>
@@ -152,7 +152,7 @@ export const WorkflowVisualizationPart = memo(({ part, messageId, partIndex }: {
                       key={stepIndex}
                       label={step.label}
                       description={step.description}
-                      status={step.status}
+                      status={step.status === 'running' ? 'active' : step.status === 'error' ? 'complete' : step.status as 'pending' | 'complete'}
                     />
                   ))}
                 </ChainOfThoughtContent>
@@ -165,6 +165,7 @@ export const WorkflowVisualizationPart = memo(({ part, messageId, partIndex }: {
           )}
         </div>
       </div>
+      </TaskContent>
     </Task>
   )
 })

@@ -42,6 +42,6 @@ def convert_yaml_to_json(yaml_path: str, json_path: str = None) -> None:
 
 if __name__ == "__main__":
     # Convert Telnyx.yml to Telnyx.json
-    yaml_file = Path(__file__).parent / "agent/tools/open-api-specs/Telnyx.yml"
+    yaml_file = Path(__file__).parent / "agent/tools/src/strands_tools/open-api-specs/Telnyx.yml"
     
     convert_yaml_to_json(str(yaml_file))

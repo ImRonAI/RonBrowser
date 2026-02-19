@@ -20,8 +20,11 @@ import {
 } from '@heroicons/react/24/outline'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 import { Sources, SourcesContent, SourcesTrigger, Source } from '@/components/ai-elements/sources'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { SourceData } from './SourceCard'
 import { useSearchStore } from '@/stores/searchStore'
+import { usePreviewStore } from '@/stores/previewStore'
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 
 interface Citation {
@@ -425,6 +428,14 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
                   }
                   break
 
+                case 'data-browser':
+                  usePreviewStore.getState().openBrowserPreview(event.data)
+                  break
+
+                case 'data-project':
+                  usePreviewStore.getState().openProjectPreview(event.data)
+                  break
+
                 case 'source-url': {
                   const url = event.url || event.sourceId || ''
                   if (url) {
@@ -503,28 +514,32 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
   return (
     <div className="max-w-5xl mx-auto px-5 py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <button
+        <Button
           onClick={clearSearch}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:text-white/90 hover:border-white/30 transition"
+          variant="ghost"
+          size="sm"
+          className="rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition h-auto py-1 px-3"
         >
-          <ArrowLeftIcon className="h-3.5 w-3.5" />
+          <ArrowLeftIcon className="h-3.5 w-3.5 mr-2" />
           Back
-        </button>
-        <div className="text-xs text-white/40">
+        </Button>
+        <div className="text-xs text-muted-foreground/60">
           {isStreaming ? 'Streaming response' : 'Response ready'}
         </div>
       </div>
       <div className="text-center space-y-1.5">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/40">Search</p>
-        <h1 className="text-2xl font-medium text-white/90">{query}</h1>
-        <div className="flex items-center justify-center gap-3 text-xs text-white/40">
-          <button
+        <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">Search</p>
+        <h1 className="text-2xl font-medium text-foreground/90">{query}</h1>
+        <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground/40">
+          <Button
             onClick={() => setRetryToken((value) => value + 1)}
-            className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-white/70 hover:text-white/90 hover:border-white/30 transition"
+            variant="ghost"
+            size="sm"
+            className="rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition h-auto py-1 px-3"
           >
-            <ArrowPathIcon className="h-3.5 w-3.5" />
+            <ArrowPathIcon className="h-3.5 w-3.5 mr-1" />
             Retry
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -567,14 +582,14 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
             </SourcesContent>
           </Sources>
         ) : (
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/40">
+          <div className="rounded-xl border border-border bg-muted/5 px-4 py-3 text-xs text-muted-foreground/40">
             Sources will appear here as they stream in.
           </div>
         )}
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-        <button
+        <Button
           onClick={() => {
             updateQuickResult({
               query,
@@ -585,18 +600,24 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
             })
             goToChat()
           }}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-teal-500/20 transition hover:-translate-y-0.5"
+          className={cn(
+            "rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/20 hover:-translate-y-0.5",
+            "h-auto py-2 px-5"
+          )}
         >
-          <ChatBubbleLeftRightIcon className="h-4 w-4" />
+          <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
           Let's Chat
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={goToFullResults}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-purple-500/20 transition hover:-translate-y-0.5"
+          className={cn(
+            "rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg shadow-purple-500/20 hover:-translate-y-0.5",
+            "h-auto py-2 px-5"
+          )}
         >
           Full Results
-          <ArrowRightIcon className="h-4 w-4" />
-        </button>
+          <ArrowRightIcon className="h-4 w-4 ml-2" />
+        </Button>
       </div>
 
       {error && (

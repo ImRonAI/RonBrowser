@@ -398,7 +398,7 @@ export function SonarReasoningProDisplay({
                 key={result.id}
                 label={`Search ${index + 1}: ${result.query}`}
                 description="Gathering information from multiple sources"
-                status={isStreaming ? 'running' : 'complete'}
+                status={isStreaming ? 'active' : 'complete'}
               >
                 <ChainOfThoughtSearchResults>
                   <ChainOfThoughtSearchResult>

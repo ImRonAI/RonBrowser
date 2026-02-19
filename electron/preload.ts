@@ -206,6 +206,26 @@ const electronAPI = {
     canGoBack: () => ipcRenderer.invoke('browser:can-go-back'),
     canGoForward: () => ipcRenderer.invoke('browser:can-go-forward'),
     setPanelOpen: (isOpen: boolean) => ipcRenderer.invoke('browser:set-panel-open', isOpen),
+
+    // Content interaction (IPC-based, routes to active tab's WebContentsView)
+    click: (selector: string) =>
+      ipcRenderer.invoke('browser:click', selector) as Promise<{ success: boolean; error?: string }>,
+    type: (selector: string, text: string, opts?: { clear?: boolean }) =>
+      ipcRenderer.invoke('browser:type', selector, text, opts) as Promise<{ success: boolean; error?: string }>,
+    screenshot: () =>
+      ipcRenderer.invoke('browser:screenshot') as Promise<{ success: boolean; data?: string; error?: string }>,
+    getText: () =>
+      ipcRenderer.invoke('browser:get-text') as Promise<{ success: boolean; text?: string; error?: string }>,
+    getHTML: () =>
+      ipcRenderer.invoke('browser:get-html') as Promise<{ success: boolean; html?: string; error?: string }>,
+    evaluate: (script: string) =>
+      ipcRenderer.invoke('browser:evaluate', script) as Promise<{ success: boolean; result?: unknown; error?: string }>,
+    waitForSelector: (selector: string, timeoutMs?: number) =>
+      ipcRenderer.invoke('browser:wait-for-selector', selector, timeoutMs) as Promise<{ success: boolean; found?: boolean; error?: string }>,
+    getActiveUrl: () =>
+      ipcRenderer.invoke('browser:get-active-url') as Promise<{ success: boolean; url?: string; error?: string }>,
+    getActiveTitle: () =>
+      ipcRenderer.invoke('browser:get-active-title') as Promise<{ success: boolean; title?: string; error?: string }>,
     
     // Event listeners for browser state
     onUrlChanged: (callback: (url: string) => void) => {

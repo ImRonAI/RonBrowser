@@ -55,7 +55,7 @@ LANCEDB_API_KEY = os.getenv("LANCEDB_API_KEY")
 # Agent Configuration
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "14400"))
 # Guardrail for stalled model/tool streams that produce no events.
-AGENT_STREAM_EVENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_STREAM_EVENT_TIMEOUT_SECONDS", "45"))
+AGENT_STREAM_EVENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_STREAM_EVENT_TIMEOUT_SECONDS", "120"))
 SESSION_STORAGE_DIR = Path(os.getenv("SESSION_STORAGE_DIR", ".sessions"))
 
 # Conversation Management Configuration
@@ -81,6 +81,11 @@ HOOKS_VERBOSE_LOGGING = _env_bool("HOOKS_VERBOSE_LOGGING", False)
 
 # Guardrail hook: per-invocation tool call limit (0 disables)
 MAX_TOOL_CALLS_PER_INVOCATION = int(os.getenv("MAX_TOOL_CALLS_PER_INVOCATION", "200"))
+
+# Guardrail hook: quarantine repeatedly failing tools
+ENABLE_TOOL_HEALTH_QUARANTINE = _env_bool("ENABLE_TOOL_HEALTH_QUARANTINE", True)
+TOOL_HEALTH_FAILURE_THRESHOLD = int(os.getenv("TOOL_HEALTH_FAILURE_THRESHOLD", "2"))
+TOOL_HEALTH_MAX_ERROR_MESSAGE_CHARS = int(os.getenv("TOOL_HEALTH_MAX_ERROR_MESSAGE_CHARS", "240"))
 
 # Experimental hook alias compatibility layer (deprecated aliases in strands.experimental.hooks)
 ENABLE_EXPERIMENTAL_HOOK_ALIASES = _env_bool("ENABLE_EXPERIMENTAL_HOOK_ALIASES", False)

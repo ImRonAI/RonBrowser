@@ -14,130 +14,130 @@
     {
       "id": "agent-sop-mcp-server",
       "name": "Agent Sop Mcp Server",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server",
-      "connection_command": "python /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server/server.py",
-      "connect_command": "python /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server/server.py",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/agent-sop-mcp-server",
+      "connection_command": "python /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/agent-sop-mcp-server/server.py",
+      "connect_command": "python /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/agent-sop-mcp-server/server.py",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/agent-sop-mcp-server",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/agent-sop-mcp-server",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "cms-coverage-mcp-server",
       "name": "Cms Coverage Mcp Server",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server",
-      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server && <configure-command>",
-      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server && <configure-command>",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/cms-coverage-mcp-server",
+      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/cms-coverage-mcp-server && <configure-command>",
+      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/cms-coverage-mcp-server && <configure-command>",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/cms-coverage-mcp-server",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/cms-coverage-mcp-server",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "datacommons",
       "name": "Datacommons",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons",
-      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons && <configure-command>",
-      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons && <configure-command>",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons",
+      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons && <configure-command>",
+      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons && <configure-command>",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/datacommons",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "healthcare-mcp-public",
       "name": "Healthcare Mcp Public",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/healthcare-mcp-public",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/healthcare-mcp-public",
       "connection_command": "npx -y healthcare-mcp-public",
       "connect_command": "npx -y healthcare-mcp-public",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/healthcare-mcp-public",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/healthcare-mcp-public",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "mcp-installer",
       "name": "Mcp Installer",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-installer",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/mcp-installer",
       "connection_command": "npx -y mcp-installer",
       "connect_command": "npx -y mcp-installer",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-installer",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/mcp-installer",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "mcp-playwright",
       "name": "Mcp Playwright",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/mcp-playwright",
       "connection_command": "npx -y mcp-playwright",
       "connect_command": "npx -y mcp-playwright",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/mcp-playwright",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "openapi-mcp",
       "name": "Openapi Mcp",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/openapi-mcp",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/openapi-mcp",
       "connection_command": "npx -y openapi-mcp",
       "connect_command": "npx -y openapi-mcp",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/openapi-mcp",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/openapi-mcp",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "pophive-mcp-server",
       "name": "Pophive Mcp Server",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/pophive-mcp-server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/pophive-mcp-server",
       "connection_command": "npx -y pophive-mcp-server",
       "connect_command": "npx -y pophive-mcp-server",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/pophive-mcp-server",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/pophive-mcp-server",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "telnyx-mcp-server",
       "name": "Telnyx Mcp Server",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server",
-      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server && <configure-command>",
-      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server && <configure-command>",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server",
+      "connection_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server && <configure-command>",
+      "connect_command": "cd /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server && <configure-command>",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/telnyx-mcp-server",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     },
     {
       "id": "unsloth-mcp-server",
       "name": "Unsloth Mcp Server",
-      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/unsloth-mcp-server",
+      "description": "Auto-discovered MCP server from /Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/unsloth-mcp-server",
       "connection_command": "npx -y unsloth-mcp-server",
       "connect_command": "npx -y unsloth-mcp-server",
       "transport": "stdio",
       "configuration": {},
       "env_vars": {},
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/unsloth-mcp-server",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/unsloth-mcp-server",
       "created_at": "2026-02-15T11:37:07.494135",
       "updated_at": "2026-02-15T11:37:07.494135"
     }
@@ -146,290 +146,308 @@
     {
       "name": "Attachments_Retrieval_V1",
       "file": "Attachments_Retrieval_V1.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Retrieval_V1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Attachments_Retrieval_V1.json",
       "description": "Auto-discovered OpenAPI spec from Attachments_Retrieval_V1.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Retrieval_V1.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Attachments_Retrieval_V1.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Attachments_Status_V1",
       "file": "Attachments_Status_V1.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Status_V1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Attachments_Status_V1.json",
       "description": "Auto-discovered OpenAPI spec from Attachments_Status_V1.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Status_V1.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Attachments_Status_V1.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Attachments_Submission_V1",
       "file": "Attachments_Submission_V1.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Submission_V1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Attachments_Submission_V1.json",
       "description": "Auto-discovered OpenAPI spec from Attachments_Submission_V1.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Attachments_Submission_V1.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Attachments_Submission_V1.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Authorization_v2",
       "file": "Authorization_v2.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Authorization_v2.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Authorization_v2.json",
       "description": "Auto-discovered OpenAPI spec from Authorization_v2.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Authorization_v2.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Authorization_v2.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Claim_Status_V2",
       "file": "Claim_Status_V2.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Claim_Status_V2.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Claim_Status_V2.json",
       "description": "Auto-discovered OpenAPI spec from Claim_Status_V2.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Claim_Status_V2.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Claim_Status_V2.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Eligibility",
       "file": "Eligibility.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Eligibility.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Eligibility.json",
       "description": "Auto-discovered OpenAPI spec from Eligibility.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Eligibility.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Eligibility.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Enhanced_Eligibility_API_v1",
       "file": "Enhanced_Eligibility_API_v1.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Enhanced_Eligibility_API_v1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Enhanced_Eligibility_API_v1.json",
       "description": "Auto-discovered OpenAPI spec from Enhanced_Eligibility_API_v1.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Enhanced_Eligibility_API_v1.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Enhanced_Eligibility_API_v1.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "InstitutionalClaims",
       "file": "InstitutionalClaims.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/InstitutionalClaims.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/InstitutionalClaims.json",
       "description": "Auto-discovered OpenAPI spec from InstitutionalClaims.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/InstitutionalClaims.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/InstitutionalClaims.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "MedicalNetworkClaims",
       "file": "MedicalNetworkClaims.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MedicalNetworkClaims.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/MedicalNetworkClaims.json",
       "description": "Auto-discovered OpenAPI spec from MedicalNetworkClaims.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MedicalNetworkClaims.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/MedicalNetworkClaims.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "MyHealth",
       "file": "MyHealth.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MyHealth.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/MyHealth.json",
       "description": "Auto-discovered OpenAPI spec from MyHealth.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/MyHealth.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/MyHealth.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "ReportsandResponses",
       "file": "ReportsandResponses.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/ReportsandResponses.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/ReportsandResponses.json",
       "description": "Auto-discovered OpenAPI spec from ReportsandResponses.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/ReportsandResponses.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/ReportsandResponses.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "Telnyx",
       "file": "Telnyx.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Telnyx.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Telnyx.json",
       "description": "Auto-discovered OpenAPI spec from Telnyx.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Telnyx.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Telnyx.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "apiguru",
       "file": "apiguru.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/apiguru.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/apiguru.json",
       "description": "Auto-discovered OpenAPI spec from apiguru.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/apiguru.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/apiguru.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "calendar",
       "file": "calendar.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/calendar.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/calendar.json",
       "description": "Auto-discovered OpenAPI spec from calendar.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/calendar.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/calendar.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "coverageapi",
       "file": "coverageapi.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/coverageapi.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/coverageapi.json",
       "description": "Auto-discovered OpenAPI spec from coverageapi.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/coverageapi.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/coverageapi.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "cpthcpcsama",
       "file": "cpthcpcsama.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/cpthcpcsama.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/cpthcpcsama.json",
       "description": "Auto-discovered OpenAPI spec from cpthcpcsama.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/cpthcpcsama.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/cpthcpcsama.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "healthcare-gov",
       "file": "healthcare-gov.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/healthcare-gov.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/healthcare-gov.json",
       "description": "Auto-discovered OpenAPI spec from healthcare-gov.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/healthcare-gov.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/healthcare-gov.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "mistral",
       "file": "mistral.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/mistral.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/mistral.json",
       "description": "Auto-discovered OpenAPI spec from mistral.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/mistral.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/mistral.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "new_prod_token",
       "file": "new_prod_token.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/new_prod_token.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/new_prod_token.json",
       "description": "Auto-discovered OpenAPI spec from new_prod_token.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/new_prod_token.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/new_prod_token.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "payerListV1",
       "file": "payerListV1.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/payerListV1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/payerListV1.json",
       "description": "Auto-discovered OpenAPI spec from payerListV1.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/payerListV1.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/payerListV1.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "priorauthorizationv1",
       "file": "priorauthorizationv1.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/priorauthorizationv1.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/priorauthorizationv1.json",
       "description": "Auto-discovered OpenAPI spec from priorauthorizationv1.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/priorauthorizationv1.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/priorauthorizationv1.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "providers",
       "file": "providers.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/providers.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/providers.json",
       "description": "Auto-discovered OpenAPI spec from providers.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/providers.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/providers.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "teamChat",
       "file": "teamChat.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/teamChat.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/teamChat.json",
       "description": "Auto-discovered OpenAPI spec from teamChat.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/teamChat.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/teamChat.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "zoom_meetings",
       "file": "zoom_meetings.json",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/zoom_meetings.json",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/zoom_meetings.json",
       "description": "Auto-discovered OpenAPI spec from zoom_meetings.json",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/zoom_meetings.json'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/zoom_meetings.json'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "agenticResearch",
       "file": "agenticResearch.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/agenticResearch.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/agenticResearch.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/agenticResearch.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/agenticResearch.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/agenticResearch.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "asyncCompletions",
       "file": "asyncCompletions.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/asyncCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/asyncCompletions.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/asyncCompletions.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/asyncCompletions.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/asyncCompletions.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "chatCompletions",
       "file": "chatCompletions.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/chatCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/chatCompletions.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/chatCompletions.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/chatCompletions.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/chatCompletions.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "generateauthtoken",
       "file": "generateauthtoken.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/generateauthtoken.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/generateauthtoken.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/generateauthtoken.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/generateauthtoken.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/generateauthtoken.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "getasyncCompletions",
       "file": "getasyncCompletions.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/getasyncCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/getasyncCompletions.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/getasyncCompletions.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/getasyncCompletions.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/getasyncCompletions.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "listasyncCompletions",
       "file": "listasyncCompletions.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/listasyncCompletions.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/listasyncCompletions.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/listasyncCompletions.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/listasyncCompletions.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/listasyncCompletions.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "revokeauthToken",
       "file": "revokeauthToken.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/revokeauthToken.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/revokeauthToken.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/revokeauthToken.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/revokeauthToken.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/revokeauthToken.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
     },
     {
       "name": "searchAPI",
       "file": "searchAPI.yml",
-      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/searchAPI.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/searchAPI.yml",
       "description": "Auto-discovered OpenAPI spec from Perplexity/searchAPI.yml",
-      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/open-api-specs/Perplexity/searchAPI.yml'",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/searchAPI.yml'",
       "created_at": "2026-02-15T11:37:07.509915",
       "updated_at": "2026-02-15T11:37:07.509915"
+    },
+    {
+      "name": "openEMR",
+      "file": "openEMR.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/openEMR.yml",
+      "description": "Auto-discovered OpenAPI spec from openEMR.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/openEMR.yml'",
+      "created_at": "2026-02-16T22:12:38.173523",
+      "updated_at": "2026-02-16T22:12:38.173523"
+    },
+    {
+      "name": "embeddings",
+      "file": "embeddings.yml",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/embeddings.yml",
+      "description": "Auto-discovered OpenAPI spec from Perplexity/embeddings.yml",
+      "mcp_command": "npx -y openapi-mcp-server '/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/open-api-specs/Perplexity/embeddings.yml'",
+      "created_at": "2026-02-19T05:00:02.165808",
+      "updated_at": "2026-02-19T05:00:02.165808"
     }
   ],
   "loadable_tools": [
@@ -1494,6 +1512,474 @@
       "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/environment.py', name='environment')",
       "unload_command": "unload_tool(name='environment')",
       "last_updated": "2026-02-15T20:31:22.120077"
+    },
+    {
+      "name": "get_observations",
+      "description": "Fetches observations for a statistical variable from Data Commons.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons/packages/datacommons-mcp/datacommons_mcp/server.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons/packages/datacommons-mcp/datacommons_mcp/server.py', name='get_observations')",
+      "unload_command": "unload_tool(name='get_observations')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "search_indicators",
+      "description": "**Purpose:**",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons/packages/datacommons-mcp/datacommons_mcp/server.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/datacommons/packages/datacommons-mcp/datacommons_mcp/server.py', name='search_indicators')",
+      "unload_command": "unload_tool(name='search_indicators')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "create_assistant",
+      "description": "Create a new AI Assistant. The user will provide some details (sometimes",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='create_assistant')",
+      "unload_command": "unload_tool(name='create_assistant')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_assistants",
+      "description": "List all AI Assistants.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='list_assistants')",
+      "unload_command": "unload_tool(name='list_assistants')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_assistant",
+      "description": "Get an AI Assistant by ID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='get_assistant')",
+      "unload_command": "unload_tool(name='get_assistant')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "update_assistant",
+      "description": "Update an AI Assistant. Once there is an agent created, you can talk the",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='update_assistant')",
+      "unload_command": "unload_tool(name='update_assistant')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "mcp_telnyx_delete_assistant",
+      "description": "Delete an AI Assistant.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='mcp_telnyx_delete_assistant')",
+      "unload_command": "unload_tool(name='mcp_telnyx_delete_assistant')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_assistant_texml",
+      "description": "Get an assistant's TEXML by ID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='get_assistant_texml')",
+      "unload_command": "unload_tool(name='get_assistant_texml')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "start_assistant_call",
+      "description": "Start a call using an AI Assistant with a phone number.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/assistants.py', name='start_assistant_call')",
+      "unload_command": "unload_tool(name='start_assistant_call')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_call_control_applications",
+      "description": "List call control applications.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='list_call_control_applications')",
+      "unload_command": "unload_tool(name='list_call_control_applications')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_call_control_application",
+      "description": "Retrieve a specific call control application.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='get_call_control_application')",
+      "unload_command": "unload_tool(name='get_call_control_application')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "create_call_control_application",
+      "description": "Create a call control application.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='create_call_control_application')",
+      "unload_command": "unload_tool(name='create_call_control_application')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "make_call",
+      "description": "Make a call.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='make_call')",
+      "unload_command": "unload_tool(name='make_call')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "hangup",
+      "description": "Hang up a call.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='hangup')",
+      "unload_command": "unload_tool(name='hangup')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "playback_start",
+      "description": "Start audio playback on a call.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='playback_start')",
+      "unload_command": "unload_tool(name='playback_start')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "playback_stop",
+      "description": "Stop audio playback on a call.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='playback_stop')",
+      "unload_command": "unload_tool(name='playback_stop')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "send_dtmf",
+      "description": "Send DTMF tones on a call.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='send_dtmf')",
+      "unload_command": "unload_tool(name='send_dtmf')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "transfer",
+      "description": "Transfer a call to a new destination.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/call_control.py', name='transfer')",
+      "unload_command": "unload_tool(name='transfer')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_create_bucket",
+      "description": "Create a new bucket.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_create_bucket')",
+      "unload_command": "unload_tool(name='cloud_storage_create_bucket')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_list_buckets",
+      "description": "List all buckets across all regions.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_list_buckets')",
+      "unload_command": "unload_tool(name='cloud_storage_list_buckets')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_upload_file",
+      "description": "Upload a file to cloud storage.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_upload_file')",
+      "unload_command": "unload_tool(name='cloud_storage_upload_file')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_download_file",
+      "description": "Download a file from cloud storage.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_download_file')",
+      "unload_command": "unload_tool(name='cloud_storage_download_file')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_list_objects",
+      "description": "List objects in a bucket with optional prefix filtering.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_list_objects')",
+      "unload_command": "unload_tool(name='cloud_storage_list_objects')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_delete_object",
+      "description": "Delete an object from cloud storage.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_delete_object')",
+      "unload_command": "unload_tool(name='cloud_storage_delete_object')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "cloud_storage_get_bucket_location",
+      "description": "Get the region where a bucket is located.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/cloud_storage.py', name='cloud_storage_get_bucket_location')",
+      "unload_command": "unload_tool(name='cloud_storage_get_bucket_location')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_connections",
+      "description": "List connections.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/connections.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/connections.py', name='list_connections')",
+      "unload_command": "unload_tool(name='list_connections')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_connection",
+      "description": "Get a connection by ID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/connections.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/connections.py', name='get_connection')",
+      "unload_command": "unload_tool(name='get_connection')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "update_connection",
+      "description": "Update a connection.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/connections.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/connections.py', name='update_connection')",
+      "unload_command": "unload_tool(name='update_connection')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_embedded_buckets",
+      "description": "List user embedded buckets.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/embeddings.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/embeddings.py', name='list_embedded_buckets')",
+      "unload_command": "unload_tool(name='list_embedded_buckets')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "embed_url",
+      "description": "Scrape and embed a given URL. For a given website, this tool will scrape",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/embeddings.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/embeddings.py', name='embed_url')",
+      "unload_command": "unload_tool(name='embed_url')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "create_embeddings",
+      "description": "Embed a bucket that containe files.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/embeddings.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/embeddings.py', name='create_embeddings')",
+      "unload_command": "unload_tool(name='create_embeddings')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "send_message",
+      "description": "Send a message.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging.py', name='send_message')",
+      "unload_command": "unload_tool(name='send_message')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_message",
+      "description": "Retrieve a message by ID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging.py', name='get_message')",
+      "unload_command": "unload_tool(name='get_message')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_messaging_profiles",
+      "description": "List messaging profiles.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py', name='list_messaging_profiles')",
+      "unload_command": "unload_tool(name='list_messaging_profiles')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "create_messaging_profile",
+      "description": "Create a messaging profile.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py', name='create_messaging_profile')",
+      "unload_command": "unload_tool(name='create_messaging_profile')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_messaging_profile",
+      "description": "Retrieve a messaging profile by ID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py', name='get_messaging_profile')",
+      "unload_command": "unload_tool(name='get_messaging_profile')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "update_messaging_profile",
+      "description": "Update a messaging profile.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/messaging_profiles.py', name='update_messaging_profile')",
+      "unload_command": "unload_tool(name='update_messaging_profile')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_phone_numbers",
+      "description": "List phone numbers.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py', name='list_phone_numbers')",
+      "unload_command": "unload_tool(name='list_phone_numbers')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_phone_number",
+      "description": "Get a phone number by ID.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py', name='get_phone_number')",
+      "unload_command": "unload_tool(name='get_phone_number')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "update_phone_number",
+      "description": "Update a phone number.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py', name='update_phone_number')",
+      "unload_command": "unload_tool(name='update_phone_number')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_available_phone_numbers",
+      "description": "List available phone numbers.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py', name='list_available_phone_numbers')",
+      "unload_command": "unload_tool(name='list_available_phone_numbers')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "initiate_phone_number_order",
+      "description": "Initiate a phone number order.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py', name='initiate_phone_number_order')",
+      "unload_command": "unload_tool(name='initiate_phone_number_order')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "update_phone_number_messaging_settings",
+      "description": "Update the messaging profile and/or messaging product of a phone number.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/phone_numbers.py', name='update_phone_number_messaging_settings')",
+      "unload_command": "unload_tool(name='update_phone_number_messaging_settings')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "list_integration_secrets",
+      "description": "List integration secrets.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/secrets.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/secrets.py', name='list_integration_secrets')",
+      "unload_command": "unload_tool(name='list_integration_secrets')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "create_integration_secret",
+      "description": "Create an integration secret.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/secrets.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/secrets.py', name='create_integration_secret')",
+      "unload_command": "unload_tool(name='create_integration_secret')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "delete_integration_secret",
+      "description": "Delete an integration secret.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/secrets.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/secrets.py', name='delete_integration_secret')",
+      "unload_command": "unload_tool(name='delete_integration_secret')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "get_webhook_events",
+      "description": "Get the most recent webhook events received by the handler.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/webhooks.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/mcp/telnyx-mcp-server/src/telnyx_mcp_server/tools/webhooks.py', name='get_webhook_events')",
+      "unload_command": "unload_tool(name='get_webhook_events')",
+      "last_updated": "2026-02-16T00:27:45.396216"
+    },
+    {
+      "name": "emit_plan",
+      "description": "Display a plan in the UI.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/emit_plan.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/emit_plan.py', name='emit_plan')",
+      "unload_command": "unload_tool(name='emit_plan')",
+      "last_updated": "2026-02-16T22:12:38.183297"
+    },
+    {
+      "name": "emit_queue",
+      "description": "Display or update a queue/todo list in the UI.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/emit_queue.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/emit_queue.py', name='emit_queue')",
+      "unload_command": "unload_tool(name='emit_queue')",
+      "last_updated": "2026-02-16T22:12:38.183297"
+    },
+    {
+      "name": "handoff_to_user",
+      "description": "Hand off control from the agent to the user for human intervention.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/handoff_to_user.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/handoff_to_user.py', name='handoff_to_user')",
+      "unload_command": "unload_tool(name='handoff_to_user')",
+      "last_updated": "2026-02-16T22:12:38.183297"
+    },
+    {
+      "name": "emit_jsx",
+      "description": "Render interactive React components inline in the chat.",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/emit_jsx.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/emit_jsx.py', name='emit_jsx')",
+      "unload_command": "unload_tool(name='emit_jsx')",
+      "last_updated": "2026-02-17T09:49:41.779386"
+    },
+    {
+      "name": "npiLookup",
+      "description": "Query NPI provider records from the public CMS NPPES Read API (v2.1).",
+      "path": "/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/npiLookup.py",
+      "category": "strands_tools",
+      "load_command": "load_tool(path='/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/src/strands_tools/npiLookup.py', name='npiLookup')",
+      "unload_command": "unload_tool(name='npiLookup')",
+      "last_updated": "2026-02-19T09:37:18.712616"
     }
   ]
 }

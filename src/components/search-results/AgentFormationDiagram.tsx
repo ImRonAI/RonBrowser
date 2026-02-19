@@ -2,15 +2,36 @@
  * Agent Formation Diagram for Search Agent
  *
  * Visualizes the search agent's orchestration (swarm/workflow/graph)
- * using existing AI Elements components:
- * - ChainOfThoughtOrchestration (inline compact view)
- * - AgentOrchestrationNode (expandable nodes with streaming)
- * - Canvas (React Flow wrapper)
+ * using AI Elements Task components for collapsible tool display.
  */
 
 import { memo, useMemo } from 'react'
-import { ChainOfThoughtOrchestration } from '@/components/ai-elements/chain-of-thought-orchestration'
+import { Task, TaskTrigger, TaskContent, type TaskStatus } from '@/components/ai-elements/task'
+import { CodeBlock } from '@/components/ai-elements/code-block'
 import type { UIMessage } from '@ai-sdk/react'
+
+/** Map AI SDK tool part state to TaskStatus */
+function mapToTaskStatus(state: string | undefined): TaskStatus {
+  switch (state) {
+    case 'output-available':
+      return 'success'
+    case 'output-error':
+      return 'error'
+    case 'input-streaming':
+    case 'input-available':
+      return 'running'
+    default:
+      return 'pending'
+  }
+}
+
+interface OrchestrationTool {
+  toolCallId: string
+  toolName: string
+  state: string | undefined
+  input: unknown
+  output: unknown
+}
 
 interface AgentFormationDiagramProps {
   messages: UIMessage[]
@@ -23,23 +44,22 @@ export const AgentFormationDiagram = memo(function AgentFormationDiagram({
 }: AgentFormationDiagramProps) {
   // Extract orchestration tool calls from messages
   const orchestrationTools = useMemo(() => {
-    const tools: any[] = []
+    const tools: OrchestrationTool[] = []
 
     for (const message of messages) {
       if (message.role === 'assistant') {
         for (const part of message.parts) {
-          if (part.type.startsWith('tool-')) {
-            const toolName = part.type.replace('tool-', '').toLowerCase()
+          if (part.type === 'dynamic-tool') {
+            const toolName = (part.toolName ?? '').toLowerCase()
 
             // Check if it's an orchestration tool (workflow, swarm, graph)
             if (['workflow', 'swarm', 'graph'].some(t => toolName.includes(t))) {
               tools.push({
-                type: part.type,
-                toolCallId: (part as any).toolCallId,
-                toolName: toolName,
-                state: (part as any).state,
-                input: (part as any).input,
-                output: (part as any).output,
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                state: part.state,
+                input: part.input,
+                output: part.output,
               })
             }
           }
@@ -58,13 +78,29 @@ export const AgentFormationDiagram = memo(function AgentFormationDiagram({
         Agent Formation
       </h3>
 
-      {/* Render each orchestration tool */}
       <div className="space-y-3">
         {orchestrationTools.map((tool, index) => (
-          <ChainOfThoughtOrchestration
-            key={`${tool.toolCallId}-${index}`}
-            tool={tool}
-          />
+          <Task key={`${tool.toolCallId}-${index}`} defaultOpen={false}>
+            <TaskTrigger
+              title={tool.toolName}
+              status={mapToTaskStatus(tool.state)}
+              description={`Orchestration: ${tool.toolName}`}
+            />
+            <TaskContent>
+              {tool.input != null && (
+                <CodeBlock
+                  code={String(typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input, null, 2))}
+                  language="json"
+                />
+              )}
+              {tool.output != null && (
+                <CodeBlock
+                  code={String(typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output, null, 2))}
+                  language="json"
+                />
+              )}
+            </TaskContent>
+          </Task>
         ))}
       </div>
     </div>

@@ -12,6 +12,8 @@ import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { useTaskStore } from '@/stores/taskStore'
+import { TaskDetailView } from './task-detail'
+import type { Task } from '@/pages/types/task'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
@@ -51,9 +53,10 @@ const PRIORITY_STYLES: Record<string, string> = {
 }
 
 export function ListView() {
-  const { tasks } = useTaskStore()
+  const { tasks, updateTask } = useTaskStore()
   const [sortKey, setSortKey] = useState<SortKey>('status')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
 
 
@@ -98,6 +101,7 @@ export function ListView() {
   ]
 
   return (
+    <>
     <motion.div
       className="h-full flex flex-col rounded-xl overflow-hidden bg-surface-0 dark:bg-surface-850 border border-surface-200 dark:border-surface-700 shadow-soft dark:shadow-dark-soft"
       initial={{ opacity: 0 }}
@@ -139,6 +143,7 @@ export function ListView() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 8 }}
               transition={{ duration: 0.25, delay: i * 0.01, ease: EASE }}
+              onClick={() => setSelectedTask(task)}
               className={cn(
                 'group flex items-center gap-3 px-5 py-3',
                 'border-b border-surface-100 dark:border-surface-800/50',
@@ -224,5 +229,20 @@ export function ListView() {
         )}
       </div>
     </motion.div>
+
+    {/* Task Detail Modal — rendered via portal */}
+    <AnimatePresence>
+      {selectedTask && (
+        <TaskDetailView
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={(updated) => {
+            updateTask(updated.id, updated)
+            setSelectedTask(updated)
+          }}
+        />
+      )}
+    </AnimatePresence>
+    </>
   )
 }

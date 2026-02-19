@@ -1,158 +1,379 @@
-/**
- * Message Components
- * 
- * Display individual chat messages with avatars, content, and role-based styling.
- */
+"use client";
 
-import React from 'react'
-import { motion } from 'framer-motion'
-import { cn } from '@/utils/cn'
-import type { MessageRole } from './types'
+import type { UIMessage } from "ai";
+import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Message
-// ─────────────────────────────────────────────────────────────────────────────
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  ButtonGroup,
+  ButtonGroupText,
+} from "@/components/ui/button-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { Streamdown } from "streamdown";
 
-interface MessageProps {
-  from: MessageRole
-  children: React.ReactNode
-  className?: string
-}
+export type MessageProps = HTMLAttributes<HTMLDivElement> & {
+  from: UIMessage["role"];
+};
 
-export function Message({ from, children, className }: MessageProps) {
-  const isUser = from === 'user'
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className={cn(
-        'group flex items-start gap-3',
-        isUser ? 'flex-row-reverse is-user' : 'is-assistant',
-        className
-      )}
-    >
+export const Message = ({ className, from, ...props }: MessageProps) => (
+  <div
+    className={cn(
+      "group flex w-full max-w-[95%] flex-col gap-2",
+      from === "user" ? "is-user ml-auto justify-end" : "is-assistant",
+      className
+    )}
+    {...props}
+  />
+);
+
+export type MessageAvatarProps = ComponentProps<typeof Avatar> & {
+  fallback?: string;
+};
+
+export const MessageAvatar = ({
+  className,
+  fallback = "A",
+  ...props
+}: MessageAvatarProps) => (
+  <Avatar
+    className={cn(
+      "size-7 border border-border/60 bg-muted/60 text-[11px]",
+      "group-[.is-user]:order-2 group-[.is-user]:ml-2 group-[.is-assistant]:mr-2",
+      className
+    )}
+    {...props}
+  >
+    <AvatarFallback>{fallback}</AvatarFallback>
+  </Avatar>
+);
+
+export type MessageContentProps = HTMLAttributes<HTMLDivElement> & {
+  variant?: "contained" | "flat";
+};
+
+export const MessageContent = ({
+  children,
+  className,
+  variant = "contained",
+  ...props
+}: MessageContentProps) => (
+  <div
+    className={cn(
+      "flex min-w-0 max-w-full flex-col gap-2 text-sm",
+      variant === "contained" &&
+        "w-fit overflow-hidden group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
+      variant === "flat" && "w-full",
+      "group-[.is-assistant]:text-foreground",
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+);
+
+export type MessageActionsProps = ComponentProps<"div">;
+
+export const MessageActions = ({
+  className,
+  children,
+  ...props
+}: MessageActionsProps) => (
+  <div className={cn("flex items-center gap-1", className)} {...props}>
+    {children}
+  </div>
+);
+
+export type MessageActionProps = ComponentProps<typeof Button> & {
+  tooltip?: string;
+  label?: string;
+};
+
+export const MessageAction = ({
+  tooltip,
+  children,
+  label,
+  variant = "ghost",
+  size = "icon",
+  ...props
+}: MessageActionProps) => {
+  const button = (
+    <Button size={size} type="button" variant={variant} {...props}>
       {children}
-    </motion.div>
-  )
+      <span className="sr-only">{label || tooltip}</span>
+    </Button>
+  );
+
+  if (tooltip) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent>
+            <p>{tooltip}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return button;
+};
+
+interface MessageBranchContextType {
+  currentBranch: number;
+  totalBranches: number;
+  goToPrevious: () => void;
+  goToNext: () => void;
+  branches: ReactElement[];
+  setBranches: (branches: ReactElement[]) => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MessageAvatar
-// ─────────────────────────────────────────────────────────────────────────────
+const MessageBranchContext = createContext<MessageBranchContextType | null>(
+  null
+);
 
-interface MessageAvatarProps {
-  src?: string
-  name?: string
-  fallback?: React.ReactNode
-  className?: string
-}
+const useMessageBranch = () => {
+  const context = useContext(MessageBranchContext);
 
-export function MessageAvatar({ src, name, fallback, className }: MessageAvatarProps) {
-  const initials = name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-  
+  if (!context) {
+    throw new Error(
+      "MessageBranch components must be used within MessageBranch"
+    );
+  }
+
+  return context;
+};
+
+export type MessageBranchProps = HTMLAttributes<HTMLDivElement> & {
+  defaultBranch?: number;
+  onBranchChange?: (branchIndex: number) => void;
+};
+
+export const MessageBranch = ({
+  defaultBranch = 0,
+  onBranchChange,
+  className,
+  ...props
+}: MessageBranchProps) => {
+  const [currentBranch, setCurrentBranch] = useState(defaultBranch);
+  const [branches, setBranches] = useState<ReactElement[]>([]);
+
+  const handleBranchChange = useCallback(
+    (newBranch: number) => {
+      setCurrentBranch(newBranch);
+      onBranchChange?.(newBranch);
+    },
+    [onBranchChange]
+  );
+
+  const goToPrevious = useCallback(() => {
+    const newBranch =
+      currentBranch > 0 ? currentBranch - 1 : branches.length - 1;
+    handleBranchChange(newBranch);
+  }, [currentBranch, branches.length, handleBranchChange]);
+
+  const goToNext = useCallback(() => {
+    const newBranch =
+      currentBranch < branches.length - 1 ? currentBranch + 1 : 0;
+    handleBranchChange(newBranch);
+  }, [currentBranch, branches.length, handleBranchChange]);
+
+  const contextValue = useMemo<MessageBranchContextType>(
+    () => ({
+      branches,
+      currentBranch,
+      goToNext,
+      goToPrevious,
+      setBranches,
+      totalBranches: branches.length,
+    }),
+    [branches, currentBranch, goToNext, goToPrevious]
+  );
+
   return (
-    <div 
-      className={cn(
-        'flex-shrink-0 w-8 h-8 rounded-xl overflow-hidden',
-        'flex items-center justify-center',
-        'bg-surface-200 dark:bg-surface-700',
-        'text-body-sm font-medium text-ink-muted dark:text-ink-inverse-muted',
-        // User styling
-        'group-[.is-user]:bg-surface-200 group-[.is-user]:dark:bg-surface-700',
-        // Assistant styling  
-        'group-[.is-assistant]:bg-gradient-to-br group-[.is-assistant]:from-accent group-[.is-assistant]:to-accent-light',
-        className
-      )}
-    >
-      {src ? (
-        <img 
-          src={src} 
-          alt={name || 'Avatar'} 
-          className="w-full h-full object-cover"
-        />
-      ) : fallback ? (
-        <span className="text-white">{fallback}</span>
-      ) : (
-        <span className="group-[.is-assistant]:text-white">{initials || '?'}</span>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MessageContent
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface MessageContentProps {
-  children: React.ReactNode
-  variant?: 'contained' | 'flat'
-  className?: string
-}
-
-export function MessageContent({ children, variant = 'contained', className }: MessageContentProps) {
-  return (
-    <div 
-      className={cn(
-        'flex flex-col gap-2 max-w-[80%]',
-        // User alignment
-        'group-[.is-user]:items-end',
-        // Assistant alignment
-        'group-[.is-assistant]:items-start',
-        className
-      )}
-    >
+    <MessageBranchContext.Provider value={contextValue}>
       <div
-        className={cn(
-          'break-words',
-          variant === 'contained' && [
-            'px-4 py-3 rounded-2xl',
-            // User styling - blurple gradient matching selected tab
-            'group-[.is-user]:bg-gradient-to-r group-[.is-user]:from-indigo-600 group-[.is-user]:to-indigo-800',
-            'group-[.is-user]:text-white group-[.is-user]:font-medium group-[.is-user]:rounded-br-md',
-            'group-[.is-user]:shadow-lg group-[.is-user]:shadow-indigo-700/30',
-            // Assistant styling
-            'group-[.is-assistant]:bg-surface-100 group-[.is-assistant]:dark:bg-surface-800',
-            'group-[.is-assistant]:text-ink group-[.is-assistant]:dark:text-ink-inverse',
-            'group-[.is-assistant]:rounded-bl-md',
-          ],
-          variant === 'flat' && [
-            'p-0',
-            'group-[.is-assistant]:bg-transparent',
-            'text-ink dark:text-ink-inverse',
-          ]
-        )}
-      >
-        {children}
-      </div>
-    </div>
-  )
-}
+        className={cn("grid w-full gap-2 [&>div]:pb-0", className)}
+        {...props}
+      />
+    </MessageBranchContext.Provider>
+  );
+};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MessageActions
-// ─────────────────────────────────────────────────────────────────────────────
+export type MessageBranchContentProps = HTMLAttributes<HTMLDivElement>;
 
-interface MessageActionsProps {
-  children: React.ReactNode
-  className?: string
-}
+export const MessageBranchContent = ({
+  children,
+  ...props
+}: MessageBranchContentProps) => {
+  const { currentBranch, setBranches, branches } = useMessageBranch();
+  const childrenArray = useMemo(
+    () => (Array.isArray(children) ? children : [children]),
+    [children]
+  );
 
-export function MessageActions({ children, className }: MessageActionsProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+  // Use useEffect to update branches when they change
+  useEffect(() => {
+    if (branches.length !== childrenArray.length) {
+      setBranches(childrenArray);
+    }
+  }, [childrenArray, branches, setBranches]);
+
+  return childrenArray.map((branch, index) => (
+    <div
       className={cn(
-        'flex items-center gap-1 mt-1',
-        'opacity-0 group-hover:opacity-100',
-        'transition-opacity duration-200',
+        "grid gap-2 overflow-hidden [&>div]:pb-0",
+        index === currentBranch ? "block" : "hidden"
+      )}
+      key={branch.key}
+      {...props}
+    >
+      {branch}
+    </div>
+  ));
+};
+
+export type MessageBranchSelectorProps = ComponentProps<typeof ButtonGroup>;
+
+export const MessageBranchSelector = ({
+  className,
+  ...props
+}: MessageBranchSelectorProps) => {
+  const { totalBranches } = useMessageBranch();
+
+  // Don't render if there's only one branch
+  if (totalBranches <= 1) {
+    return null;
+  }
+
+  return (
+    <ButtonGroup
+      className={cn(
+        "[&>*:not(:first-child)]:rounded-l-md [&>*:not(:last-child)]:rounded-r-md",
         className
       )}
+      orientation="horizontal"
+      {...props}
+    />
+  );
+};
+
+export type MessageBranchPreviousProps = ComponentProps<typeof Button>;
+
+export const MessageBranchPrevious = ({
+  children,
+  ...props
+}: MessageBranchPreviousProps) => {
+  const { goToPrevious, totalBranches } = useMessageBranch();
+
+  return (
+    <Button
+      aria-label="Previous branch"
+      disabled={totalBranches <= 1}
+      onClick={goToPrevious}
+      size="icon"
+      type="button"
+      variant="ghost"
+      {...props}
     >
-      {children}
-    </motion.div>
-  )
-}
+      {children ?? <ChevronLeftIcon size={14} />}
+    </Button>
+  );
+};
+
+export type MessageBranchNextProps = ComponentProps<typeof Button>;
+
+export const MessageBranchNext = ({
+  children,
+  ...props
+}: MessageBranchNextProps) => {
+  const { goToNext, totalBranches } = useMessageBranch();
+
+  return (
+    <Button
+      aria-label="Next branch"
+      disabled={totalBranches <= 1}
+      onClick={goToNext}
+      size="icon"
+      type="button"
+      variant="ghost"
+      {...props}
+    >
+      {children ?? <ChevronRightIcon size={14} />}
+    </Button>
+  );
+};
+
+export type MessageBranchPageProps = HTMLAttributes<HTMLSpanElement>;
+
+export const MessageBranchPage = ({
+  className,
+  ...props
+}: MessageBranchPageProps) => {
+  const { currentBranch, totalBranches } = useMessageBranch();
+
+  return (
+    <ButtonGroupText
+      className={cn(
+        "border-none bg-transparent text-muted-foreground shadow-none",
+        className
+      )}
+      {...props}
+    >
+      {currentBranch + 1} of {totalBranches}
+    </ButtonGroupText>
+  );
+};
+
+export type MessageResponseProps = ComponentProps<typeof Streamdown>;
+
+export const MessageResponse = memo(
+  ({ className, ...props }: MessageResponseProps) => (
+    <Streamdown
+      className={cn(
+        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        className
+      )}
+      {...props}
+    />
+  ),
+  (prevProps, nextProps) => prevProps.children === nextProps.children
+);
+
+MessageResponse.displayName = "MessageResponse";
+
+export type MessageToolbarProps = ComponentProps<"div">;
+
+export const MessageToolbar = ({
+  className,
+  children,
+  ...props
+}: MessageToolbarProps) => (
+  <div
+    className={cn(
+      "mt-4 flex w-full items-center justify-between gap-4",
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+);

@@ -11,3 +11,9 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
+// Type declarations for packages without @types
+declare module 'react-katex' {
+  import { ComponentType } from 'react'
+  export const InlineMath: ComponentType<{ math: string; [key: string]: any }>
+  export const BlockMath: ComponentType<{ math: string; [key: string]: any }>
+}

@@ -51,7 +51,26 @@ interface UrlAttachment {
 const EASE = [0.16, 1, 0.3, 1] as const
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
 const SUPERAGENT_API = 'http://localhost:8765/agents/super/stream'
+const SUPERAGENT_SESSION_STORAGE_KEY = 'ron.superagent.session_id'
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi
+
+function generateSuperAgentSessionId(): string {
+  return `superagent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function persistSuperAgentSessionId(sessionId: string): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(SUPERAGENT_SESSION_STORAGE_KEY, sessionId)
+}
+
+function getOrCreateSuperAgentSessionId(): string {
+  if (typeof window === 'undefined') return generateSuperAgentSessionId()
+  const existing = window.localStorage.getItem(SUPERAGENT_SESSION_STORAGE_KEY)
+  if (existing && existing.trim()) return existing
+  const created = generateSuperAgentSessionId()
+  window.localStorage.setItem(SUPERAGENT_SESSION_STORAGE_KEY, created)
+  return created
+}
 
 function getDomainFromUrl(url: string): string {
   try {
@@ -158,9 +177,7 @@ function extractCitationsFromParts(parts: MessagePart[]): Citation[] {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SuperAgentInterface() {
-  const sessionIdRef = useRef<string>(
-    `superagent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-  )
+  const sessionIdRef = useRef<string>(getOrCreateSuperAgentSessionId())
 
   const { messages, sendMessage, status, setMessages, clearError } = useChat({
     transport: new DefaultChatTransport({
@@ -436,8 +453,9 @@ export function SuperAgentInterface() {
   }
 
   const handleNewChat = () => {
-    const newSessionId = `superagent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    const newSessionId = generateSuperAgentSessionId()
     sessionIdRef.current = newSessionId
+    persistSuperAgentSessionId(newSessionId)
     setMessages([])
     setInput('')
     setSelectedContexts([])

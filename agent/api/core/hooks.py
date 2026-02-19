@@ -21,9 +21,12 @@ from agent.api.core.config import (
     ENABLE_AGENT_LOOP_OBSERVER_HOOK,
     ENABLE_EXPERIMENTAL_HOOK_ALIASES,
     ENABLE_EXPERIMENTAL_STEERING,
+    ENABLE_TOOL_HEALTH_QUARANTINE,
     HOOKS_VERBOSE_LOGGING,
     MAX_TOOL_CALLS_PER_INVOCATION,
     STEERING_SYSTEM_PROMPT,
+    TOOL_HEALTH_FAILURE_THRESHOLD,
+    TOOL_HEALTH_MAX_ERROR_MESSAGE_CHARS,
 )
 
 logger = logging.getLogger(__name__)
@@ -245,6 +248,117 @@ class MaxToolCallsHook(HookProvider):
         )
 
 
+class ToolHealthQuarantineHook(HookProvider):
+    """Quarantine repeatedly failing tools to prevent repeated hangs/fail loops."""
+
+    def __init__(self, failure_threshold: int, max_error_message_chars: int = 240):
+        self.failure_threshold = max(1, failure_threshold)
+        self.max_error_message_chars = max(64, max_error_message_chars)
+        self._lock = Lock()
+        self._failure_streaks: dict[str, int] = {}
+        self._quarantined: dict[str, str] = {}
+
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        _ = kwargs
+        registry.add_callback(BeforeToolCallEvent, self._on_before_tool_call)
+        registry.add_callback(AfterToolCallEvent, self._on_after_tool_call)
+        if BidiBeforeToolCallEvent is not None:
+            registry.add_callback(BidiBeforeToolCallEvent, self._on_before_tool_call)
+        if BidiAfterToolCallEvent is not None:
+            registry.add_callback(BidiAfterToolCallEvent, self._on_after_tool_call)
+
+    @staticmethod
+    def _tool_name_from_event(event: Any) -> str:
+        tool_use = getattr(event, "tool_use", None)
+        if isinstance(tool_use, dict):
+            name = tool_use.get("name")
+            if isinstance(name, str):
+                return name
+        return "unknown_tool"
+
+    @staticmethod
+    def _result_status(event: Any) -> str:
+        result = getattr(event, "result", None)
+        if isinstance(result, dict):
+            status = result.get("status")
+            if isinstance(status, str):
+                return status
+        return "error"
+
+    def _extract_error_reason(self, event: Any) -> str:
+        result = getattr(event, "result", None)
+        if isinstance(result, dict):
+            content = result.get("content")
+            if isinstance(content, list):
+                for item in content:
+                    if not isinstance(item, dict):
+                        continue
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        return text.strip()[: self.max_error_message_chars]
+        exception = getattr(event, "exception", None)
+        if exception is not None:
+            return str(exception)[: self.max_error_message_chars]
+        cancel_message = getattr(event, "cancel_message", None)
+        if isinstance(cancel_message, str) and cancel_message.strip():
+            return cancel_message.strip()[: self.max_error_message_chars]
+        return "tool returned an error status repeatedly"
+
+    def _sync_agent_state(self, event: Any) -> None:
+        try:
+            event.agent.state.set(
+                "tool_health",
+                {
+                    "failure_streaks": dict(self._failure_streaks),
+                    "quarantined_tools": dict(self._quarantined),
+                },
+            )
+        except Exception:
+            logger.debug("Failed to persist tool_health state", exc_info=True)
+
+    def _on_before_tool_call(self, event: Any) -> None:
+        tool_name = self._tool_name_from_event(event)
+        with self._lock:
+            reason = self._quarantined.get(tool_name)
+        if not reason:
+            return
+        event.cancel_tool = (
+            f"Tool '{tool_name}' is temporarily quarantined due to repeated failures: {reason}. "
+            "Do not call this tool again in this invocation."
+        )
+        logger.warning(
+            "agent_id=%s tool=%s | quarantined tool invocation cancelled",
+            event.agent.agent_id,
+            tool_name,
+        )
+        self._sync_agent_state(event)
+
+    def _on_after_tool_call(self, event: Any) -> None:
+        tool_name = self._tool_name_from_event(event)
+        status = self._result_status(event)
+        cancel_message = getattr(event, "cancel_message", None)
+
+        with self._lock:
+            if status == "success":
+                self._failure_streaks.pop(tool_name, None)
+                self._quarantined.pop(tool_name, None)
+            elif not isinstance(cancel_message, str) or "quarantined" not in cancel_message.lower():
+                next_streak = self._failure_streaks.get(tool_name, 0) + 1
+                self._failure_streaks[tool_name] = next_streak
+                if next_streak >= self.failure_threshold:
+                    reason = self._extract_error_reason(event)
+                    self._quarantined[tool_name] = reason
+                    logger.warning(
+                        "agent_id=%s tool=%s streak=%d threshold=%d | tool quarantined",
+                        event.agent.agent_id,
+                        tool_name,
+                        next_streak,
+                        self.failure_threshold,
+                    )
+
+        self._sync_agent_state(event)
+
+
 class ExperimentalHookAliasObserver(HookProvider):
     """Optional registration on deprecated experimental hook aliases."""
 
@@ -294,6 +408,14 @@ def build_agent_hooks(model: Any) -> list[HookProvider]:
 
     if MAX_TOOL_CALLS_PER_INVOCATION > 0:
         hooks.append(MaxToolCallsHook(max_tool_calls=MAX_TOOL_CALLS_PER_INVOCATION))
+
+    if ENABLE_TOOL_HEALTH_QUARANTINE and TOOL_HEALTH_FAILURE_THRESHOLD > 0:
+        hooks.append(
+            ToolHealthQuarantineHook(
+                failure_threshold=TOOL_HEALTH_FAILURE_THRESHOLD,
+                max_error_message_chars=TOOL_HEALTH_MAX_ERROR_MESSAGE_CHARS,
+            )
+        )
 
     if ENABLE_EXPERIMENTAL_HOOK_ALIASES:
         hooks.append(ExperimentalHookAliasObserver())

@@ -18,7 +18,6 @@ import { useState, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { usePreviewStore, type BrowserPreviewData, type ProjectPreviewData, type CodePreviewData } from '@/stores/previewStore'
-import { Image } from './image'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -513,26 +512,11 @@ function BrowserPreviewContent({ data }: BrowserPreviewContentProps) {
             data-active={isLive ? 'true' : 'false'}
           />
         ) : screenshot ? (
-          (() => {
-            const match = screenshot.match(/^data:([^;]+);base64,(.+)$/)
-            if (match) {
-              return (
-                <Image
-                  base64={match[2]}
-                  mediaType={match[1]}
-                  alt={title || 'Page screenshot'}
-                  className="w-full h-full object-cover object-top"
-                />
-              )
-            }
-            return (
-              <img 
-                src={screenshot} 
-                alt={title || 'Page screenshot'}
-                className="w-full h-full object-cover object-top"
-              />
-            )
-          })()
+          <img 
+            src={screenshot} 
+            alt={title || 'Page screenshot'}
+            className="w-full h-full object-cover object-top"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center">

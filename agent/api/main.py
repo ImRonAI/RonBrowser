@@ -34,7 +34,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import endpoint routers
-from agent.api.endpoints import agents, projects, tools, mcp_servers, openapi_specs, browser_sessions
+from agent.api.endpoints import agents, projects, tools, mcp_servers, openapi_specs, browser_sessions, chat_sessions
 
 # CORS configuration
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
@@ -94,6 +94,7 @@ app.include_router(tools.router, prefix="/tools", tags=["tools"])
 app.include_router(mcp_servers.router, prefix="/mcp-servers", tags=["mcp-servers"])
 app.include_router(openapi_specs.router, prefix="/openapi-specs", tags=["openapi-specs"])
 app.include_router(browser_sessions.router, prefix="/browser-sessions", tags=["browser-sessions"])
+app.include_router(chat_sessions.router, prefix="/chat-sessions", tags=["chat-sessions"])
 
 
 @app.get("/health")

@@ -7,12 +7,10 @@
 
 import { memo, type ComponentProps } from 'react'
 import { Streamdown } from 'streamdown'
-import { code } from '@streamdown/code'
 import { cn } from '@/utils/cn'
 import { CodeBlock, CodeBlockCopyButton } from '@/components/ai-elements/code-block'
 import type { BundledLanguage } from 'shiki'
 
-const STREAMDOWN_PLUGINS = { code }
 const CODE_BLOCK_LANGUAGE = /language-([^\s]+)/i
 
 const MARKDOWN_COMPONENTS: NonNullable<ComponentProps<typeof Streamdown>['components']> = {
@@ -57,7 +55,6 @@ export const MessageResponse = memo(
         "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
-      plugins={STREAMDOWN_PLUGINS}
       components={MARKDOWN_COMPONENTS}
       {...props}
     />

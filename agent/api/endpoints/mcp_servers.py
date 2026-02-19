@@ -24,8 +24,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_MCP_TOOLS_DIR = _PROJECT_ROOT / "agent" / "tools" / "mcp"
-_OPENAPI_SPECS_DIR = _PROJECT_ROOT / "agent" / "tools" / "open-api-specs"
+_MCP_TOOLS_DIR = _PROJECT_ROOT / "agent" / "tools" / "src" / "strands_tools" / "mcp"
+_OPENAPI_SPECS_DIR = _PROJECT_ROOT / "agent" / "tools" / "src" / "strands_tools" / "open-api-specs"
 _STRANDS_TOOLS_SRC_DIR = _PROJECT_ROOT / "agent" / "tools" / "src" / "strands_tools"
 
 

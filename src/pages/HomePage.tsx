@@ -6,6 +6,7 @@ import { useNavigationStore } from '@/stores/navigationStore'
 import { KanbanBoard, CalendarView } from '@/components/board'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { BuildWorkbenchPage } from '@/components/build'
+import { SuperAgentInterface } from '@/components/superagent/SuperAgentInterface'
 
 // Import Brave Search JSON data
 import billsData from '../../data/bills.json'
@@ -138,9 +139,11 @@ export function HomePage() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.98, y: -20 }}
                 transition={{ duration: 0.5, ease: EASE }}
-                className="h-full px-8 pb-8 flex items-center justify-center"
+                className="h-full"
               >
-                <VibePlaceholder />
+                <ErrorBoundary componentName="SuperAgentInterface">
+                  <SuperAgentInterface />
+                </ErrorBoundary>
               </motion.div>
             )}
             {activeTab === 'build' && (

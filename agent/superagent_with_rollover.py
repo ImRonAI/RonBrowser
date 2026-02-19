@@ -10,8 +10,8 @@ import logging
 import time
 
 load_dotenv(Path(__file__).parent.parent / ".env")
-os.environ["BYPASS_TOOL_CONSENT"] = "true"
-os.environ["STRANDS_NON_INTERACTIVE"] = "true"
+# os.environ["BYPASS_TOOL_CONSENT"] = "true"  # Safety: Do not bypass tool consent in production
+# os.environ["STRANDS_NON_INTERACTIVE"] = "true"  # Safety: Allow interaction if needed
 
 import sys
 sys.path.append(str(Path(__file__).parent / "tools" / "src"))

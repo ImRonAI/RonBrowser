@@ -15,20 +15,15 @@ import {
   ChainOfThoughtHeader,
   ChainOfThoughtContent,
   ChainOfThoughtStep,
+  ChainOfThoughtSearchResults,
+  ChainOfThoughtSearchResult,
 } from '@/components/ai-elements/chain-of-thought'
-
-import {
-  ChainOfThoughtRetrieval,
-  ChainOfThoughtRetrievalItem,
-} from '@/components/ai-elements/chain-of-thought-retrieval'
-
-import { ChainOfThoughtPhoneCall } from '@/components/ai-elements/chain-of-thought-phone'
 
 import { Tool, ToolHeader, ToolContent, ToolInput } from '@/components/ai-elements/tool'
 
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning'
 
-import { CollapsibleTask } from '@/components/ai-elements/task'
+import { Task, TaskTrigger, TaskContent } from '@/components/ai-elements/task'
 
 import {
   StrandsSwarm,
@@ -66,6 +61,13 @@ interface DemoImage {
 type StepStatus = 'pending' | 'running' | 'complete' | 'error'
 type ToolState = 'pending' | 'running' | 'success'
 type CallStatus = 'idle' | 'dialing' | 'ringing' | 'connected' | 'ended'
+
+/** Map internal StepStatus to ChainOfThoughtStep's expected status */
+function toCotStatus(s: StepStatus): 'pending' | 'active' | 'complete' {
+  if (s === 'running') return 'active'
+  if (s === 'error') return 'complete'
+  return s as 'pending' | 'complete'
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMO DATA
@@ -395,7 +397,7 @@ export function AIElementsShowcase() {
 
                       {/* Step 1: Initial Reasoning */}
                       {step1.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Analyzing Request" status={step1.status}>
+                        <ChainOfThoughtStep label="Analyzing Request" status={toCotStatus(step1.status)}>
                           <Reasoning isStreaming={step1.streaming} defaultOpen={true} autoCollapseDelay={3000}>
                             <ReasoningTrigger />
                             <ReasoningContent>{step1.text}</ReasoningContent>
@@ -405,17 +407,27 @@ export function AIElementsShowcase() {
 
                       {/* Step 2: Web Search */}
                       {step2.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Web Search" description="Finding pizza recommendations" status={step2.status}>
+                        <ChainOfThoughtStep label="Web Search" description="Finding pizza recommendations" status={toCotStatus(step2.status)}>
                           <Tool defaultOpen={true}>
                             <ToolHeader title="brave_web_search" type="mcp" state={step2.tool} />
                             <ToolContent>
                               <ToolInput input={{ query: "best pizza slice NYC 2024", count: 5 }} />
                               {step2.results.length > 0 && (
-                                <ChainOfThoughtRetrieval sourceType="web" sourceName="Brave Search" query="best pizza slice NYC 2024" resultCount={step2.results.length} duration={step2.tool === 'success' ? 234 : undefined}>
-                                  {step2.results.map((r) => (
-                                    <ChainOfThoughtRetrievalItem key={r.id} title={r.title} content={r.snippet} url={r.url} sourceType="web" />
-                                  ))}
-                                </ChainOfThoughtRetrieval>
+                                <div className="mt-2 space-y-2">
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>Brave Search</span>
+                                    <span>&middot;</span>
+                                    <span>{step2.results.length} results</span>
+                                    {step2.tool === 'success' && <span>&middot; 234ms</span>}
+                                  </div>
+                                  <ChainOfThoughtSearchResults>
+                                    {step2.results.map((r) => (
+                                      <a key={r.id} href={r.url} target="_blank" rel="noopener noreferrer">
+                                        <ChainOfThoughtSearchResult>{r.title}</ChainOfThoughtSearchResult>
+                                      </a>
+                                    ))}
+                                  </ChainOfThoughtSearchResults>
+                                </div>
                               )}
                             </ToolContent>
                           </Tool>
@@ -424,7 +436,7 @@ export function AIElementsShowcase() {
 
                       {/* Step 3: Research Reasoning */}
                       {step3.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Analyzing Results" status={step3.status}>
+                        <ChainOfThoughtStep label="Analyzing Results" status={toCotStatus(step3.status)}>
                           <Reasoning isStreaming={step3.streaming} defaultOpen={true} autoCollapseDelay={3000}>
                             <ReasoningTrigger />
                             <ReasoningContent>{step3.text}</ReasoningContent>
@@ -434,17 +446,27 @@ export function AIElementsShowcase() {
 
                       {/* Step 4: Academic Papers */}
                       {step4.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Academic Research" description="Food science literature" status={step4.status}>
+                        <ChainOfThoughtStep label="Academic Research" description="Food science literature" status={toCotStatus(step4.status)}>
                           <Tool defaultOpen={true}>
                             <ToolHeader title="semantic_scholar_search" type="mcp" state={step4.tool} />
                             <ToolContent>
                               <ToolInput input={{ query: "pizza crust Maillard NYC", limit: 3 }} />
                               {step4.papers.length > 0 && (
-                                <ChainOfThoughtRetrieval sourceType="vector" sourceName="Semantic Scholar" query="pizza crust Maillard NYC" resultCount={step4.papers.length} duration={step4.tool === 'success' ? 456 : undefined}>
-                                  {step4.papers.map((p) => (
-                                    <ChainOfThoughtRetrievalItem key={p.id} title={p.title} content={p.journal} confidence={p.confidence} sourceType="vector" />
-                                  ))}
-                                </ChainOfThoughtRetrieval>
+                                <div className="mt-2 space-y-2">
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>Semantic Scholar</span>
+                                    <span>&middot;</span>
+                                    <span>{step4.papers.length} results</span>
+                                    {step4.tool === 'success' && <span>&middot; 456ms</span>}
+                                  </div>
+                                  <ChainOfThoughtSearchResults>
+                                    {step4.papers.map((p) => (
+                                      <ChainOfThoughtSearchResult key={p.id}>
+                                        {p.title} ({Math.round(p.confidence * 100)}%)
+                                      </ChainOfThoughtSearchResult>
+                                    ))}
+                                  </ChainOfThoughtSearchResults>
+                                </div>
                               )}
                             </ToolContent>
                           </Tool>
@@ -453,7 +475,7 @@ export function AIElementsShowcase() {
 
                       {/* Step 5: Image Reasoning */}
                       {step5.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Planning Visual Search" status={step5.status}>
+                        <ChainOfThoughtStep label="Planning Visual Search" status={toCotStatus(step5.status)}>
                           <Reasoning isStreaming={step5.streaming} defaultOpen={true} autoCollapseDelay={3000}>
                             <ReasoningTrigger />
                             <ReasoningContent>{step5.text}</ReasoningContent>
@@ -463,7 +485,7 @@ export function AIElementsShowcase() {
 
                       {/* Step 6: Images */}
                       {step6.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Image Search" description="Visual references" status={step6.status}>
+                        <ChainOfThoughtStep label="Image Search" description="Visual references" status={toCotStatus(step6.status)}>
                           <Tool defaultOpen={true}>
                             <ToolHeader title="brave_image_search" type="mcp" state={step6.tool} />
                             <ToolContent>
@@ -484,7 +506,7 @@ export function AIElementsShowcase() {
 
                       {/* Step 7: Orchestration Reasoning */}
                       {step7.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Coordinating Agents" status={step7.status}>
+                        <ChainOfThoughtStep label="Coordinating Agents" status={toCotStatus(step7.status)}>
                           <Reasoning isStreaming={step7.streaming} defaultOpen={true} autoCollapseDelay={3000}>
                             <ReasoningTrigger />
                             <ReasoningContent>{step7.text}</ReasoningContent>
@@ -494,18 +516,21 @@ export function AIElementsShowcase() {
 
                       {/* Step 8: Agent Orchestration */}
                       {step8.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Agent Orchestration" description="Multi-agent collaboration" status={step8.status}>
-                          <CollapsibleTask title="Agent Swarm" description="4 agents coordinating" status={step8.orchestration} defaultExpanded={true}>
-                            <div className="h-[280px] w-full rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
-                              <StrandsSwarm initialState={swarmState} onEvent={() => {}} showHistory={false} showStats={false} showContext={false} showControls={false} />
-                            </div>
-                          </CollapsibleTask>
+                        <ChainOfThoughtStep label="Agent Orchestration" description="Multi-agent collaboration" status={toCotStatus(step8.status)}>
+                          <Task defaultOpen>
+                            <TaskTrigger title="Agent Swarm" description="4 agents coordinating" status={step8.orchestration as any} />
+                            <TaskContent>
+                              <div className="h-[280px] w-full rounded-lg overflow-hidden border border-surface-200 dark:border-surface-700">
+                                <StrandsSwarm initialState={swarmState} onEvent={() => {}} showHistory={false} showStats={false} showContext={false} showControls={false} />
+                              </div>
+                            </TaskContent>
+                          </Task>
                         </ChainOfThoughtStep>
                       )}
 
                       {/* Step 9: Phone Reasoning */}
                       {step9.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Planning Verification" status={step9.status}>
+                        <ChainOfThoughtStep label="Planning Verification" status={toCotStatus(step9.status)}>
                           <Reasoning isStreaming={step9.streaming} defaultOpen={true} autoCollapseDelay={3000}>
                             <ReasoningTrigger />
                             <ReasoningContent>{step9.text}</ReasoningContent>
@@ -515,21 +540,36 @@ export function AIElementsShowcase() {
 
                       {/* Step 10: Phone Call */}
                       {step10.status !== 'pending' && (
-                        <ChainOfThoughtStep label="Phone Verification" description="Confirming hours" status={step10.status}>
+                        <ChainOfThoughtStep label="Phone Verification" description="Confirming hours" status={toCotStatus(step10.status)}>
                           <Tool defaultOpen={true}>
                             <ToolHeader title="telnyx_make_call" type="mcp" state={step10.tool} />
                             <ToolContent>
                               <ToolInput input={{ to: "+1 (212) 366-1182", from: "+1 (888) RON-AI00" }} />
                               {step10.call !== 'idle' && (
-                                <ChainOfThoughtPhoneCall
-                                  phoneNumber="+1 (212) 366-1182"
-                                  contactName="Joe's Pizza"
-                                  direction="outbound"
-                                  status={step10.call as 'dialing' | 'ringing' | 'connected' | 'ended'}
-                                  duration={step10.call === 'ended' ? 18 : undefined}
-                                  transcript={step10.transcript}
-                                  actions={step10.call === 'connected' ? ['mute', 'end'] : []}
-                                />
+                                <div className="mt-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">Joe's Pizza</span>
+                                    <span className="text-xs text-muted-foreground">+1 (212) 366-1182</span>
+                                    <span className={cn(
+                                      "ml-auto text-xs font-medium px-2 py-0.5 rounded-full",
+                                      step10.call === 'dialing' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                                      step10.call === 'ringing' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                                      step10.call === 'connected' && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                                      step10.call === 'ended' && "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+                                    )}>
+                                      {step10.call === 'dialing' ? 'Dialing...' : step10.call === 'ringing' ? 'Ringing...' : step10.call === 'connected' ? 'Connected' : `Ended · ${18}s`}
+                                    </span>
+                                  </div>
+                                  {step10.transcript.length > 0 && (
+                                    <div className="space-y-1.5 pt-1 border-t border-zinc-100 dark:border-zinc-800">
+                                      {step10.transcript.map((line, i) => (
+                                        <div key={i} className="text-xs text-zinc-600 dark:text-zinc-400">
+                                          <span className="font-medium text-zinc-500 dark:text-zinc-500">{i % 2 === 0 ? 'Them' : 'Ron'}:</span> {line}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </ToolContent>
                           </Tool>

@@ -26,5 +26,6 @@
     }
   },
   "include": ["src", "electron"],
+  "exclude": ["src/components/ai-elements/theapp"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

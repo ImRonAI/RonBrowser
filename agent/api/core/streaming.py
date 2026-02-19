@@ -373,29 +373,39 @@ def convert_event(event: dict[str, Any], state: StreamState) -> list[str]:
 
     # TextStreamEvent {"data": text, "delta": delta}
     if "data" in event and "delta" in event and "reasoning" not in event:
-        text = event.get("data")
-        if not isinstance(text, str) or not text:
+        text_delta = event.get("delta")
+        if not isinstance(text_delta, str) or not text_delta:
+            text_delta = event.get("data")
+        if not isinstance(text_delta, str) or not text_delta:
             return []
+
+        output: list[str] = []
+        if state.active_reasoning_id is not None:
+            output.append(sse("reasoning-end", {"id": state.active_reasoning_id}))
+            state.active_reasoning_id = None
+
         if state.active_text_id is None:
             state.active_text_id = _next_part_id("text")
-            return [
-                sse("text-start", {"id": state.active_text_id}),
-                sse("text-delta", {"id": state.active_text_id, "delta": text}),
-            ]
-        return [sse("text-delta", {"id": state.active_text_id, "delta": text})]
+            output.append(sse("text-start", {"id": state.active_text_id}))
+
+        output.append(sse("text-delta", {"id": state.active_text_id, "delta": text_delta}))
+        return output
 
     # ReasoningTextStreamEvent {"reasoningText": text, "delta": delta, "reasoning": True}
     if "reasoningText" in event and "reasoning" in event:
-        reasoning_text = event.get("reasoningText")
-        if not isinstance(reasoning_text, str) or not reasoning_text:
+        reasoning_delta = event.get("delta")
+        if not isinstance(reasoning_delta, str) or not reasoning_delta:
+            reasoning_delta = event.get("reasoningText")
+        if not isinstance(reasoning_delta, str) or not reasoning_delta:
             return []
+        output: list[str] = []
+        if state.active_text_id is not None:
+            output.extend(_close_active_text_stream(state))
         if state.active_reasoning_id is None:
             state.active_reasoning_id = _next_part_id("reasoning")
-            return [
-                sse("reasoning-start", {"id": state.active_reasoning_id}),
-                sse("reasoning-delta", {"id": state.active_reasoning_id, "delta": reasoning_text}),
-            ]
-        return [sse("reasoning-delta", {"id": state.active_reasoning_id, "delta": reasoning_text})]
+            output.append(sse("reasoning-start", {"id": state.active_reasoning_id}))
+        output.append(sse("reasoning-delta", {"id": state.active_reasoning_id, "delta": reasoning_delta}))
+        return output
 
     # ToolUseStreamEvent {"type": "tool_use_stream", "delta": ..., "current_tool_use": ...}
     if event.get("type") == "tool_use_stream":
@@ -510,6 +520,20 @@ async def _stream_standard_agent_response(
                     "Agent stream inactivity timeout after %ss without events",
                     timeout_seconds,
                 )
+                if isinstance(invocation_state, dict):
+                    session_id = invocation_state.get("session_id")
+                    agent_type = invocation_state.get("agent_type")
+                    if isinstance(session_id, str) and session_id.strip() and isinstance(agent_type, str) and agent_type.strip():
+                        try:
+                            from agent.api.core.agent_factory import AgentFactory
+
+                            AgentFactory.clear_agent(session_id, agent_type)
+                            yield sse(
+                                "data-agent-rollover",
+                                {"data": {"reason": "stream_timeout", "agent_type": agent_type}},
+                            )
+                        except Exception:
+                            logger.debug("Failed to clear timed-out agent instance", exc_info=True)
                 state.finish_reason = "error"
                 yield sse(
                     "error",
@@ -526,6 +550,20 @@ async def _stream_standard_agent_response(
                 yield chunk
     except Exception as exc:
         logger.error("Agent stream error: %s", exc, exc_info=True)
+        if isinstance(invocation_state, dict):
+            session_id = invocation_state.get("session_id")
+            agent_type = invocation_state.get("agent_type")
+            if isinstance(session_id, str) and session_id.strip() and isinstance(agent_type, str) and agent_type.strip():
+                try:
+                    from agent.api.core.agent_factory import AgentFactory
+
+                    AgentFactory.clear_agent(session_id, agent_type)
+                    yield sse(
+                        "data-agent-rollover",
+                        {"data": {"reason": "stream_exception", "agent_type": agent_type}},
+                    )
+                except Exception:
+                    logger.debug("Failed to clear errored agent instance", exc_info=True)
         state.finish_reason = "error"
         yield sse("error", {"errorText": str(exc)})
     finally:
@@ -562,6 +600,7 @@ async def _stream_bidi_agent_response(
     fallback_to_standard = False
     fallback_reason: str | None = None
     emitted_assistant_text = False
+    receive_stream: Any = None
 
     yield sse("start", {"messageId": state.message_id})
     yield sse("start-step")
@@ -573,8 +612,26 @@ async def _stream_bidi_agent_response(
         await agent.start(invocation_state=invocation_state)
         started = True
         await agent.send(message)
+        receive_stream = agent.receive()
+        while True:
+            try:
+                raw_event = await asyncio.wait_for(
+                    receive_stream.__anext__(),
+                    timeout=AGENT_STREAM_EVENT_TIMEOUT_SECONDS,
+                )
+            except StopAsyncIteration:
+                break
+            except TimeoutError:
+                timeout_seconds = AGENT_STREAM_EVENT_TIMEOUT_SECONDS
+                fallback_to_standard = True
+                fallback_reason = f"bidi_stream_inactivity_timeout:{timeout_seconds}s"
+                state.finish_reason = "error"
+                logger.error(
+                    "Bidi stream inactivity timeout after %ss without events. Falling back to standard stream.",
+                    timeout_seconds,
+                )
+                break
 
-        async for raw_event in agent.receive():
             if not isinstance(raw_event, dict):
                 logger.debug("Skipping non-dict bidi event: %r", raw_event)
                 continue
@@ -619,9 +676,18 @@ async def _stream_bidi_agent_response(
                 break
     except Exception as exc:
         logger.error("Bidi agent stream error: %s", exc, exc_info=True)
+        fallback_to_standard = True
+        fallback_reason = f"bidi_exception:{type(exc).__name__}"
         state.finish_reason = "error"
-        yield sse("error", {"errorText": str(exc)})
     finally:
+        if receive_stream is not None:
+            aclose = getattr(receive_stream, "aclose", None)
+            if callable(aclose):
+                try:
+                    await aclose()
+                except Exception:
+                    logger.debug("Error while closing bidi receive stream", exc_info=True)
+
         if started:
             try:
                 await agent.stop()
@@ -640,12 +706,12 @@ async def _stream_bidi_agent_response(
                     state_session_id = invocation_state.get("session_id")
                     if isinstance(state_session_id, str) and state_session_id.strip():
                         session_id = state_session_id
-                fallback_session_id = f"{session_id}__text_fallback"
-
+                # Recreate agent instances to avoid reusing potentially unhealthy runtimes.
+                AgentFactory.clear_agent(session_id, "super_bidi")
+                AgentFactory.clear_agent(session_id, "super")
                 fallback_agent = await AgentFactory.get_or_create_agent(
-                    session_id=fallback_session_id,
+                    session_id=session_id,
                     agent_type="super",
-                    interaction_mode="text",
                 )
                 if not _is_standard_agent(fallback_agent):
                     raise TypeError("Fallback agent is not a standard streaming agent")
@@ -697,6 +763,9 @@ async def _stream_bidi_agent_response(
                 logger.error("Bidi -> standard fallback failed: %s", fallback_exc, exc_info=True)
                 state.finish_reason = "error"
                 yield sse("error", {"errorText": f"Bidi fallback failed: {fallback_exc}"})
+        elif state.finish_reason == "error":
+            # No fallback path was taken; surface the bidi failure explicitly.
+            yield sse("error", {"errorText": "Bidi stream terminated unexpectedly."})
 
         if state.active_text_id is not None:
             yield sse("text-end", {"id": state.active_text_id})

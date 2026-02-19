@@ -768,11 +768,53 @@ class AISDKCallbackHandler:
                 self.emit(self.emitter.emit_tool_output_error(tool_id, error_text, tool_name))
                 output = {"error": error_text}
             else:
-                output = content[0] if len(content) == 1 else content
+                # Send the full tool_result as output so the frontend gets the actual tool return dict.
+                # Strands tools return {"status": ..., "content": [...], "__ui_data__": {...}}
+                # and Strands adds "toolUseId" + "name". Strip those (redundant with SSE event fields).
+                output = {k: v for k, v in tool_result.items() if k not in ("toolUseId", "name")}
 
             # Check if this is an orchestration tool (swarm/workflow/graph)
             if status != "error" and self._is_orchestration_tool(tool_name):
                 self._emit_workflow_visualization(tool_name, output, tool_id)
+
+            # Check for __ui_data__ and emit data-part for standalone rendering
+            ui_data_block = output.get("__ui_data__") if isinstance(output, dict) else None
+            if status != "error" and isinstance(ui_data_block, dict):
+                ui_data = ui_data_block
+                data_type = ui_data.get("type")
+                data = ui_data.get("data")
+                
+                if data_type == "plan" and data:
+                    self.emit(self.emitter.emit_data_part("plan", data))
+                elif data_type == "queue" and data:
+                    self.emit(self.emitter.emit_data_part("queue", data))
+                elif data_type == "queue" and ui_data.get("action") == "update":
+                    # Handle queue item updates
+                    self.emit(self.emitter.emit_data_part("queue", {
+                        "action": "update",
+                        "item_id": ui_data.get("item_id"),
+                        "completed": ui_data.get("completed"),
+                    }))
+                elif data_type == "queue" and ui_data.get("action") == "clear":
+                    self.emit(self.emitter.emit_data_part("queue", {"action": "clear"}))
+                elif data_type == "terminal" and data:
+                    self.emit(self.emitter.emit_data_part("terminal", data))
+                elif data_type == "environment" and data:
+                    self.emit(self.emitter.emit_data_part("environment", data))
+                elif data_type == "schema" and data:
+                    self.emit(self.emitter.emit_data_part("schema", data))
+                elif data_type == "code" and data:
+                    self.emit(self.emitter.emit_data_part("code", data))
+                elif data_type == "file-tree" and data:
+                    self.emit(self.emitter.emit_data_part("file-tree", data))
+                elif data_type == "jsx" and data:
+                    self.emit(self.emitter.emit_data_part("jsx", data))
+                elif data_type == "browser" and data:
+                    self.emit(self.emitter.emit_data_part("browser", data))
+                elif data_type == "project" and data:
+                    self.emit(self.emitter.emit_data_part("project", data))
+                elif data_type == "sources" and data:
+                    self.emit(self.emitter.emit_data_part("sources", data))
 
             # CRITICAL: Sanitize output for JSON serialization (handles bytes from image_reader, screenshots, etc.)
             safe_output = self._json_safe(output)

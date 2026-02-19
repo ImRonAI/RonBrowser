@@ -24,7 +24,7 @@ anthropic>=0.50.0
 google-genai>=1.0.0
 
 # Strands Agent Framework
-strands-agents>=1.0.0
+strands-agents>=1.23.0,<2
 # Note: strands-agents-tools is installed from local agent/tools directory
 # pip install -e agent/tools
 
@@ -37,4 +37,4 @@ nest-asyncio>=1.5.0
 playwright>=1.42.0
 
 # MCP (Model Context Protocol)
-mcp>=1.11.0
+mcp>=1.26.0,<2

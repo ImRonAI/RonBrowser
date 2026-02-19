@@ -42,31 +42,31 @@ TOOL_SOURCES = {
 # MCP servers
 MCP_SERVERS = {
     'healthcare-mcp': {
-        'path': 'agent/tools/mcp/healthcare-mcp-public',
+        'path': 'agent/tools/src/strands_tools/mcp/healthcare-mcp-public',
         'command': 'node',
         'args': ['server/index.js'],
         'description': 'Healthcare MCP Server for FDA, PubMed, clinical trials, ICD-10'
     },
     'pophive-mcp': {
-        'path': 'agent/tools/mcp/pophive-mcp-server',
+        'path': 'agent/tools/src/strands_tools/mcp/pophive-mcp-server',
         'command': 'node', 
         'args': ['server/index.js'],
         'description': 'PopHIVE public health data - CDC, immunizations, respiratory, chronic disease'
     },
     'openapi-mcp': {
-        'path': 'agent/tools/mcp/openapi-mcp',
+        'path': 'agent/tools/src/strands_tools/mcp/openapi-mcp',
         'command': 'npx',
         'args': ['@ivotoby/openapi-mcp-server'],
         'description': 'Converts OpenAPI specs to MCP tools dynamically'
     },
     'datacommons': {
-        'path': 'agent/tools/mcp/datacommons',
+        'path': 'agent/tools/src/strands_tools/mcp/datacommons',
         'command': 'node',
         'args': ['dist/index.js'],
         'description': 'Google Data Commons statistical data'
     },
     'playwright-electron-mcp': {
-        'path': 'agent/tools/mcp/mcp-playwright',
+        'path': 'agent/tools/src/strands_tools/mcp/mcp-playwright',
         'command': 'node',
         'args': [
             'dist/index.js',

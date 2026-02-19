@@ -9,13 +9,16 @@ import { useState, useCallback, useRef, useEffect, memo } from 'react'
 import type { UIMessage } from '@ai-sdk/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, ClockIcon, TrashIcon } from '@heroicons/react/24/outline'
 
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 import { Message, MessageAvatar, MessageContent } from '@/components/ai-elements/message'
+import { ChatHistory } from './ChatHistory'
+import { Button } from '@/components/ui/button'
 
 // Context Picker
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
+import { usePreviewStore } from '@/stores/previewStore'
 
 // Source Card for citations
 import type { SourceData } from './SourceCard'
@@ -212,11 +215,55 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [hasSentContext, setHasSentContext] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const isEmpty = messages.length === 0
+
+  const handleLoadSession = async (sid: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/chat-sessions/${sid}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSessionId(sid)
+        
+        // Transform messages
+        // Backend returns: { messages: [{role, content, timestamp?}, ...] }
+        const loadedMessages: Message[] = data.messages.map((msg: any, i: number) => ({
+          id: `msg-${sid}-${i}`,
+          role: msg.role,
+          content: typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.map((c:any) => c.text || '').join('') : JSON.stringify(msg.content)),
+          timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
+          // Note: We lose CoT/Tools history here as simple persistence stores mostly text
+          // unless we enhance the backend storage.
+        }))
+        
+        setMessages(loadedMessages)
+        setHasSentContext(true) // Assume context was already handled in old chat
+      }
+    } catch (err) {
+      console.error('Failed to load session:', err)
+    }
+  }
+
+  const handleDeleteCurrentSession = async () => {
+    if (!sessionId || !confirm('Delete this chat permanently?')) return
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/chat-sessions/${sessionId}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        // Clear UI or go back? 
+        // Going back seems appropriate
+        onBack()
+      }
+    } catch (err) {
+      console.error('Failed to delete session:', err)
+    }
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -508,6 +555,14 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
                 }
                 break
 
+              case 'data-browser':
+                usePreviewStore.getState().openBrowserPreview(event.data)
+                break
+
+              case 'data-project':
+                usePreviewStore.getState().openProjectPreview(event.data)
+                break
+
               case 'error':
                 throw new Error(event.errorText || 'Search agent error')
 
@@ -546,6 +601,13 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
       <NeuralGridBackground isActive={isTyping} />
       <AmbientBreathingGlow />
 
+      <ChatHistory 
+        isOpen={isHistoryOpen} 
+        onClose={() => setIsHistoryOpen(false)}
+        onSelectSession={handleLoadSession}
+        currentSessionId={sessionId}
+      />
+
       {/* Header with back button */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -565,6 +627,30 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
           <h2 className="text-body-md font-medium text-ink dark:text-ink-inverse truncate">
             {query || 'Search'}
           </h2>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsHistoryOpen(true)}
+            className="text-ink-muted dark:text-ink-inverse-muted"
+            title="Chat History"
+          >
+            <ClockIcon className="w-5 h-5" />
+          </Button>
+          
+          {sessionId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDeleteCurrentSession}
+              className="text-ink-muted dark:text-ink-inverse-muted hover:text-red-500 hover:bg-red-50"
+              title="Delete Chat"
+            >
+              <TrashIcon className="w-5 h-5" />
+            </Button>
+          )}
         </div>
       </motion.div>
 

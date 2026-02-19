@@ -14,7 +14,6 @@ Uses:
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import logging
 import os
 from pathlib import Path
@@ -83,21 +82,21 @@ class AgentFactory:
 
     _agents: Dict[str, AgentLike] = {}
     _locks: Dict[str, asyncio.Lock] = {}
-    _SUPER_TEXT_AGENT_TYPE = "super_text"
-    _SUPER_VOICE_AGENT_TYPE = "super_voice"
+    _SUPER_AGENT_TYPE = "super"
+    _SUPER_BIDI_AGENT_TYPE = "super_bidi"
     _external_catalog_seeded = False
+
+    _SEED_SKIP_FILENAMES: set[str] = {
+        "__init__.py", "__main__.py", "setup.py", "conftest.py",
+        "__version__.py", "models.py",
+    }
+
     @classmethod
     def _get_lock(cls, session_id: str) -> asyncio.Lock:
         """Get or create a lock for a session."""
         if session_id not in cls._locks:
             cls._locks[session_id] = asyncio.Lock()
         return cls._locks[session_id]
-
-    @staticmethod
-    def _normalize_interaction_mode(interaction_mode: str | None) -> str:
-        """Normalize interaction mode to text/voice."""
-        normalized = (interaction_mode or "text").strip().lower()
-        return "voice" if normalized == "voice" else "text"
 
     @classmethod
     def _create_model(cls) -> LiteLLMModel:
@@ -230,6 +229,25 @@ class AgentFactory:
         attempt("strands_tools.swarm", "swarm", "swarm")
         attempt("strands_tools.batch", "batch", "batch")
 
+        # Class-based tools: these require instantiation, can't be loaded
+        # dynamically from the catalog via process_tools(). They use relative
+        # imports and @tool on instance methods, so they must be created here.
+        try:
+            from strands_tools.browser import LocalChromiumBrowser
+            browser_instance = LocalChromiumBrowser()
+            tools.append(browser_instance.browser)
+        except Exception as exc:
+            logger.warning("Failed to load browser tool: %s", exc)
+
+        try:
+            from strands_tools.code_interpreter import LocalCodeInterpreter
+            sandbox_root = os.getenv("RON_AGENT_SANDBOX_ROOT", "")
+            workspace = os.path.join(sandbox_root, "code_workspace") if sandbox_root else None
+            interp_instance = LocalCodeInterpreter(workspace_dir=workspace)
+            tools.append(interp_instance.code_interpreter)
+        except Exception as exc:
+            logger.warning("Failed to load code_interpreter tool: %s", exc)
+
         cls._sync_tools_with_catalog(tools)
         cls._seed_external_tool_catalog()
         return tools
@@ -242,60 +260,57 @@ class AgentFactory:
         try:
             from strands_tools.tool_catalog_manager import get_tool_catalog_manager
 
-            get_tool_catalog_manager().register_tools(
+            catalog = get_tool_catalog_manager()
+            catalog.register_tools(
                 tools,
                 origin="built-in",
                 category="built_in",
             )
+
+            # Class-based tools (browser, code_interpreter) have wrong path
+            # from _extract_tool_path (returns decorator.py).  Fix them with
+            # explicit entries so the catalog has the real source paths and
+            # module paths for correct loading.
+            tool_root = TOOLS_SRC_DIR
+            _class_tool_overrides = {
+                "browser": {
+                    "path": str(tool_root / "browser" / "browser.py"),
+                    "module_path": "strands_tools.browser.browser",
+                    "note": "class-based; already loaded as built-in",
+                },
+                "code_interpreter": {
+                    "path": str(tool_root / "code_interpreter" / "code_interpreter.py"),
+                    "module_path": "strands_tools.code_interpreter.code_interpreter",
+                    "note": "class-based; already loaded as built-in",
+                },
+            }
+            for tool_obj in tools:
+                tool_name = getattr(tool_obj, "tool_name", None)
+                if tool_name in _class_tool_overrides:
+                    override = _class_tool_overrides[tool_name]
+                    catalog.register_entry(
+                        name=tool_name,
+                        description=catalog.get_tool_details(tool_name).get("description", "") if catalog.get_tool_details(tool_name) else "",
+                        input_schema=None,  # preserve existing from register_tools
+                        origin="built-in",
+                        category="built_in",
+                        path=override["path"],
+                        module_path=override["module_path"],
+                        load_pathway="already_loaded (built-in)",
+                        execute_pathway=f"Direct call: agent.tool.{tool_name}(...)",
+                        unload_pathway=f"tool_catalog(action='unload', name='{tool_name}')",
+                    )
         except Exception as exc:
             logger.debug("Failed to sync tools with tool catalog: %s", exc)
 
-    @staticmethod
-    def _resolve_existing_path(candidates: tuple[Path, ...]) -> Path | None:
-        for candidate in candidates:
-            if candidate.exists() and candidate.is_dir():
-                return candidate
-        return None
-
-    @staticmethod
-    def _escape_single_quotes(value: str) -> str:
-        return value.replace("\\", "\\\\").replace("'", "\\'")
-
-    # Directories that should NEVER be imported during catalog seeding.
-    # These contain non-tool files (servers, utilities, packages, docs, MCP servers, specs).
-    _SEED_SKIP_DIRS: set[str] = {
-        "__pycache__",
-        "utils",
-        "mcp",
-        "open-api-specs",
-        "api-documents",
-        ".github",
-        "workflows",
-        # Residual package scaffolding (tools already moved to top level)
-        "strands_fun_tools",
-        "strands_google",
-        "FDA",
-        "perplexity",
-        "pubmed ",          # Note: trailing space — that's the actual directory name
-        "pubmed",
-        # Sub-package dirs with __init__.py that should be imported via
-        # their specific entry-point files, not by globbing every .py
-        "browser",
-        "code_interpreter",
-    }
-
-    # Filenames that should never be imported regardless of location.
-    _SEED_SKIP_FILENAMES: set[str] = {
-        "__init__.py",
-        "__main__.py",
-        "setup.py",
-        "conftest.py",
-        "__version__.py",
-        "models.py",
-    }
-
     @classmethod
     def _seed_external_tool_catalog(cls) -> None:
+        """Import each tool module and register DecoratedFunctionTool instances.
+
+        The @tool decorator already has everything — name, description, full
+        inputSchema.  We just import the module, find the decorated tools, and
+        hand them to catalog.register_tool() which reads .tool_spec directly.
+        """
         if cls._external_catalog_seeded:
             return
         try:
@@ -305,26 +320,19 @@ class AgentFactory:
             logger.debug("Tool catalog manager unavailable for external seeding: %s", exc)
             return
 
+        import importlib
+
         catalog = get_tool_catalog_manager()
         seeded_count = 0
-
         tool_root = TOOLS_SRC_DIR
+
         if not tool_root.exists():
             cls._external_catalog_seeded = True
             return
 
-        for file_path in sorted(tool_root.rglob("*.py")):
-            # ── Skip entire directory trees ──
-            if any(part in cls._SEED_SKIP_DIRS for part in file_path.relative_to(tool_root).parts[:-1]):
+        for file_path in sorted(tool_root.glob("*.py")):
+            if file_path.name in cls._SEED_SKIP_FILENAMES or file_path.name.startswith("test_"):
                 continue
-
-            # ── Skip known non-tool filenames ──
-            if file_path.name in cls._SEED_SKIP_FILENAMES:
-                continue
-            if file_path.name.startswith("test_"):
-                continue
-
-            # ── Pre-scan: only import files that actually define tools ──
             try:
                 source = file_path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
@@ -332,52 +340,21 @@ class AgentFactory:
             if "@tool" not in source and "TOOL_SPEC" not in source:
                 continue
 
-            # ── Import module and discover DecoratedFunctionTool instances ──
+            module_path = "strands_tools." + file_path.stem
             try:
-                module_name = f"_catalog_seed_{file_path.stem}_{id(file_path)}"
-                spec = importlib.util.spec_from_file_location(module_name, file_path)
-                if spec is None or spec.loader is None:
-                    continue
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-            except BaseException as exc:
-                logger.debug("Skipping tool catalog seed for %s: %s", file_path, exc)
+                module = importlib.import_module(module_path)
+            except Exception as exc:
+                logger.debug("Skipping catalog seed for %s: %s", module_path, exc)
                 continue
-
-            relative = file_path.relative_to(tool_root)
-            category = relative.parts[0] if len(relative.parts) > 1 else relative.stem
-            category = category.replace("-", "_").strip() or "strands_tools"
 
             for attr_name in dir(module):
                 attr = getattr(module, attr_name, None)
                 if not isinstance(attr, DecoratedFunctionTool):
                     continue
-
-                tool_name = attr_name
-                tool_spec = attr.tool_spec
-                description = tool_spec.get("description", f"Tool from {file_path.name}") if isinstance(tool_spec, dict) else f"Tool from {file_path.name}"
-
-                # Extract and unwrap input schema
-                input_schema = {}
-                if isinstance(tool_spec, dict):
-                    raw_schema = tool_spec.get("inputSchema") or tool_spec.get("input_schema") or {}
-                    if isinstance(raw_schema, dict) and "json" in raw_schema and isinstance(raw_schema["json"], dict):
-                        input_schema = raw_schema["json"]
-                    elif isinstance(raw_schema, dict):
-                        input_schema = raw_schema
-
-                escaped_path = cls._escape_single_quotes(str(file_path.resolve()))
-                escaped_name = cls._escape_single_quotes(tool_name)
-                catalog.register_entry(
-                    name=tool_name,
-                    description=description,
-                    input_schema=input_schema,
-                    origin=f"{category}_pack",
-                    category=category,
-                    path=str(file_path.resolve()),
-                    load_pathway=f"tool_catalog(action='load', name='{escaped_name}')",
-                    execute_pathway=f"tool_catalog(action='execute', name='{escaped_name}', arguments={{...}})",
-                    unload_pathway=f"tool_catalog(action='unload', name='{escaped_name}')",
+                catalog.register_tool(
+                    tool_obj=attr,
+                    origin="strands_tools",
+                    category=file_path.stem,
                 )
                 seeded_count += 1
 
@@ -392,13 +369,13 @@ class AgentFactory:
 Use all available tools implicitly as needed without being explicitly told. Always use tools instead of suggesting code that would perform the same operations. Proactively identify when tasks can be completed using available tools.
 
 You have access to:
-- Browser automation (load 'browser' from catalog — uses browser/browser.py)
-- Code execution (load 'electron_code_interpreter' from catalog — runs in Electron sandbox)
-- File system operations (editor, shell, journal) — ALL operate inside the agent sandbox at ~/Library/Application Support/RonBrowser/agent-sandbox/. Paths are relative to the sandbox root. These tools NEVER touch the host project files.
+- Browser automation (browser) — already loaded as a built-in tool, use directly via agent.tool.browser(...)
+- Code execution (code_interpreter) — already loaded as a built-in tool, runs in sandbox workspace
+- File system operations (editor, shell) — ALL operate inside the agent sandbox at ~/Library/Application Support/RonBrowser/agent-sandbox/. Paths are relative to the sandbox root. These tools NEVER touch the host project files.
 - Memory (mem0_memory) for persistent context across conversations
 - MCP client for external tool servers
 - Multi-agent orchestration (use_agent, swarm, graph, workflow, batch)
-- Tool catalog (tool_catalog) for discovering, loading, executing, and unloading tools
+- Tool catalog (tool_catalog) for discovering, loading, executing, and unloading additional tools from the catalog
 
 ## Tool Catalog
 
@@ -407,11 +384,11 @@ tool_catalog is your single interface for the full tool lifecycle:
 | Action | When to use | Example |
 |--------|-------------|---------|
 | list_categories | See all available tools with descriptions | tool_catalog(action='list_categories') |
-| get_tool | Inspect a tool's full schema and details | tool_catalog(action='get_tool', name='perplexity_search') |
-| execute | One-shot: load, run, unload automatically | tool_catalog(action='execute', name='perplexity_search', arguments={...}) |
+| get_tool | Inspect a tool's full schema and details | tool_catalog(action='get_tool', name='perplexity_search_api') |
+| execute | One-shot: load, run, unload automatically | tool_catalog(action='execute', name='perplexity_search_api', arguments={...}) |
 | execute (parallel) | Run multiple tools concurrently | tool_catalog(action='execute', tools=[{name, arguments}, ...]) |
-| load | Keep a tool available for repeated use | tool_catalog(action='load', name='perplexity_search') |
-| unload | Remove a loaded tool when done | tool_catalog(action='unload', name='perplexity_search') |
+| load | Keep a tool available for repeated use | tool_catalog(action='load', name='perplexity_search_api') |
+| unload | Remove a loaded tool when done | tool_catalog(action='unload', name='perplexity_search_api') |
 
 Use **execute** for one-off tool calls. Use **load/unload** when calling a tool multiple times or when assigning tools to subagents.
 
@@ -494,9 +471,10 @@ Always extract your own code and write it to files without waiting for further i
 
 Always use the following tools when appropriate:
 - editor: For writing code to files and file editing operations (operates in agent sandbox)
-- tool_catalog: For loading custom and catalog tools
+- tool_catalog: For loading additional catalog tools (list_categories first to see what's available)
 - shell: For running shell commands (operates in agent sandbox)
-- journal: For daily notes and task tracking (stores in agent sandbox)
+- browser: For web browsing and automation (already loaded, use directly)
+- code_interpreter: For executing code in sandbox (already loaded, use directly)
 
 You should detect user intents to create tools from natural language (like "create a tool that...", "build a tool for...", etc.) and handle the creation process automatically.
 
@@ -516,12 +494,14 @@ Before creating subagents, always follow this reasoning process:
 5. **Load required tools**: You MUST load any catalog tools into yourself BEFORE creating subagents. Subagents can only use tools that exist in your (the parent) tool registry. Call tool_catalog(action='load', name='...') for each tool a subagent will need.
 6. **Craft prompts**: Write a precise system prompt defining the agent's role, constraints, and output format. Write a user prompt with the specific task and all necessary context.
 
-**Critical**: Subagents inherit tools from your registry. If a subagent needs a tool like perplexity_search, you must load it first:
+**Critical**: Subagents inherit tools from your registry. If a subagent needs a catalog tool like perplexity_search_api, you must load it first:
 ```
-tool_catalog(action='load', name='perplexity_search')
-use_agent(system_prompt='...', prompt='...', tools=['perplexity_search'])
-tool_catalog(action='unload', name='perplexity_search')
+tool_catalog(action='load', name='perplexity_search_api')
+use_agent(system_prompt='...', prompt='...', tools=['perplexity_search_api'])
+tool_catalog(action='unload', name='perplexity_search_api')
 ```
+
+Built-in tools (browser, code_interpreter, editor, shell, mem0_memory, etc.) are already in your registry and do NOT need to be loaded from the catalog. Subagents can reference them by name directly.
 
 ## Memory (mem0_memory)
 
@@ -538,9 +518,23 @@ Every mem0_memory call must include both parameters:
 
 Always check memory at the start of a conversation for relevant prior context.
 
+## Browser Automation
+
+Be decisive. Do not over-complicate browser interactions. When you take a screenshot, look at it and determine all the moves you can make before you need another screenshot. Then do those actions quickly and with confidence. Then take another screenshot, and again ask yourself: what can I do before the next screenshot? Repeat.
+
 ## Best Practices
 - Always cite sources when providing information
 - Unload tools you no longer need to keep your registry clean
+
+## Planning and Todo Lists
+
+When given a multi-step task, you should always use the emit_plan tool to create a plan that the user will approve or deny. The emit_plan tool displays a collapsible plan card in the UI.
+
+Once your plan is approved, use the emit_queue tool to create a todo list that provides transparency on the steps you are going to take. As you complete todo items, update the todo list via emit_queue with action='update' to mark items as completed.
+
+Available tools:
+- emit_plan(title, description, steps, footer): Display a plan in the UI
+- emit_queue(items, label, action, item_id, completed): Display or update a todo list
 """
 
     @classmethod
@@ -679,7 +673,7 @@ Voice/Bidi nuances:
                     session_manager=session_manager,
                     state={
                         "session_id": session_id,
-                        "agent_type": "super",
+                        "agent_type": "super_bidi",
                         "loop_type": "bidi",
                         "bidi_provider": provider,
                         "created_at_epoch": time.time(),
@@ -704,24 +698,10 @@ Voice/Bidi nuances:
     def create_superagent(
         cls,
         session_id: str,
-        interaction_mode: str = "text",
         tools: Optional[list[Any]] = None,
-    ) -> AgentLike:
-        """Create a super agent with the full tool suite."""
+    ) -> Agent:
+        """Create a text-first SuperAgent with the full tool suite."""
         resolved_tools = tools or cls._get_tools()
-        mode = cls._normalize_interaction_mode(interaction_mode)
-
-        if mode == "voice":
-            if ENABLE_SUPERAGENT_BIDI:
-                bidi_agent = cls._create_superagent_bidi(session_id=session_id, tools=resolved_tools)
-                if bidi_agent is not None:
-                    return bidi_agent
-            else:
-                logger.warning(
-                    "Voice mode requested for session %s but ENABLE_SUPERAGENT_BIDI is disabled; using standard Agent",
-                    session_id,
-                )
-
         agent = cls._build_agent(
             session_id=session_id,
             agent_type="super",
@@ -731,8 +711,27 @@ Voice/Bidi nuances:
             description="Advanced AI assistant with browser automation",
             agent_id_prefix="superagent",
         )
-        logger.info("Created SuperAgent for session %s mode=%s", session_id, mode)
+        logger.info("Created SuperAgent for session %s", session_id)
         return agent
+
+    @classmethod
+    def create_super_bidi_agent(
+        cls,
+        session_id: str,
+        tools: Optional[list[Any]] = None,
+    ) -> AgentLike:
+        """Create a dedicated Bidi SuperAgent that shares the SuperAgent toolkit/state."""
+        resolved_tools = tools or cls._get_tools()
+        if ENABLE_SUPERAGENT_BIDI:
+            bidi_agent = cls._create_superagent_bidi(session_id=session_id, tools=resolved_tools)
+            if bidi_agent is not None:
+                logger.info("Created Super BidiAgent for session %s", session_id)
+                return bidi_agent
+        logger.warning(
+            "Bidi requested for session %s but unavailable; falling back to standard SuperAgent",
+            session_id,
+        )
+        return cls.create_superagent(session_id=session_id, tools=resolved_tools)
 
     @classmethod
     def create_search_agent(cls, session_id: str) -> Agent:
@@ -865,23 +864,18 @@ You have the same tool access as SuperAgent for execution.
         cls,
         session_id: str,
         agent_type: str = "super",
-        interaction_mode: str | None = None,
     ) -> AgentLike:
         """Get existing agent or create one for the session and type."""
         async with cls._get_lock(session_id):
-            cache_type = agent_type
-            mode = None
-            if agent_type == "super":
-                mode = cls._normalize_interaction_mode(interaction_mode)
-                cache_type = cls._SUPER_VOICE_AGENT_TYPE if mode == "voice" else cls._SUPER_TEXT_AGENT_TYPE
-
-            cache_key = f"{cache_type}:{session_id}"
+            cache_key = f"{agent_type}:{session_id}"
             if cache_key in cls._agents:
-                logger.debug("Reusing %s agent for session %s", cache_type, session_id)
+                logger.debug("Reusing %s agent for session %s", agent_type, session_id)
                 return cls._agents[cache_key]
 
             if agent_type == "super":
-                agent = cls.create_superagent(session_id=session_id, interaction_mode=mode or "text")
+                agent = cls.create_superagent(session_id=session_id)
+            elif agent_type == "super_bidi":
+                agent = cls.create_super_bidi_agent(session_id=session_id)
             elif agent_type == "search":
                 agent = cls.create_search_agent(session_id)
             elif agent_type == "task":
@@ -897,13 +891,13 @@ You have the same tool access as SuperAgent for execution.
         """Clear cached agent(s) for a session."""
         if agent_type:
             if agent_type == "super":
-                cls._agents.pop(f"{cls._SUPER_TEXT_AGENT_TYPE}:{session_id}", None)
-                cls._agents.pop(f"{cls._SUPER_VOICE_AGENT_TYPE}:{session_id}", None)
+                cls._agents.pop(f"{cls._SUPER_AGENT_TYPE}:{session_id}", None)
+                cls._agents.pop(f"{cls._SUPER_BIDI_AGENT_TYPE}:{session_id}", None)
             else:
                 cache_key = f"{agent_type}:{session_id}"
                 cls._agents.pop(cache_key, None)
             return
 
-        for known_type in [cls._SUPER_TEXT_AGENT_TYPE, cls._SUPER_VOICE_AGENT_TYPE, "search", "task"]:
+        for known_type in [cls._SUPER_AGENT_TYPE, cls._SUPER_BIDI_AGENT_TYPE, "search", "task"]:
             cache_key = f"{known_type}:{session_id}"
             cls._agents.pop(cache_key, None)

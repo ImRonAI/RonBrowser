@@ -89,16 +89,6 @@ def _parse_request(body: dict):
     return session_id, message, schema, invocation_state
 
 
-def _parse_interaction_mode(body: dict[str, Any], request_state: dict[str, Any]) -> str:
-    mode = request_state.get("interaction_mode")
-    if mode is None:
-        mode = body.get("interaction_mode") or body.get("mode")
-    if not isinstance(mode, str):
-        return "text"
-    normalized = mode.strip().lower()
-    return "voice" if normalized == "voice" else "text"
-
-
 def _build_invocation_state(
     request: Request,
     session_id: str,
@@ -124,7 +114,7 @@ def _build_invocation_state(
 @router.post("/super/stream")
 async def superagent_stream(request: Request):
     """
-    Stream SuperAgent responses.
+    Stream text SuperAgent responses.
 
     Request body:
         - session_id: str - Session identifier
@@ -136,9 +126,8 @@ async def superagent_stream(request: Request):
           ``structured_output_model`` and the validated result is emitted
           as a ``data-structured-output`` part per the Vercel AI SDK V6
           UIMessageStream protocol. (Bidi superagent requests ignore this field.)
-        - interaction_mode: "voice" | "text" | null - Optional explicit mode.
-          When "voice", backend routes to Bidi superagent. Otherwise routes
-          to the standard superagent.
+        - interaction_mode: accepted for compatibility, but this route is text-only.
+          Use /agents/super-bidi/stream for voice/bidi streaming.
         - invocation_state: object | null - Additional Strands invocation
           state passed directly to ``Agent.stream_async(..., invocation_state=...)``
           for hook and tool context.
@@ -148,24 +137,64 @@ async def superagent_stream(request: Request):
     """
     body = await request.json()
     session_id, message, schema, request_state = _parse_request(body)
-    interaction_mode = _parse_interaction_mode(body, request_state)
+    requested_mode = str(
+        request_state.get("interaction_mode")
+        or body.get("interaction_mode")
+        or body.get("mode")
+        or "text"
+    ).strip().lower()
 
     if not message.strip():
         return JSONResponse(status_code=400, content={"error": "Message is required"})
 
+    if requested_mode == "voice":
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Voice mode is not supported on /agents/super/stream. Use /agents/super-bidi/stream.",
+                "expected_endpoint": "/agents/super-bidi/stream",
+            },
+        )
+
     agent = await AgentFactory.get_or_create_agent(
         session_id,
         "super",
-        interaction_mode=interaction_mode,
     )
     invocation_state = _build_invocation_state(request, session_id, "super", request_state)
-    invocation_state.setdefault("interaction_mode", interaction_mode)
+    invocation_state.setdefault("interaction_mode", "text")
 
     return StreamingResponse(
         stream_agent_response(
             agent,
             message,
             structured_output_model=schema,
+            invocation_state=invocation_state,
+        ),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
+    )
+
+
+@router.post("/super-bidi/stream")
+async def superagent_bidi_stream(request: Request):
+    """
+    Stream dedicated SuperAgent Bidi responses (voice/multimodal path).
+    """
+    body = await request.json()
+    session_id, message, _schema, request_state = _parse_request(body)
+
+    if not message.strip():
+        return JSONResponse(status_code=400, content={"error": "Message is required"})
+
+    agent = await AgentFactory.get_or_create_agent(session_id, "super_bidi")
+    invocation_state = _build_invocation_state(request, session_id, "super_bidi", request_state)
+    invocation_state.setdefault("interaction_mode", "voice")
+
+    return StreamingResponse(
+        stream_agent_response(
+            agent,
+            message,
+            structured_output_model=None,  # Bidi does not support structured output model.
             invocation_state=invocation_state,
         ),
         media_type="text/event-stream",
@@ -252,7 +281,7 @@ async def list_agent_sessions():
         parts = cache_key.split(":", 1)
         if len(parts) == 2:
             agent_type, session_id = parts
-            if agent_type in {"super_text", "super_voice"}:
+            if agent_type in {"super", "super_bidi"}:
                 agent_type = "super"
             if session_id not in sessions:
                 sessions[session_id] = []

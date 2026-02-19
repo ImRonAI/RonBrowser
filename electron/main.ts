@@ -32,7 +32,8 @@ async function startMcpBridge(tabsManager: TabsManager) {
     try {
       startElectronBridge = require('@executeautomation/playwright-mcp-server/electron').startElectronBridge
     } catch {
-      startElectronBridge = require('/Users/timhunter/Library/Mobile Documents/com~apple~CloudDocs/ronbrowser/agent/tools/mcp/mcp-playwright/dist/electron/index.js').startElectronBridge
+      const mcpBridgePath = join(__dirname, '..', '..', 'agent', 'tools', 'src', 'strands_tools', 'mcp', 'mcp-playwright', 'dist', 'electron', 'index.js')
+      startElectronBridge = require(mcpBridgePath).startElectronBridge
     }
     startElectronBridge({
       port: MCP_BRIDGE_PORT,
@@ -1146,6 +1147,158 @@ ipcMain.handle('browser:set-panel-open', async (_event, isOpen: boolean) => {
   isAgentPanelOpen = isOpen
   updateWebContentsViewBounds()
   return { success: true }
+})
+
+// ============================================
+// IPC Handlers - Browser Content Interaction (IPC-based)
+// These route ALL content interactions through the active tab's
+// WebContentsView.webContents using documented Electron APIs:
+//   - webContents.executeJavaScript()
+//   - webContents.capturePage()
+//   - webContents.getURL()
+//   - webContents.getTitle()
+// ============================================
+
+/**
+ * Helper: get the active external tab's webContents, or null.
+ */
+function getActiveTabWebContents(): Electron.WebContents | null {
+  const tab = tabsManager.activeTab
+  if (!tab?.isExternal || !tab.view) return null
+  const wc = tab.view.webContents
+  if (wc.isDestroyed()) return null
+  return wc
+}
+
+ipcMain.handle('browser:click', async (_event, selector: string) => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    await wc.executeJavaScript(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) throw new Error('Element not found: ' + ${JSON.stringify(selector)});
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      el.click();
+      return true;
+    })()`, true)
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Click failed' }
+  }
+})
+
+ipcMain.handle('browser:type', async (_event, selector: string, text: string, opts?: { clear?: boolean }) => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    const clear = opts?.clear ?? true
+    await wc.executeJavaScript(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) throw new Error('Element not found: ' + ${JSON.stringify(selector)});
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      el.focus();
+      if (${clear}) {
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      el.value = ${JSON.stringify(text)};
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`, true)
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Type failed' }
+  }
+})
+
+ipcMain.handle('browser:screenshot', async () => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    const image = await wc.capturePage()
+    if (image.isEmpty()) {
+      return { success: false, error: 'Captured empty screenshot' }
+    }
+    // Resize to max 1280px wide to keep payload small for the agent model
+    const size = image.getSize()
+    const maxWidth = 1280
+    let resized = image
+    if (size.width > maxWidth) {
+      const scale = maxWidth / size.width
+      resized = image.resize({ width: maxWidth, height: Math.round(size.height * scale) })
+    }
+    // JPEG at 60% quality — keeps payload under ~100KB typically
+    const base64 = resized.toJPEG(60).toString('base64')
+    return { success: true, data: base64, format: 'jpeg' }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Screenshot failed' }
+  }
+})
+
+ipcMain.handle('browser:get-text', async () => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    const text = await wc.executeJavaScript(`document.body ? document.body.innerText : ''`, true)
+    return { success: true, text }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'getText failed' }
+  }
+})
+
+ipcMain.handle('browser:get-html', async () => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    const html = await wc.executeJavaScript(`document.documentElement ? document.documentElement.outerHTML : ''`, true)
+    return { success: true, html }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'getHTML failed' }
+  }
+})
+
+ipcMain.handle('browser:evaluate', async (_event, script: string) => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    const result = await wc.executeJavaScript(script, true)
+    return { success: true, result }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Evaluate failed' }
+  }
+})
+
+ipcMain.handle('browser:wait-for-selector', async (_event, selector: string, timeoutMs: number = 10000) => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  try {
+    const found = await wc.executeJavaScript(`new Promise((resolve, reject) => {
+      const deadline = Date.now() + ${timeoutMs};
+      const check = () => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (el) return resolve(true);
+        if (Date.now() > deadline) return reject(new Error('Timeout waiting for ' + ${JSON.stringify(selector)}));
+        requestAnimationFrame(check);
+      };
+      check();
+    })`, true)
+    return { success: true, found }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'waitForSelector failed' }
+  }
+})
+
+ipcMain.handle('browser:get-active-url', async () => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  return { success: true, url: wc.getURL() }
+})
+
+ipcMain.handle('browser:get-active-title', async () => {
+  const wc = getActiveTabWebContents()
+  if (!wc) return { success: false, error: 'No active external tab' }
+  return { success: true, title: wc.getTitle() }
 })
 
 // ============================================

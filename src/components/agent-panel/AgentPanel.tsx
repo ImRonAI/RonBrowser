@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, Fragment } from 'react'
+import { useState, useRef, useEffect, useMemo, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Transition } from '@headlessui/react'
-import { XMarkIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, PlusIcon, ClockIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAgentStore } from '@/stores/agentStore'
 import { cn } from '@/utils/cn'
 import { ContextPicker, type ContextItem } from './ContextPicker'
@@ -9,6 +9,8 @@ import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
 import { TextAttachmentCard } from '@/components/ai-elements/text-attachment-card'
 import { fileToDataUrl, makePastedTextFilename } from '@/utils/file-utils'
 import type { TextAttachment } from '@/components/ai-elements/types'
+import { Persona, type PersonaState } from '@/components/ai-elements/persona'
+import { ChatHistory } from '@/components/search-results/ChatHistory'
 
 // AI SDK v6 - useChat with DefaultChatTransport for UIMessageStream
 import { useChat, type UIMessage } from '@ai-sdk/react'
@@ -41,8 +43,9 @@ const SUGGESTIONS = [
   { icon: '?', text: 'What can you do?' },
 ]
 
-// API endpoint for superagent (Strands-based orchestration with meta-tooling)
-const SUPERAGENT_API = 'http://localhost:8765/agents/super/stream'
+// API endpoints for SuperAgent text and dedicated Bidi/voice mode
+const SUPERAGENT_TEXT_API = 'http://localhost:8765/agents/super/stream'
+const SUPERAGENT_BIDI_API = 'http://localhost:8765/agents/super-bidi/stream'
 
 export function AgentPanel() {
   const {
@@ -73,6 +76,60 @@ export function AgentPanel() {
 
   const [showHistory, setShowHistory] = useState(false)
 
+  // Wrapper for ChatHistory component
+  const handleLoadHistorySession = (sid: string) => {
+    sessionIdRef.current = sid
+    loadSession(sid)
+    
+    // Fetch full message history to hydrate the UI
+    fetch(`http://localhost:8765/chat-sessions/${sid}`)
+      .then(res => res.json())
+      .then(data => {
+        const loadedMessages: UIMessage[] = data.messages.map((msg: any, i: number) => {
+          const parts: MessagePart[] = []
+          
+          if (typeof msg.content === 'string') {
+            parts.push({ type: 'text', text: msg.content })
+          } else if (Array.isArray(msg.content)) {
+            msg.content.forEach((block: any) => {
+              if (typeof block === 'string') {
+                parts.push({ type: 'text', text: block })
+              } else if (block.type === 'text') {
+                parts.push({ type: 'text', text: block.text })
+              } else if (block.type === 'tool_use') {
+                parts.push({ 
+                  type: 'tool-invocation', 
+                  toolInvocation: {
+                    toolCallId: block.id || `call_${i}_${Math.random()}`,
+                    toolName: block.name,
+                    args: block.input,
+                    state: 'result', // History items are completed
+                    result: undefined // Result usually in a separate tool_result message
+                  }
+                })
+              } else if (block.type === 'reasoning' || block.type === 'thinking') {
+                parts.push({ type: 'reasoning', text: block.text || block.content })
+              }
+            })
+          }
+
+          // Handle tool results which are separate messages in some protocols but parts in AI SDK
+          // For now, we just map the main content.
+          // Note: AI SDK v6 expects tool results to be matched with invocations.
+          // This simple mapping might need enhancement for full tool history playback.
+
+          return {
+            id: `msg-${sid}-${i}`,
+            role: msg.role,
+            content: '', // AI SDK derives this from parts
+            parts: parts.length > 0 ? parts : [{ type: 'text', text: '' }]
+          }
+        })
+        setMessages(loadedMessages)
+      })
+      .catch(err => console.error("Failed to hydrate chat:", err))
+  }
+
   // Fetch sessions when panel opens
   useEffect(() => {
     if (isPanelOpen) {
@@ -84,14 +141,12 @@ export function AgentPanel() {
   const sessionIdRef = useRef<string>(
     useAgentStore.getState().currentSessionId || `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   )
-
-  // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
-  // body option adds session_id to every request per AI SDK docs
-  const { messages, sendMessage, status, setMessages, clearError } = useChat({
-    transport: new DefaultChatTransport({
-      api: SUPERAGENT_API,
+  const activeAgentApi = interactionMode === 'voice' ? SUPERAGENT_BIDI_API : SUPERAGENT_TEXT_API
+  const transport = useMemo(() => (
+    new DefaultChatTransport({
+      api: activeAgentApi,
       body: () => {
-        console.log('[AgentPanel] Sending request with session_id:', sessionIdRef.current)
+        console.log('[AgentPanel] Sending request with session_id:', sessionIdRef.current, 'mode:', interactionMode)
         return {
           session_id: sessionIdRef.current,
           invocation_state: {
@@ -99,10 +154,16 @@ export function AgentPanel() {
           },
         }
       },
-    }),
+    })
+  ), [activeAgentApi, interactionMode])
+
+  // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
+  // body option adds session_id to every request per AI SDK docs
+  const { messages, sendMessage, status, setMessages, clearError } = useChat({
+    transport,
     onError: (error: Error) => {
       console.error('[AgentPanel] API Error:', error)
-      console.error('[AgentPanel] Failed to connect to backend at:', SUPERAGENT_API)
+      console.error('[AgentPanel] Failed to connect to backend at:', activeAgentApi)
       console.error('[AgentPanel] Make sure backend is running: npm run dev:backend')
     },
     onData: (dataPart) => {
@@ -131,6 +192,22 @@ export function AgentPanel() {
         inputRef.current?.focus()
       }
     }, 100)
+  }
+
+  const handleDeleteCurrentSession = async () => {
+    const currentId = sessionIdRef.current
+    if (!currentId || !confirm('Delete this chat permanently?')) return
+    
+    try {
+      const res = await fetch(`http://localhost:8765/chat-sessions/${currentId}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        handleNewChat()
+      }
+    } catch (err) {
+      console.error('Failed to delete session:', err)
+    }
   }
 
   const [input, setInput] = useState('')
@@ -316,44 +393,24 @@ export function AgentPanel() {
                       <ClockIcon className="w-5 h-5" />
                     </motion.button>
 
-                    {/* History Dropdown */}
-                    <AnimatePresence>
-                      {showHistory && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute right-0 top-full mt-2 w-64 max-h-80 overflow-y-auto rounded-xl bg-surface-50 dark:bg-surface-850 border border-surface-200 dark:border-surface-700 shadow-lg z-50"
-                        >
-                          <div className="p-2">
-                            <p className="px-2 py-1 text-label text-ink-muted dark:text-ink-inverse-muted uppercase tracking-wider">Recent Chats</p>
-                            {isLoadingSessions ? (
-                              <div className="px-2 py-4 text-center text-body-sm text-ink-muted dark:text-ink-inverse-muted">Loading...</div>
-                            ) : sessionsList.length === 0 ? (
-                              <div className="px-2 py-4 text-center text-body-sm text-ink-muted dark:text-ink-inverse-muted">No previous chats</div>
-                            ) : (
-                              sessionsList.slice(0, 10).map((session) => (
-                                <button
-                                  key={session.session_id}
-                                  onClick={() => {
-                                    loadSession(session.session_id)
-                                    setShowHistory(false)
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-                                >
-                                  <p className="text-body-sm text-ink dark:text-ink-inverse truncate">{session.summary}</p>
-                                  <p className="text-body-xs text-ink-muted dark:text-ink-inverse-muted">
-                                    {new Date(session.created_at).toLocaleDateString()}
-                                  </p>
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    <ChatHistory 
+                      isOpen={showHistory} 
+                      onClose={() => setShowHistory(false)}
+                      onSelectSession={handleLoadHistorySession}
+                      currentSessionId={sessionIdRef.current}
+                    />
                   </div>
+
+                  {/* Delete Chat Button */}
+                  <motion.button
+                    onClick={handleDeleteCurrentSession}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 rounded-lg text-ink-muted dark:text-ink-inverse-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    title="Delete Chat"
+                  >
+                    <TrashIcon className="w-5 h-5" />
+                  </motion.button>
 
                   {/* Mode Toggle */}
                   <ModeToggle 
@@ -632,6 +689,13 @@ function VoiceMode({ messages, isTyping, onSubmit, messagesEndRef }: VoiceModePr
   const [speechError, setSpeechError] = useState<string | null>(null)
   const recognitionRef = useRef<any>(null)
 
+  // Derive Persona animation state from voice mode state
+  const personaState: PersonaState = isListening
+    ? 'listening'
+    : isTyping
+      ? 'thinking'
+      : 'idle'
+
   const SpeechRecognitionCtor =
     typeof window !== 'undefined'
       ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -730,42 +794,38 @@ function VoiceMode({ messages, isTyping, onSubmit, messagesEndRef }: VoiceModePr
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
         {isEmpty ? (
           <div className="h-full flex flex-col items-center justify-center px-8">
+            {/* Persona Rive animation — responds to voice state */}
             <motion.button
               onClick={isListening ? stopListening : startListening}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="relative"
             >
+              <div className="w-28 h-28 rounded-full overflow-hidden">
+                <Persona
+                  state={personaState}
+                  variant="obsidian"
+                  className="w-full h-full"
+                />
+              </div>
+              {/* Listening pulse rings */}
               {isListening && (
                 <>
                   <motion.div
-                    className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
-                    animate={{ scale: [1, 1.6], opacity: [0.4, 0] }}
+                    className="absolute inset-0 rounded-full border border-indigo-500/30"
+                    animate={{ scale: [1, 1.5], opacity: [0.4, 0] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   />
                   <motion.div
-                    className="absolute inset-0 rounded-full border border-ink/10 dark:border-ink-inverse/10"
+                    className="absolute inset-0 rounded-full border border-violet-500/20"
                     animate={{ scale: [1, 1.4], opacity: [0.3, 0] }}
                     transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
                   />
                 </>
               )}
-              <div className={cn(
-                "relative w-24 h-24 rounded-full",
-                "flex items-center justify-center",
-                "transition-all duration-500",
-                isListening
-                  ? "bg-ink dark:bg-ink-inverse"
-                  : "bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700"
-              )}>
-                <MicIcon className={cn(
-                  "w-8 h-8 transition-colors duration-300",
-                  isListening ? "text-surface-0 dark:text-surface-900" : "text-ink-muted dark:text-ink-inverse-muted"
-                )} />
-              </div>
             </motion.button>
             <p className="mt-8 text-body-sm text-ink-muted dark:text-ink-inverse-muted text-center">
-              {isListening ? 'Listening...' : 'Tap to speak and stream in voice mode'}
+              {isListening ? 'Listening...' : 'Tap to speak'}
             </p>
             {!supportsSpeech && (
               <p className="mt-2 text-body-xs text-red-500/90 text-center">

@@ -130,6 +130,16 @@ const electronAPI = {
     canGoBack: () => electron.ipcRenderer.invoke("browser:can-go-back"),
     canGoForward: () => electron.ipcRenderer.invoke("browser:can-go-forward"),
     setPanelOpen: (isOpen) => electron.ipcRenderer.invoke("browser:set-panel-open", isOpen),
+    // Content interaction (IPC-based, routes to active tab's WebContentsView)
+    click: (selector) => electron.ipcRenderer.invoke("browser:click", selector),
+    type: (selector, text, opts) => electron.ipcRenderer.invoke("browser:type", selector, text, opts),
+    screenshot: () => electron.ipcRenderer.invoke("browser:screenshot"),
+    getText: () => electron.ipcRenderer.invoke("browser:get-text"),
+    getHTML: () => electron.ipcRenderer.invoke("browser:get-html"),
+    evaluate: (script) => electron.ipcRenderer.invoke("browser:evaluate", script),
+    waitForSelector: (selector, timeoutMs) => electron.ipcRenderer.invoke("browser:wait-for-selector", selector, timeoutMs),
+    getActiveUrl: () => electron.ipcRenderer.invoke("browser:get-active-url"),
+    getActiveTitle: () => electron.ipcRenderer.invoke("browser:get-active-title"),
     // Event listeners for browser state
     onUrlChanged: (callback) => {
       const handler = (_, url) => callback(url);
