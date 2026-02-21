@@ -8,7 +8,7 @@ import { InterestsWidget } from '@/components/interests/InterestsWidget'
 import { ContextMenu } from '@/components/shared/ContextMenu'
 import { BrowserGlowBorder } from '@/components/shared/BrowserGlowBorder'
 import { NavigationDrawer } from '@/components/navigation/NavigationDrawer'
-import { useAgentStore } from '@/stores/agentStore'
+import { AgentUiProvider, useAgentUi } from '@/context/AgentUiContext'
 import { cn } from '@/utils/cn'
 
 interface BrowserLayoutProps {
@@ -16,7 +16,15 @@ interface BrowserLayoutProps {
 }
 
 export function BrowserLayout({ children }: BrowserLayoutProps) {
-  const { isPanelOpen } = useAgentStore()
+  return (
+    <AgentUiProvider>
+      <BrowserLayoutContent>{children}</BrowserLayoutContent>
+    </AgentUiProvider>
+  )
+}
+
+function BrowserLayoutContent({ children }: BrowserLayoutProps) {
+  const { isPanelOpen, startAskRon } = useAgentUi()
   const [isExternalMode, setIsExternalMode] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
@@ -37,7 +45,7 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
       })
 
       const askRonCleanup = window.electron.browser.onAskRon(({ selectionText, sourceUrl }) => {
-        useAgentStore.getState().startAskRon(selectionText, sourceUrl)
+        startAskRon(selectionText, sourceUrl)
       })
 
       return () => {
@@ -45,7 +53,7 @@ export function BrowserLayout({ children }: BrowserLayoutProps) {
         askRonCleanup()
       }
     }
-  }, [])
+  }, [startAskRon])
 
   // Handle right-click to show context menu
   useEffect(() => {

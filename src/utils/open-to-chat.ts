@@ -11,6 +11,7 @@ import type {
   OpenToChatContext,
   AgentId,
 } from '@/pages/types/search'
+import { enqueueAgentPanelMessage, requestAgentPanelOpen } from '@/services/agentChatBridge'
 
 import {
   isVideoResult,
@@ -164,35 +165,10 @@ export function getAgentForResult(result: UniversalResult): AgentId {
  * @param searchQuery - Optional original search query
  */
 export function openInAgent(result: UniversalResult, searchQuery?: string): void {
-  // Dynamic import to avoid circular dependencies
-  import('@/stores/agentStore').then(({ useAgentStore }) => {
-    const store = useAgentStore.getState()
-    
-    // Build context for the result
-    const context = buildOpenToChatContext(result, searchQuery)
-    
-    // Open the agent panel
-    store.openPanel()
-    
-    // Build prompt based on result type
-    const prompt = buildPromptForResult(result, searchQuery)
-    
-    // Send message to the agent with context
-    // Map OpenToChatContext to expected ConversationContext format
-    const conversationContext = {
-      type: 'search_result',
-      sourceUrl: context.url,
-      selectedText: context.selectedText,
-      agentId: context.targetAgent,
-      agentName: getAgentName(context.targetAgent || 'ron'),
-      query: searchQuery,
-      metadata: context.metadata,
-    }
-    
-    store.sendMessage(prompt, conversationContext)
-  }).catch((error) => {
-    console.error('Failed to open result in agent:', error)
-  })
+  const context = buildOpenToChatContext(result, searchQuery)
+  requestAgentPanelOpen()
+  const prompt = buildPromptForResult(result, searchQuery, context)
+  enqueueAgentPanelMessage({ text: prompt })
 }
 
 /**
@@ -299,44 +275,47 @@ function getRoutingReason(type: UniversalResult['type']): string {
 /**
  * Builds an appropriate prompt for opening a result in an internal agent
  */
-function buildPromptForResult(result: UniversalResult, searchQuery?: string): string {
+function buildPromptForResult(
+  result: UniversalResult,
+  searchQuery?: string,
+  context?: OpenToChatContext
+): string {
   const searchContext = searchQuery ? `I was searching for: "${searchQuery}"\n\n` : ''
   const title = getDisplayTitle(result)
-  
+
+  const sourceUrl = context?.sourceUrl || context?.url || result.url
+  const sourceSection = sourceUrl ? `\n\nSource URL: ${sourceUrl}` : ''
+  const selectedText = context?.selectedText?.trim()
+  const selectedTextSection = selectedText ? `\n\nSelected context:\n${selectedText}` : ''
+
+  let metadataSection = ''
+  if (context?.metadata && Object.keys(context.metadata).length > 0) {
+    try {
+      metadataSection = `\n\nContext metadata: ${JSON.stringify(context.metadata)}`
+    } catch {
+      metadataSection = ''
+    }
+  }
+
+  const withContext = (basePrompt: string) =>
+    `${basePrompt}${sourceSection}${selectedTextSection}${metadataSection}`
+
   if (isVideoResult(result) || isAudioResult(result) || isPodcastResult(result)) {
-    return `${searchContext}I found this ${result.type} result and would like you to analyze it:\n\n${title}`
+    return withContext(`${searchContext}I found this ${result.type} result and would like you to analyze it:\n\n${title}`)
   } else if (isCodeResult(result)) {
-    return `${searchContext}I found this code repository and would like you to help me understand it:\n\n${title}\n\n${result.snippet || ''}`
+    return withContext(`${searchContext}I found this code repository and would like you to help me understand it:\n\n${title}\n\n${result.snippet || ''}`)
   } else if (isTravelResult(result)) {
-    return `${searchContext}I found this travel option and would like your analysis:\n\n${title}\n\nDestination: ${result.destination}\nPrice: ${result.price}${result.currency || ''}`
+    return withContext(`${searchContext}I found this travel option and would like your analysis:\n\n${title}\n\nDestination: ${result.destination}\nPrice: ${result.price}${result.currency || ''}`)
   } else if (isAcademicResult(result)) {
-    return `${searchContext}I found this research paper and would like a summary:\n\n${title}\n\n${result.snippet || result.abstract || ''}`
+    return withContext(`${searchContext}I found this research paper and would like a summary:\n\n${title}\n\n${result.snippet || result.abstract || ''}`)
   } else if (isWebResult(result) || isArticleResult(result)) {
     const snippet = isWebResult(result) ? result.snippet : isArticleResult(result) ? result.snippet : ''
-    return `${searchContext}I found this result and would like you to help me understand it:\n\n${title}\n\n${snippet || ''}`
+    return withContext(`${searchContext}I found this result and would like you to help me understand it:\n\n${title}\n\n${snippet || ''}`)
   } else if (isSocialMediaResult(result)) {
-    return `${searchContext}I found this result and would like you to help me understand it:\n\n${title}\n\n${result.content}`
+    return withContext(`${searchContext}I found this result and would like you to help me understand it:\n\n${title}\n\n${result.content}`)
   } else if (isImageResult(result)) {
-    return `${searchContext}I found this image and would like more information:\n\n${title}`
+    return withContext(`${searchContext}I found this image and would like more information:\n\n${title}`)
   } else {
-    return `${searchContext}I found this result and would like you to help me understand it:\n\n${title}`
-  }
-}
-
-/**
- * Gets the display name for an internal agent ID
- */
-function getAgentName(agentId: AgentId): string {
-  switch (agentId) {
-    case 'ron':
-      return 'Ron'
-    case 'researcher':
-      return 'Researcher'
-    case 'browser':
-      return 'Browser Agent'
-    case 'coding-agent':
-      return 'Coding Agent'
-    default:
-      return 'Ron'
+    return withContext(`${searchContext}I found this result and would like you to help me understand it:\n\n${title}`)
   }
 }

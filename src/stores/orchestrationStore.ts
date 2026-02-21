@@ -6,7 +6,7 @@
  * - Workflow: Sequential linear execution
  * - Swarm: Dynamic handoff-based execution
  *
- * Synchronizes with agentStore streaming events to update node states in real-time.
+ * Synchronizes with agent streaming events to update node states in real-time.
  */
 
 import { create } from 'zustand';
@@ -93,7 +93,7 @@ interface OrchestrationStoreState {
   activeAgentIds: string[]; // Can have multiple in swarm mode
   currentExecutionType: 'graph' | 'workflow' | 'swarm' | null;
 
-  // ─── Streaming Integration (synced from agentStore) ───
+  // ─── Streaming Integration (synced from agent stream events) ───
   agentStreamingData: Map<string, AgentStreamingData>;
 
   // ─── Initialization Actions ───
@@ -107,7 +107,7 @@ interface OrchestrationStoreState {
   setActiveAgents: (agentIds: string[]) => void;
   addHandoff: (handoff: HandoffMessage) => void;
 
-  // ─── Streaming Data Sync (called from agentStore listeners) ───
+  // ─── Streaming Data Sync (called from stream listeners) ───
   syncStreamingData: (agentId: string, data: AgentStreamingData) => void;
   clearStreamingData: (agentId: string) => void;
 

@@ -46,7 +46,9 @@ from agent.api.core.config import (
     CONVERSATION_MANAGER_TYPE,
     ENABLE_SUPERAGENT_BIDI,
     GOOGLE_API_KEY,
+    NVIDIA_NIM_ENABLE_THINKING,
     NVIDIA_NIM_API_KEY,
+    NVIDIA_NIM_MODEL_ID,
     OPENAI_API_KEY,
     OPENAI_ORGANIZATION,
     OPENAI_PROJECT,
@@ -55,6 +57,7 @@ from agent.api.core.config import (
     SLIDING_PER_TURN,
     SLIDING_TRUNCATE_TOOL_RESULTS,
     SLIDING_WINDOW_SIZE,
+    SEARCH_CONVERSATION_MANAGER_TYPE,
     SUPERAGENT_BIDI_GEMINI_VOICE,
     SUPERAGENT_BIDI_MODEL_ID,
     SUPERAGENT_BIDI_NOVA_VOICE,
@@ -62,7 +65,9 @@ from agent.api.core.config import (
     SUPERAGENT_BIDI_OPENAI_VOICE,
     SUPERAGENT_BIDI_PROVIDER,
     SUPERAGENT_BIDI_REQUIRE_PROVIDER,
+    SUPER_CONVERSATION_MANAGER_TYPE,
     SUMMARY_RATIO,
+    TASK_CONVERSATION_MANAGER_TYPE,
     TOOLS_SRC_DIR,
 )
 from agent.api.core.hooks import build_agent_hooks
@@ -104,14 +109,18 @@ class AgentFactory:
         if not NVIDIA_NIM_API_KEY:
             raise ValueError("NVIDIA_NIM_API_KEY not configured")
 
+        client_args: dict[str, Any] = {
+            "api_key": NVIDIA_NIM_API_KEY,
+            "timeout": AGENT_TIMEOUT_SECONDS,
+            "stream_timeout": AGENT_TIMEOUT_SECONDS,
+        }
+        if NVIDIA_NIM_ENABLE_THINKING:
+            # Optional advanced reasoning mode. This can increase first-token latency significantly.
+            client_args["extra_body"] = {"thinking": {"type": "enabled"}}
+
         return LiteLLMModel(
-            model_id="nvidia_nim/moonshotai/kimi-k2.5",
-            client_args={
-                "api_key": NVIDIA_NIM_API_KEY,
-                "timeout": AGENT_TIMEOUT_SECONDS,
-                "stream_timeout": AGENT_TIMEOUT_SECONDS,
-                "extra_body": {"thinking": {"type": "enabled"}},
-            },
+            model_id=NVIDIA_NIM_MODEL_ID,
+            client_args=client_args,
             params={
                 "temperature": 1.0,
                 "max_tokens": 200000,
@@ -128,9 +137,19 @@ class AgentFactory:
         )
 
     @classmethod
-    def _create_conversation_manager(cls) -> Any:
+    def _conversation_manager_type_for_agent(cls, agent_type: str) -> str:
+        if agent_type == "super":
+            return SUPER_CONVERSATION_MANAGER_TYPE or CONVERSATION_MANAGER_TYPE
+        if agent_type == "search":
+            return SEARCH_CONVERSATION_MANAGER_TYPE or CONVERSATION_MANAGER_TYPE
+        if agent_type == "task":
+            return TASK_CONVERSATION_MANAGER_TYPE or CONVERSATION_MANAGER_TYPE
+        return CONVERSATION_MANAGER_TYPE
+
+    @classmethod
+    def _create_conversation_manager(cls, agent_type: str) -> Any:
         """Create the configured Strands conversation manager."""
-        manager_type = CONVERSATION_MANAGER_TYPE
+        manager_type = cls._conversation_manager_type_for_agent(agent_type)
 
         if manager_type == "null":
             return NullConversationManager()
@@ -143,8 +162,9 @@ class AgentFactory:
 
         if manager_type != "sliding":
             logger.warning(
-                "Unknown CONVERSATION_MANAGER_TYPE=%s, falling back to sliding window",
+                "Unknown conversation manager type=%s for agent_type=%s, falling back to sliding window",
                 manager_type,
+                agent_type,
             )
 
         return SlidingWindowConversationManager(
@@ -191,7 +211,7 @@ class AgentFactory:
             system_prompt=system_prompt,
             tools=tools,
             callback_handler=None,
-            conversation_manager=cls._create_conversation_manager(),
+            conversation_manager=cls._create_conversation_manager(agent_type),
             session_manager=cls._create_session_manager(session_id),
             retry_strategy=cls._create_retry_strategy(),
             hooks=hooks,

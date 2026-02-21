@@ -24,6 +24,8 @@ import { Textarea } from '@/components/ui/textarea'
 import type { SonarReasoningResponse, ChainOfThoughtStep, UniversalResult } from '@/pages/types/search'
 import { isSocialMediaResult, isImageResult } from '@/pages/types/search'
 import { cn } from '@/lib/utils'
+import { useAgentUi } from '@/context/AgentUiContext'
+import { enqueueAgentPanelMessage } from '@/services/agentChatBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & Interfaces
@@ -170,6 +172,7 @@ function ChatMessage({ message }: { message: ChatMessage }) {
  * Displays SonarReasoningPro reasoning with inline chat interface
  */
 export function SonarBrain({ sonarReasoning, searchQuery }: SonarBrainProps) {
+  const { openPanel } = useAgentUi()
   // State for chain of thought expansion
   const [isChainOfThoughtOpen, setIsChainOfThoughtOpen] = useState(true)
 
@@ -258,34 +261,15 @@ export function SonarBrain({ sonarReasoning, searchQuery }: SonarBrainProps) {
 
   /**
    * Handle "Escalate to Agent" button click
-   * Routes conversation to Ron via agent store
+   * Routes conversation to Ron via AgentPanel bridge
    */
   const handleEscalateToAgent = () => {
-    // Import and use agent store
-    import('@/stores/agentStore').then(({ useAgentStore }) => {
-      const store = useAgentStore.getState()
-      
-      // Open the agent panel
-      store.openPanel()
-      
-      // Build escalation prompt
-      const escalationPrompt = chatMessages.length > 0
-        ? `I was discussing search results for "${searchQuery}" with Sonar. Here's our conversation:\n\n${chatMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')}\n\nCan you help me continue this conversation?`
-        : `I'd like to discuss search results for "${searchQuery}" more deeply.`
+    openPanel()
+    const escalationPrompt = chatMessages.length > 0
+      ? `I was discussing search results for "${searchQuery}" with Sonar. Here's our conversation:\n\n${chatMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')}\n\nCan you help me continue this conversation?`
+      : `I'd like to discuss search results for "${searchQuery}" more deeply.`
 
-      // Send message to Ron with context
-      // Build conversation summary for context
-      const chatSummary = chatMessages.length > 0
-        ? `Chat history:\n${chatMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}`
-        : 'No chat history yet'
-
-      store.sendMessage(escalationPrompt, {
-        currentUrl: undefined,
-        selectedText: `${sonarReasoning.reasoning.substring(0, 300)}...\n\n${chatSummary}`,
-      })
-    }).catch((error) => {
-      console.error('Failed to escalate to agent:', error)
-    })
+    enqueueAgentPanelMessage({ text: escalationPrompt })
   }
 
   return (

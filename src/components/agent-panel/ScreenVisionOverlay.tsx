@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useAgentStore } from '@/stores/agentStore'
+import { useAgentUi } from '@/context/AgentUiContext'
 
 export function ScreenVisionOverlay() {
-  const { isViewingScreen } = useAgentStore()
+  const { isViewingScreen } = useAgentUi()
 
   return (
     <AnimatePresence>

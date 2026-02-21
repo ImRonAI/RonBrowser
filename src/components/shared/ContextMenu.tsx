@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useRef } from 'react'
-import { useAgentStore } from '@/stores/agentStore'
+import { useAgentUi } from '@/context/AgentUiContext'
 import { useTabStore } from '@/stores/tabStore'
 import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
 import { AskRonPrompt } from '@/components/ai-elements/ask-ron-prompt'
@@ -33,7 +33,7 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
     selectAskRonOption,
     submitCustomAskRon,
     closeAskRon,
-  } = useAgentStore()
+  } = useAgentUi()
   const { getActiveTab } = useTabStore()
   const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)

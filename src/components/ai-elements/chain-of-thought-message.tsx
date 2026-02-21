@@ -7,6 +7,9 @@ import {
   ChainOfThought,
   ChainOfThoughtContent,
   ChainOfThoughtHeader,
+  ChainOfThoughtImage,
+  ChainOfThoughtSearchResult,
+  ChainOfThoughtSearchResults,
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
@@ -32,6 +35,19 @@ type ToolState =
   | 'output-denied'
   | 'approval-requested'
   | 'approval-responded'
+
+type ChainSource = {
+  id: string
+  label: string
+  url?: string
+}
+
+type ChainImage = {
+  id: string
+  src: string
+  caption?: string
+  alt?: string
+}
 
 function toToolState(value: unknown): ToolState {
   if (typeof value === 'string') {
@@ -80,6 +96,10 @@ function getMergedReasoningText(reasoningParts: Array<MessagePart & { text?: str
   return reasoningParts.map((part) => asText(part.text)).filter(Boolean).join('')
 }
 
+function escapeForRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function sanitizeVisibleResponseText(textContent: string, reasoningText: string) {
   if (!textContent || !reasoningText) return textContent
 
@@ -88,7 +108,167 @@ function sanitizeVisibleResponseText(textContent: string, reasoningText: string)
     return textContent.slice(reasoningText.length).replace(/^\s+/, '')
   }
 
+  // Tolerate whitespace differences between reasoning and visible text prefixes.
+  const normalizedReasoning = reasoningText.trim()
+  if (!normalizedReasoning) return textContent
+  const reasoningPrefixPattern = new RegExp(
+    `^\\s*${escapeForRegex(normalizedReasoning).replace(/\s+/g, '\\s+')}\\s*`
+  )
+
+  if (reasoningPrefixPattern.test(textContent)) {
+    return textContent.replace(reasoningPrefixPattern, '')
+  }
+
   return textContent
+}
+
+function asUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return undefined
+}
+
+function isImageUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  if (value.startsWith('data:image/')) return true
+  return /\.(png|jpe?g|gif|webp|svg)(?:[?#]|$)/i.test(value)
+}
+
+function sourceLabelFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+function extractSourcesFromUnknown(value: unknown): ChainSource[] {
+  const candidates: unknown[] = []
+  const pushCandidate = (item: unknown) => {
+    if (item !== undefined && item !== null) candidates.push(item)
+  }
+
+  pushCandidate(value)
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    for (const key of ['sources', 'results', 'search_results', 'flat_results', 'citations', 'links', 'items']) {
+      const maybeItems = record[key]
+      if (Array.isArray(maybeItems)) {
+        maybeItems.forEach(pushCandidate)
+      }
+    }
+  }
+  if (Array.isArray(value)) {
+    value.forEach(pushCandidate)
+  }
+
+  const dedupe = new Set<string>()
+  const extracted: ChainSource[] = []
+
+  for (const item of candidates) {
+    let url: string | undefined
+    let label: string | undefined
+
+    if (typeof item === 'string') {
+      url = asUrl(item)
+      label = url ? sourceLabelFromUrl(url) : undefined
+    } else if (item && typeof item === 'object') {
+      const record = item as Record<string, unknown>
+      url =
+        asUrl(record.url) ||
+        asUrl(record.link) ||
+        asUrl(record.href) ||
+        asUrl(record.source) ||
+        asUrl(record.sourceId)
+      const explicitLabel = typeof record.title === 'string'
+        ? record.title
+        : typeof record.name === 'string'
+          ? record.name
+          : undefined
+      label = explicitLabel || (url ? sourceLabelFromUrl(url) : undefined)
+    }
+
+    if (!url || !label) continue
+
+    const key = `${url}::${label}`
+    if (dedupe.has(key)) continue
+    dedupe.add(key)
+    extracted.push({
+      id: key,
+      label,
+      url,
+    })
+  }
+
+  return extracted
+}
+
+function extractImagesFromUnknown(value: unknown): ChainImage[] {
+  const candidates: unknown[] = []
+  const pushCandidate = (item: unknown) => {
+    if (item !== undefined && item !== null) candidates.push(item)
+  }
+
+  pushCandidate(value)
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    for (const key of ['images', 'image', 'screenshots', 'thumbnails']) {
+      const maybeImages = record[key]
+      if (Array.isArray(maybeImages)) {
+        maybeImages.forEach(pushCandidate)
+      } else {
+        pushCandidate(maybeImages)
+      }
+    }
+  }
+  if (Array.isArray(value)) {
+    value.forEach(pushCandidate)
+  }
+
+  const dedupe = new Set<string>()
+  const extracted: ChainImage[] = []
+
+  for (const item of candidates) {
+    let src: string | undefined
+    let caption: string | undefined
+    let alt: string | undefined
+
+    if (typeof item === 'string') {
+      if (isImageUrl(item)) {
+        src = item
+      }
+    } else if (item && typeof item === 'object') {
+      const record = item as Record<string, unknown>
+      const maybeSrc =
+        (typeof record.src === 'string' && record.src) ||
+        (typeof record.url === 'string' && record.url) ||
+        (typeof record.image === 'string' && record.image) ||
+        (typeof record.thumbnail === 'string' && record.thumbnail)
+      if (maybeSrc && isImageUrl(maybeSrc)) {
+        src = maybeSrc
+      }
+      caption = typeof record.caption === 'string' ? record.caption : undefined
+      alt = typeof record.alt === 'string' ? record.alt : undefined
+    }
+
+    if (!src || dedupe.has(src)) continue
+    dedupe.add(src)
+    extracted.push({
+      id: src,
+      src,
+      caption,
+      alt: alt || caption || 'Tool result image',
+    })
+  }
+
+  return extracted
+}
+
+function openSource(url?: string) {
+  if (!url || typeof window === 'undefined') return
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 function getReasoningParts(parts: MessagePart[]) {
@@ -173,6 +353,8 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
                 (typeof part.toolName === 'string' && part.toolName) ||
                 getToolName(part as any) ||
                 `tool-${index + 1}`
+              const toolSources = extractSourcesFromUnknown(part.output ?? part.input)
+              const toolImages = extractImagesFromUnknown(part.output ?? part.input)
 
               return (
                 <ChainOfThoughtStep
@@ -196,21 +378,84 @@ export const ChainOfThoughtMessage = memo(function ChainOfThoughtMessage({
                       )}
                     </ToolContent>
                   </Tool>
+
+                  {toolSources.length > 0 && (
+                    <ChainOfThoughtSearchResults>
+                      {toolSources.map((source) => (
+                        <ChainOfThoughtSearchResult
+                          key={source.id}
+                          className={source.url ? 'cursor-pointer' : undefined}
+                          onClick={() => openSource(source.url)}
+                          title={source.url}
+                        >
+                          {source.label}
+                        </ChainOfThoughtSearchResult>
+                      ))}
+                    </ChainOfThoughtSearchResults>
+                  )}
+
+                  {toolImages.length > 0 && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {toolImages.map((image) => (
+                        <ChainOfThoughtImage key={image.id} caption={image.caption}>
+                          <img
+                            src={image.src}
+                            alt={image.alt || ''}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </ChainOfThoughtImage>
+                      ))}
+                    </div>
+                  )}
                 </ChainOfThoughtStep>
               )
             })}
 
-            {dataParts.map((part, index) => (
-              <ChainOfThoughtStep
-                key={`data-${index}-${part.type}`}
-                label={part.type.replace(/^data-/, '').replace(/-/g, ' ') || 'Data event'}
-                status={isStreaming ? 'active' : 'complete'}
-              >
-                <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs">
-                  {safeJson(part.data)}
-                </pre>
-              </ChainOfThoughtStep>
-            ))}
+            {dataParts.map((part, index) => {
+              const dataSources = extractSourcesFromUnknown(part.data)
+              const dataImages = extractImagesFromUnknown(part.data)
+
+              return (
+                <ChainOfThoughtStep
+                  key={`data-${index}-${part.type}`}
+                  label={part.type.replace(/^data-/, '').replace(/-/g, ' ') || 'Data event'}
+                  status={isStreaming ? 'active' : 'complete'}
+                >
+                  {dataSources.length > 0 && (
+                    <ChainOfThoughtSearchResults>
+                      {dataSources.map((source) => (
+                        <ChainOfThoughtSearchResult
+                          key={source.id}
+                          className={source.url ? 'cursor-pointer' : undefined}
+                          onClick={() => openSource(source.url)}
+                          title={source.url}
+                        >
+                          {source.label}
+                        </ChainOfThoughtSearchResult>
+                      ))}
+                    </ChainOfThoughtSearchResults>
+                  )}
+
+                  {dataImages.length > 0 && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {dataImages.map((image) => (
+                        <ChainOfThoughtImage key={image.id} caption={image.caption}>
+                          <img
+                            src={image.src}
+                            alt={image.alt || ''}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </ChainOfThoughtImage>
+                      ))}
+                    </div>
+                  )}
+
+                  <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs">
+                    {safeJson(part.data)}
+                  </pre>
+                </ChainOfThoughtStep>
+              )
+            })}
           </ChainOfThoughtContent>
         </ChainOfThought>
       )}

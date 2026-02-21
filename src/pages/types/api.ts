@@ -128,7 +128,6 @@ export const API_ENDPOINTS = {
   agent: {
     chat: '/agents/super/stream',
     stream: '/agents/super/stream',
-    streamBidi: '/agents/super-bidi/stream',
     conversations: '/agents/sessions',
     conversation: (id: string) => `/chat-sessions/${id}`,
   },

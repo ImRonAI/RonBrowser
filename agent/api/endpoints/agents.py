@@ -126,8 +126,7 @@ async def superagent_stream(request: Request):
           ``structured_output_model`` and the validated result is emitted
           as a ``data-structured-output`` part per the Vercel AI SDK V6
           UIMessageStream protocol. (Bidi superagent requests ignore this field.)
-        - interaction_mode: accepted for compatibility, but this route is text-only.
-          Use /agents/super-bidi/stream for voice/bidi streaming.
+        - interaction_mode: accepted for compatibility and normalized to text.
         - invocation_state: object | null - Additional Strands invocation
           state passed directly to ``Agent.stream_async(..., invocation_state=...)``
           for hook and tool context.
@@ -147,21 +146,13 @@ async def superagent_stream(request: Request):
     if not message.strip():
         return JSONResponse(status_code=400, content={"error": "Message is required"})
 
-    if requested_mode == "voice":
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Voice mode is not supported on /agents/super/stream. Use /agents/super-bidi/stream.",
-                "expected_endpoint": "/agents/super-bidi/stream",
-            },
-        )
-
     agent = await AgentFactory.get_or_create_agent(
         session_id,
         "super",
     )
     invocation_state = _build_invocation_state(request, session_id, "super", request_state)
-    invocation_state.setdefault("interaction_mode", "text")
+    invocation_state["interaction_mode"] = "text"
+    invocation_state.setdefault("client_requested_interaction_mode", requested_mode)
 
     return StreamingResponse(
         stream_agent_response(
@@ -176,29 +167,17 @@ async def superagent_stream(request: Request):
 
 
 @router.post("/super-bidi/stream")
-async def superagent_bidi_stream(request: Request):
+async def superagent_bidi_stream(_request: Request):
     """
-    Stream dedicated SuperAgent Bidi responses (voice/multimodal path).
+    Legacy bidi endpoint is disabled; all client conversations must use /super/stream.
     """
-    body = await request.json()
-    session_id, message, _schema, request_state = _parse_request(body)
-
-    if not message.strip():
-        return JSONResponse(status_code=400, content={"error": "Message is required"})
-
-    agent = await AgentFactory.get_or_create_agent(session_id, "super_bidi")
-    invocation_state = _build_invocation_state(request, session_id, "super_bidi", request_state)
-    invocation_state.setdefault("interaction_mode", "voice")
-
-    return StreamingResponse(
-        stream_agent_response(
-            agent,
-            message,
-            structured_output_model=None,  # Bidi does not support structured output model.
-            invocation_state=invocation_state,
-        ),
-        media_type="text/event-stream",
-        headers=SSE_HEADERS,
+    return JSONResponse(
+        status_code=410,
+        content={
+            "error": "Bidi streaming is disabled for SuperAgent conversations.",
+            "expected_endpoint": "/agents/super/stream",
+            "interaction_mode": "text",
+        },
     )
 
 

@@ -12,29 +12,32 @@
  */
 
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import { useAgentStore } from '@/stores/agentStore'
 import { useMemo } from 'react'
 import { isBrowserTool } from '@/stores/previewStore'
+import { useOrchestrationStore } from '@/stores/orchestrationStore'
 
 export function BrowserGlowBorder() {
-  // Check if browser tool is currently being used
-  const currentToolUse = useAgentStore((state) => state.currentToolUse)
+  const agentStreamingData = useOrchestrationStore((state) => state.agentStreamingData)
   const prefersReducedMotion = useReducedMotion()
   
   // Detect if the browser tool is active
   const isBrowserToolActive = useMemo(() => {
-    if (!currentToolUse) return false
-    
-    const toolName = currentToolUse.name?.toLowerCase() || ''
-
-    const isUiAutomationTool =
-      isBrowserTool(toolName) ||
-      toolName.includes('use_computer') ||
-      toolName.includes('playwright') ||
-      toolName.includes('browser')
-
-    return isUiAutomationTool && currentToolUse.status === 'running'
-  }, [currentToolUse])
+    for (const streamData of agentStreamingData.values()) {
+      const tools = streamData.tools || []
+      for (const tool of tools) {
+        const toolName = tool.name?.toLowerCase() || ''
+        const isUiAutomationTool =
+          isBrowserTool(toolName) ||
+          toolName.includes('use_computer') ||
+          toolName.includes('playwright') ||
+          toolName.includes('browser')
+        if (isUiAutomationTool && tool.status === 'running') {
+          return true
+        }
+      }
+    }
+    return false
+  }, [agentStreamingData])
   
   const showGlow = isBrowserToolActive
 

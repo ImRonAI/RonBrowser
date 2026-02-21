@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(tree:*)",
+      "Bash(./venv/bin/pip install openai)",
+      "Bash(./venv/bin/python -c \"import lancedb; import pyarrow; print\\(''SUCCESS''\\)\")",
+      "Bash(cd:*)"
+    ]
+  },
+  "disableAllHooks": true
+}

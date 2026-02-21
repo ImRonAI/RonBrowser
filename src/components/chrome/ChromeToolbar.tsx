@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Home, RotateCcw, MessageSquare, Plus } from 'luc
 import { UrlBar } from './UrlBar'
 import { UserMenu } from './UserMenu'
 import { ThemeToggle } from './ThemeToggle'
-import { useAgentStore } from '@/stores/agentStore'
+import { useAgentUi } from '@/context/AgentUiContext'
 import { useTabStore } from '@/stores/tabStore'
 import { cn } from '@/utils/cn'
 import { useState, useEffect } from 'react'
@@ -46,7 +46,7 @@ function NavButton({
 }
 
 export function ChromeToolbar() {
-  const { togglePanel, isPanelOpen } = useAgentStore()
+  const { togglePanel, isPanelOpen } = useAgentUi()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
 

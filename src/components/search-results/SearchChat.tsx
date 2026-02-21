@@ -5,8 +5,9 @@
  * Features streaming responses with reasoning, chain of thought, inline citations, and sources
  */
 
-import { useState, useCallback, useRef, useEffect, memo } from 'react'
-import type { UIMessage } from '@ai-sdk/react'
+import { useState, useCallback, useRef, useEffect, memo, useMemo } from 'react'
+import { useChat, type UIMessage } from '@ai-sdk/react'
+import { DefaultChatTransport, isDataUIPart, isToolUIPart, type TextUIPart } from 'ai'
 import { motion } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { ArrowLeftIcon, ClockIcon, TrashIcon } from '@heroicons/react/24/outline'
@@ -18,13 +19,20 @@ import { Button } from '@/components/ui/button'
 
 // Context Picker
 import { ContextPicker, SelectedContexts, type ContextItem } from '@/components/agent-panel/ContextPicker'
-import { usePreviewStore } from '@/stores/previewStore'
+import {
+  usePreviewStore,
+  type BrowserPreviewData,
+  type ProjectPreviewData,
+} from '@/stores/previewStore'
 
 // Source Card for citations
 import type { SourceData } from './SourceCard'
 import type { UniversalResult } from '@/pages/types/search'
 
-import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
+import {
+  handleOrchestrationDataPart,
+  type OrchestrationStreamEvent,
+} from '@/utils/orchestration-stream'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -36,43 +44,8 @@ interface SearchChatProps {
   initialContext?: UniversalResult | null
 }
 
-interface ReasoningStep {
-  thought: string
-  type: string
-}
-
-type UsageData = {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-  reasoningTokens?: number
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
-  isStreaming?: boolean
-  reasoning?: ReasoningStep[]
-  isReasoningComplete?: boolean
-  searchResults?: SourceData[]
-  images?: string[]
-  toolExecutions?: ToolExecution[]
-  usage?: UsageData
-}
-
 // Export for external use
-export type ChatMessage = Message
-
-type ToolExecution = {
-  id: string
-  name: string
-  state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
-  input?: unknown
-  output?: unknown
-  errorText?: string
-}
+export type ChatMessage = UIMessage
 
 type MessagePart = UIMessage['parts'][number]
 
@@ -133,6 +106,70 @@ function mergeSources(existing: SourceData[], incoming: SourceData[]): SourceDat
   return merged
 }
 
+function extractSourcesFromPayload(payload: unknown): SourceData[] {
+  if (!payload || typeof payload !== 'object') return []
+  const record = payload as Record<string, unknown>
+  const candidates = [
+    record.sources,
+    record.search_results,
+    record.results,
+    record.citations,
+    record.links,
+  ]
+  const merged: SourceData[] = []
+  for (const candidate of candidates) {
+    merged.push(...normalizeSources(candidate))
+  }
+  return merged
+}
+
+function extractSourcesFromParts(parts: MessagePart[]): SourceData[] {
+  let sources: SourceData[] = []
+  for (const part of parts) {
+    if (isToolUIPart(part)) {
+      const toolPart = part as { input?: unknown; output?: unknown }
+      sources = mergeSources(sources, extractSourcesFromPayload(toolPart.input))
+      sources = mergeSources(sources, extractSourcesFromPayload(toolPart.output))
+      continue
+    }
+    if (isDataUIPart(part)) {
+      const dataPart = part as { data?: unknown }
+      sources = mergeSources(sources, extractSourcesFromPayload(dataPart.data))
+    }
+  }
+  return sources
+}
+
+function getMessageText(parts: MessagePart[]): string {
+  return parts
+    .filter((part): part is TextUIPart => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
+
+function toCitations(sources: SourceData[]) {
+  return sources.map((source, index) => ({
+    number: String(index + 1),
+    title: source.title,
+    url: source.url,
+    snippet: source.snippet,
+  }))
+}
+
+function isBrowserPreviewData(value: unknown): value is BrowserPreviewData {
+  return Boolean(value) && typeof value === 'object'
+}
+
+function isProjectPreviewData(value: unknown): value is ProjectPreviewData {
+  if (!value || typeof value !== 'object') return false
+  const status = (value as Record<string, unknown>).status
+  return status === 'starting' || status === 'running' || status === 'stopped' || status === 'error'
+}
+
+function isOrchestrationEvent(value: unknown): value is OrchestrationStreamEvent {
+  return Boolean(value) && typeof value === 'object'
+}
+
 function buildInitialContext(
   searchResult: SearchChatProps['searchResult'],
   userQuery: string
@@ -157,69 +194,52 @@ function buildInitialContext(
     .join('\n\n')
 }
 
-function buildSearchChatParts(message: Message): MessagePart[] {
-  const parts: MessagePart[] = []
-  const reasoningText = message.reasoning?.length
-    ? message.reasoning
-        .map((step) => `**${step.type}**\n${step.thought}`)
-        .join('\n\n')
-    : ''
-
-  if (message.usage) {
-    parts.push({
-      type: 'data-usage',
-      data: message.usage,
-    } as MessagePart)
-  }
-
-  if (reasoningText) {
-    parts.push({
-      type: 'reasoning',
-      text: reasoningText,
-      state: message.isReasoningComplete ? 'done' : 'streaming',
-    } as MessagePart)
-  }
-
-  message.toolExecutions?.forEach((tool) => {
-    parts.push({
-      type: 'dynamic-tool',
-      toolName: tool.name,
-      toolCallId: tool.id,
-      state: tool.state,
-      input: tool.input,
-      output: tool.output,
-      errorText: tool.errorText,
-    } as MessagePart)
-  })
-
-  if (message.content) {
-    parts.push({
-      type: 'text',
-      text: message.content,
-      state: message.isStreaming ? 'streaming' : 'done',
-    } as MessagePart)
-  }
-
-  return parts
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SearchChat({ searchResult, onBack, initialContext }: SearchChatProps) {
   const query = searchResult.query
-  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
   const [selectedContexts, setSelectedContexts] = useState<ContextItem[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [hasSentContext, setHasSentContext] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const sessionIdRef = useRef<string>(crypto.randomUUID())
 
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: `${API_BASE_URL}/agents/search/stream`,
+        body: () => ({
+          session_id: sessionIdRef.current,
+          persist_session: true,
+        }),
+      }),
+    []
+  )
+
+  const { messages, setMessages, sendMessage, status, clearError } = useChat({
+    transport,
+    onData: (dataPart) => {
+      const part = dataPart as { type?: string; data?: unknown }
+
+      if (part.type === 'data-orchestration' && isOrchestrationEvent(part.data)) {
+        handleOrchestrationDataPart({ type: 'data-orchestration', data: part.data })
+      } else if (part.type === 'data-browser' && isBrowserPreviewData(part.data)) {
+        usePreviewStore.getState().openBrowserPreview(part.data)
+      } else if (part.type === 'data-project' && isProjectPreviewData(part.data)) {
+        usePreviewStore.getState().openProjectPreview(part.data)
+      }
+    },
+    onError: (error: Error) => {
+      console.error('Search chat stream error:', error)
+    },
+  })
+
+  const isTyping = status === 'streaming' || status === 'submitted'
   const isEmpty = messages.length === 0
 
   const handleLoadSession = async (sid: string) => {
@@ -227,19 +247,41 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
       const res = await fetch(`${API_BASE_URL}/chat-sessions/${sid}`)
       if (res.ok) {
         const data = await res.json()
+        sessionIdRef.current = sid
         setSessionId(sid)
-        
-        // Transform messages
-        // Backend returns: { messages: [{role, content, timestamp?}, ...] }
-        const loadedMessages: Message[] = data.messages.map((msg: any, i: number) => ({
-          id: `msg-${sid}-${i}`,
-          role: msg.role,
-          content: typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.map((c:any) => c.text || '').join('') : JSON.stringify(msg.content)),
-          timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
-          // Note: We lose CoT/Tools history here as simple persistence stores mostly text
-          // unless we enhance the backend storage.
-        }))
-        
+
+        const loadedMessages: UIMessage[] = data.messages.map((msg: any, i: number) => {
+          const parts: MessagePart[] = []
+          if (typeof msg.content === 'string') {
+            parts.push({ type: 'text', text: msg.content } as MessagePart)
+          } else if (Array.isArray(msg.content)) {
+            msg.content.forEach((block: any) => {
+              if (typeof block === 'string') {
+                parts.push({ type: 'text', text: block } as MessagePart)
+              } else if (block?.type === 'text') {
+                parts.push({ type: 'text', text: block.text || '' } as MessagePart)
+              } else if (block?.type === 'reasoning' || block?.type === 'thinking') {
+                parts.push({ type: 'reasoning', text: block.text || block.content || '' } as MessagePart)
+              } else if (block?.type === 'tool_use') {
+                parts.push({
+                  type: 'dynamic-tool',
+                  toolName: block.name,
+                  toolCallId: block.id || `call_${i}_${Math.random().toString(36).slice(2, 8)}`,
+                  state: 'output-available',
+                  input: block.input,
+                } as MessagePart)
+              }
+            })
+          }
+
+          return {
+            id: `msg-${sid}-${i}`,
+            role: msg.role,
+            content: '',
+            parts: parts.length > 0 ? parts : [{ type: 'text', text: '' } as MessagePart],
+          } as UIMessage
+        })
+
         setMessages(loadedMessages)
         setHasSentContext(true) // Assume context was already handled in old chat
       }
@@ -289,23 +331,33 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
     if (!query) return
 
     if (searchResult.answer || (searchResult.sources && searchResult.sources.length > 0)) {
+      const assistantParts: MessagePart[] = []
+      if (searchResult.sources && searchResult.sources.length > 0) {
+        assistantParts.push({
+          type: 'data-search-results',
+          data: { sources: searchResult.sources },
+        } as MessagePart)
+      }
+      if (searchResult.answer) {
+        assistantParts.push({
+          type: 'text',
+          text: searchResult.answer,
+        } as MessagePart)
+      }
+
       setMessages([
         {
           id: `msg-${Date.now()}-user`,
           role: 'user',
-          content: query,
-          timestamp: Date.now(),
-        },
+          content: '',
+          parts: [{ type: 'text', text: query } as MessagePart],
+        } as UIMessage,
         {
           id: `msg-${Date.now()}-assistant`,
           role: 'assistant',
-          content: searchResult.answer || '',
-          timestamp: Date.now(),
-          isStreaming: false,
-          reasoning: [],
-          isReasoningComplete: true,
-          searchResults: searchResult.sources || [],
-        },
+          content: '',
+          parts: assistantParts.length > 0 ? assistantParts : [{ type: 'text', text: '' } as MessagePart],
+        } as UIMessage,
       ])
       return
     }
@@ -315,279 +367,33 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
 
   const handleSubmit = useCallback(async (text?: string, options?: { includeContext?: boolean }) => {
     const messageText = text || input.trim()
-    if (!messageText) return
+    const canSend = status === 'ready' || status === 'error'
+    if (!messageText || !canSend) return
+
+    if (status === 'error') {
+      clearError()
+    }
 
     const shouldIncludeContext = options?.includeContext ?? (!hasSentContext && Boolean(searchResult.answer || searchResult.sources?.length))
     const requestText = shouldIncludeContext
       ? buildInitialContext(searchResult, messageText)
       : messageText
 
-    // Cancel any ongoing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: messageText,
-      timestamp: Date.now(),
-    }
-    setMessages(prev => [...prev, userMessage])
     setInput('')
-    setIsTyping(true)
-
-    // Create assistant message placeholder
-    const assistantMessage: Message = {
-      id: `msg-${Date.now()}-ai`,
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      isStreaming: true,
-      reasoning: [],
-      isReasoningComplete: false,
-      toolExecutions: [],
-    }
-    setMessages(prev => [...prev, assistantMessage])
-
-    const updateAssistantMessage = (update: Partial<Message>) => {
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMessage.id ? { ...m, ...update } : m
-      ))
-    }
-
-    const upsertToolExecution = (toolCallId: string, update: Partial<ToolExecution>) => {
-      setMessages(prev => prev.map(m => {
-        if (m.id !== assistantMessage.id) return m
-        const existing = m.toolExecutions || []
-        const index = existing.findIndex(tool => tool.id === toolCallId)
-        if (index === -1) {
-          return {
-            ...m,
-            toolExecutions: [
-              ...existing,
-              {
-                id: toolCallId,
-                name: update.name || toolCallId,
-                state: update.state || 'input-streaming',
-                input: update.input,
-                output: update.output,
-                errorText: update.errorText,
-              },
-            ],
-          }
-        }
-
-        const next = [...existing]
-        next[index] = {
-          ...next[index],
-          ...update,
-          name: update.name || next[index].name,
-        }
-        return { ...m, toolExecutions: next }
-      }))
-    }
+    setSelectedContexts([])
 
     try {
-      abortControllerRef.current = new AbortController()
-
-      // Initialize session id if needed
-      let currentSessionId = sessionId
-      if (!currentSessionId) {
-        currentSessionId = crypto.randomUUID()
-        setSessionId(currentSessionId)
+      if (!sessionId) {
+        const nextSessionId = crypto.randomUUID()
+        sessionIdRef.current = nextSessionId
+        setSessionId(nextSessionId)
       }
-
-      // Stream response from search agent
-      const response = await fetch(`${API_BASE_URL}/agents/search/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: currentSessionId,
-          persist_session: true,
-          message: requestText,
-        }),
-        signal: abortControllerRef.current.signal,
-      })
-
-      if (!response.ok) throw new Error('Search request failed')
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('No response body')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let currentContent = ''
-      let reasoningText = ''
-      let searchResults: SourceData[] = []
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith(':')) continue
-          if (!line.startsWith('data: ')) continue
-
-          const data = line.slice(6).trim()
-          if (data === '[DONE]') break
-
-          try {
-            const event = JSON.parse(data)
-
-            switch (event.type) {
-              case 'text-delta':
-                currentContent += event.delta || ''
-                updateAssistantMessage({ content: currentContent })
-                break
-
-              case 'reasoning-delta':
-                reasoningText += event.delta || ''
-                updateAssistantMessage({
-                  reasoning: reasoningText
-                    ? [{ thought: reasoningText, type: 'analysis' }]
-                    : [],
-                })
-                break
-
-              case 'tool-input-start':
-                if (event.toolCallId) {
-                  upsertToolExecution(event.toolCallId, {
-                    name: event.toolName || event.toolCallId,
-                    state: 'input-streaming',
-                  })
-                }
-                break
-
-              case 'tool-input-available':
-                if (event.toolCallId) {
-                  upsertToolExecution(event.toolCallId, {
-                    name: event.toolName || event.toolCallId,
-                    state: 'input-available',
-                    input: event.input,
-                  })
-                }
-                if (event.input) {
-                  searchResults = mergeSources(searchResults, normalizeSources(event.input?.sources || event.input?.search_results || []))
-                }
-                break
-
-              case 'tool-output-available':
-                if (event.toolCallId) {
-                  upsertToolExecution(event.toolCallId, {
-                    name: event.toolName,
-                    state: 'output-available',
-                    output: event.output,
-                  })
-                }
-                if (event.output) {
-                  searchResults = mergeSources(searchResults, normalizeSources(event.output?.sources || event.output?.search_results || event.output?.results || []))
-                }
-                break
-
-              case 'tool-output-error':
-                if (event.toolCallId) {
-                  upsertToolExecution(event.toolCallId, {
-                    name: event.toolName,
-                    state: 'output-error',
-                    errorText: event.errorText || 'Tool error',
-                  })
-                }
-                break
-
-              case 'source-url': {
-                const url = event.url || event.sourceId || ''
-                if (url) {
-                  searchResults = mergeSources(searchResults, normalizeSources([{ url }]))
-                }
-                break
-              }
-
-              case 'source-document': {
-                const url = event.sourceId || event.url || ''
-                const title = event.title || getDomainFromUrl(url)
-                if (url) {
-                  searchResults = mergeSources(searchResults, normalizeSources([{ url, title }]))
-                }
-                break
-              }
-
-              case 'workflow_visualization':
-                handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
-                {
-                  const orchestrationName = event.toolName || 'workflow'
-                  upsertToolExecution(event.toolCallId || `orchestration-${orchestrationName}`, {
-                    name: orchestrationName,
-                    state: 'output-available',
-                    output: event,
-                  })
-                }
-                break
-
-              case 'multiagent_node_start':
-              case 'multiagent_node_stream':
-              case 'multiagent_node_stop':
-              case 'multiagent_handoff':
-              case 'multiagent_result':
-                handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
-                break
-
-              case 'data-orchestration':
-                handleOrchestrationDataPart(event)
-                break
-
-              case 'finish':
-                updateAssistantMessage({
-                  isStreaming: false,
-                  isReasoningComplete: true,
-                  searchResults: searchResults.length > 0 ? searchResults : undefined,
-                })
-                setHasSentContext(true)
-                break
-
-              case 'data-usage':
-                if (event.data) {
-                  updateAssistantMessage({ usage: event.data })
-                }
-                break
-
-              case 'data-browser':
-                usePreviewStore.getState().openBrowserPreview(event.data)
-                break
-
-              case 'data-project':
-                usePreviewStore.getState().openProjectPreview(event.data)
-                break
-
-              case 'error':
-                throw new Error(event.errorText || 'Search agent error')
-
-              case 'abort':
-                throw new Error(event.reason || 'Stream aborted')
-
-              default:
-                break
-            }
-          } catch (e) {
-            console.error('Failed to parse chunk:', e)
-          }
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Search error:', error)
-        // Remove failed assistant message
-        setMessages(prev => prev.filter(m => m.id !== assistantMessage.id))
-      }
-    } finally {
-      setIsTyping(false)
-      abortControllerRef.current = null
+      await sendMessage({ text: requestText } as any)
+      setHasSentContext(true)
+    } catch (error) {
+      console.error('Search submit failed:', error)
     }
-  }, [input, messages, sessionId, searchResult, hasSentContext])
+  }, [input, status, clearError, sessionId, searchResult, hasSentContext, selectedContexts, sendMessage])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -670,6 +476,7 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
                   <MessageBubble
                     key={msg.id}
                     message={msg}
+                    isStreaming={isTyping && msg.role === 'assistant' && msg.id === messages[messages.length - 1]?.id}
                   />
                 ))}
                 {isTyping && messages[messages.length - 1]?.role === 'user' && (
@@ -851,15 +658,12 @@ function EmptyState({ query, onSubmit }: { query: string; onSubmit: (text: strin
 // MESSAGE BUBBLE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, isStreaming }: { message: UIMessage; isStreaming: boolean }) {
   const isUser = message.role === 'user'
-  const parts = buildSearchChatParts(message)
-  const citations = (message.searchResults || []).map((source, index) => ({
-    number: String(index + 1),
-    title: source.title,
-    url: source.url,
-    snippet: source.snippet,
-  }))
+  const parts = message.parts || []
+  const sources = extractSourcesFromParts(parts)
+  const citations = toCitations(sources)
+  const userText = getMessageText(parts)
 
   return (
     <Message from={isUser ? 'user' : 'assistant'}>
@@ -867,12 +671,12 @@ function MessageBubble({ message }: { message: Message }) {
       <MessageContent variant={isUser ? 'contained' : 'flat'}>
         {isUser ? (
           <p className="text-body-sm leading-relaxed whitespace-pre-wrap">
-            {message.content}
+            {userText}
           </p>
         ) : (
           <ChainOfThoughtMessage
             parts={parts}
-            isStreaming={message.isStreaming}
+            isStreaming={isStreaming}
             messageId={message.id}
             citations={citations}
           />

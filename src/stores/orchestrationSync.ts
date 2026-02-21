@@ -1,7 +1,7 @@
 /**
  * Orchestration Synchronization Utilities
  *
- * Maps agentStore streaming events to orchestrationStore state updates.
+ * Maps agent streaming events to orchestrationStore state updates.
  * Handles the conversion between AgentStreamEvent and AgentStreamingData.
  */
 

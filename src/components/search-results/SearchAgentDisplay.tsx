@@ -1,17 +1,13 @@
 /**
  * SearchAgentDisplay - AI Elements implementation for Search Agent
  *
- * Displays streaming agent responses with:
- * - Chain of thought reasoning with nested thinking blocks
- * - Search results with inline citations
- * - Recursive subagent formations using Canvas/Node/Edge
- * - Task components for individual agent transparency
- * - Code execution results with images
- * - Full hierarchical agent orchestration tree
+ * Framework-native streaming via AI SDK `useChat` + `DefaultChatTransport`.
+ * No custom SSE parsing.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { UIMessage } from '@ai-sdk/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useChat, type UIMessage } from '@ai-sdk/react'
+import { DefaultChatTransport, isDataUIPart, isToolUIPart, type TextUIPart } from 'ai'
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
@@ -24,15 +20,21 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { SourceData } from './SourceCard'
 import { useSearchStore } from '@/stores/searchStore'
-import { usePreviewStore } from '@/stores/previewStore'
-import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
+import {
+  usePreviewStore,
+  type BrowserPreviewData,
+  type ProjectPreviewData,
+} from '@/stores/previewStore'
+import {
+  handleOrchestrationDataPart,
+  type OrchestrationStreamEvent,
+} from '@/utils/orchestration-stream'
 
 interface Citation {
   number: string
   url: string
   title: string
   snippet?: string
-  quote?: string
 }
 
 interface SearchAgentDisplayProps {
@@ -40,77 +42,9 @@ interface SearchAgentDisplayProps {
   sessionId?: string
 }
 
-type ToolExecution = {
-  id: string
-  name: string
-  state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
-  input?: unknown
-  output?: unknown
-  errorText?: string
-}
-
-type UsageData = {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-  reasoningTokens?: number
-}
-
 type MessagePart = UIMessage['parts'][number]
 
-function buildSearchAgentParts({
-  answerText,
-  reasoningText,
-  toolExecutions,
-  isStreaming,
-  usage,
-}: {
-  answerText: string
-  reasoningText: string
-  toolExecutions: ToolExecution[]
-  isStreaming: boolean
-  usage: UsageData | null
-}): MessagePart[] {
-  const parts: MessagePart[] = []
-
-  if (usage) {
-    parts.push({
-      type: 'data-usage',
-      data: usage,
-    } as MessagePart)
-  }
-
-  if (reasoningText || isStreaming) {
-    parts.push({
-      type: 'reasoning',
-      text: reasoningText || 'Thinking...',
-      state: isStreaming ? 'streaming' : 'done',
-    } as MessagePart)
-  }
-
-  toolExecutions.forEach((tool) => {
-    parts.push({
-      type: 'dynamic-tool',
-      toolName: tool.name,
-      toolCallId: tool.id,
-      state: tool.state,
-      input: tool.input,
-      output: tool.output,
-      errorText: tool.errorText,
-    } as MessagePart)
-  })
-
-  const finalText = answerText || (isStreaming ? 'Generating answer…' : '')
-  if (finalText) {
-    parts.push({
-      type: 'text',
-      text: finalText,
-      state: isStreaming ? 'streaming' : 'done',
-    } as MessagePart)
-  }
-
-  return parts
-}
+const API_URL = 'http://localhost:8765/agents/search/stream'
 
 function getDomainFromUrl(url: string): string {
   try {
@@ -120,161 +54,224 @@ function getDomainFromUrl(url: string): string {
   }
 }
 
-function normalizeCitations(raw: any): Citation[] {
-  if (!Array.isArray(raw)) return []
-
-  return raw
-    .map((item, index) => {
-      if (!item) return null
-      if (typeof item === 'string') {
-        const url = item
-        return {
-          number: String(index + 1),
-          url,
-          title: getDomainFromUrl(url),
-          snippet: undefined,
-        }
-      }
-
-      const url = item.url || item.link || item.source || ''
-      const title = item.title || item.name || getDomainFromUrl(url)
-      const snippet = item.snippet || item.description || item.quote
-      const number = item.number ? String(item.number) : String(index + 1)
-
-      return {
-        number,
-        url,
-        title,
-        snippet,
-        quote: item.quote,
-      }
-    })
-    .filter((item): item is Citation => Boolean(item && item.url))
+function normalizeSourceType(value: unknown): SourceData['type'] {
+  if (value === 'web' || value === 'academic' || value === 'video' || value === 'social' || value === 'code') {
+    return value
+  }
+  return 'web'
 }
 
-function normalizeSources(raw: any): SourceData[] {
+function normalizeSources(raw: unknown): SourceData[] {
   if (!Array.isArray(raw)) return []
 
   return raw
     .map((item, index) => {
-      if (!item) return null
-      const url = item.url || item.link || item.source || ''
+      if (!item || typeof item !== 'object') return null
+      const record = item as Record<string, unknown>
+      const url =
+        (typeof record.url === 'string' && record.url) ||
+        (typeof record.link === 'string' && record.link) ||
+        (typeof record.source === 'string' && record.source) ||
+        ''
       if (!url) return null
 
-      const title = item.title || item.name || getDomainFromUrl(url)
-      const snippet = item.snippet || item.description || item.quote || ''
-      const domain = item.domain || getDomainFromUrl(url)
-      const type = item.type || 'web'
+      const title =
+        (typeof record.title === 'string' && record.title) ||
+        (typeof record.name === 'string' && record.name) ||
+        getDomainFromUrl(url)
 
-      return {
-        id: item.id || `source-${index}-${domain}`,
+      const snippet =
+        (typeof record.snippet === 'string' && record.snippet) ||
+        (typeof record.description === 'string' && record.description) ||
+        (typeof record.quote === 'string' && record.quote) ||
+        ''
+
+      const domain =
+        (typeof record.domain === 'string' && record.domain) || getDomainFromUrl(url)
+
+      const type = normalizeSourceType(record.type)
+
+      const source: SourceData = {
+        id: (typeof record.id === 'string' && record.id) || `source-${index}-${domain}`,
         url,
         title,
         snippet,
         domain,
         type,
-        favicon: item.favicon,
-      } as SourceData
+      }
+
+      if (typeof record.favicon === 'string') {
+        source.favicon = record.favicon
+      }
+
+      return source
     })
-    .filter((item): item is SourceData => Boolean(item))
+    .filter((item): item is SourceData => item !== null)
 }
 
-function mergeCitations(existing: Citation[], incoming: Citation[]): Citation[] {
+function mergeSources(existing: SourceData[], incoming: SourceData[]): SourceData[] {
   if (incoming.length === 0) return existing
 
-  const seen = new Map<string, Citation>()
-  for (const citation of existing) {
-    seen.set(citation.url, citation)
-  }
-  for (const citation of incoming) {
-    if (!seen.has(citation.url)) {
-      seen.set(citation.url, citation)
+  const seen = new Set(existing.map((source) => source.url))
+  const merged = [...existing]
+
+  for (const source of incoming) {
+    if (!seen.has(source.url)) {
+      merged.push(source)
+      seen.add(source.url)
     }
   }
 
-  return Array.from(seen.values()).map((citation, index) => ({
-    ...citation,
+  return merged
+}
+
+function extractSourcesFromPayload(payload: unknown): SourceData[] {
+  if (!payload || typeof payload !== 'object') return []
+
+  const record = payload as Record<string, unknown>
+  const candidates = [
+    record.sources,
+    record.search_results,
+    record.results,
+    record.citations,
+    record.links,
+  ]
+
+  let merged: SourceData[] = []
+  for (const candidate of candidates) {
+    merged = mergeSources(merged, normalizeSources(candidate))
+  }
+
+  return merged
+}
+
+function extractSourcesFromParts(parts: MessagePart[]): SourceData[] {
+  let sources: SourceData[] = []
+
+  for (const part of parts) {
+    if (isToolUIPart(part)) {
+      const toolPart = part as { input?: unknown; output?: unknown }
+      sources = mergeSources(sources, extractSourcesFromPayload(toolPart.input))
+      sources = mergeSources(sources, extractSourcesFromPayload(toolPart.output))
+      continue
+    }
+
+    if (isDataUIPart(part)) {
+      const dataPart = part as { data?: unknown }
+      sources = mergeSources(sources, extractSourcesFromPayload(dataPart.data))
+    }
+  }
+
+  return sources
+}
+
+function getMessageText(parts: MessagePart[]): string {
+  return parts
+    .filter((part): part is TextUIPart => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
+
+function toCitations(sources: SourceData[]): Citation[] {
+  return sources.map((source, index) => ({
     number: String(index + 1),
+    url: source.url,
+    title: source.title,
+    snippet: source.snippet,
   }))
 }
 
-function citationsToSources(citations: Citation[]): SourceData[] {
-  return citations.map((citation, index) => ({
-    id: `citation-${index + 1}`,
-    url: citation.url,
-    title: citation.title,
-    snippet: citation.snippet || citation.quote || '',
-    domain: getDomainFromUrl(citation.url),
-    type: 'web',
-  }))
+function isBrowserPreviewData(value: unknown): value is BrowserPreviewData {
+  return Boolean(value) && typeof value === 'object'
+}
+
+function isProjectPreviewData(value: unknown): value is ProjectPreviewData {
+  if (!value || typeof value !== 'object') return false
+  const status = (value as Record<string, unknown>).status
+  return (
+    status === 'starting' ||
+    status === 'running' ||
+    status === 'stopped' ||
+    status === 'error'
+  )
+}
+
+function isOrchestrationEvent(value: unknown): value is OrchestrationStreamEvent {
+  return Boolean(value) && typeof value === 'object'
 }
 
 export function SearchAgentDisplay({ query, sessionId = 'search-default' }: SearchAgentDisplayProps) {
-  const [answerText, setAnswerText] = useState('')
-  const [reasoningText, setReasoningText] = useState('')
-  const [citations, setCitations] = useState<Citation[]>([])
-  const [sources, setSources] = useState<SourceData[]>([])
-  const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [usage, setUsage] = useState<UsageData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
+  const [extraSources, setExtraSources] = useState<SourceData[]>([])
+
   const clearSearch = useSearchStore((state) => state.clearSearch)
   const goToChat = useSearchStore((state) => state.goToChat)
   const goToFullResults = useSearchStore((state) => state.goToFullResults)
   const updateQuickResult = useSearchStore((state) => state.updateQuickResult)
   const setIsStreamingStore = useSearchStore((state) => state.setIsStreaming)
 
-  const mergedSources = useMemo(() => {
-    if (sources.length > 0) return sources
-    if (citations.length > 0) return citationsToSources(citations)
-    return []
-  }, [sources, citations])
+  const runKeyRef = useRef<string>('')
+  const sessionIdRef = useRef<string>(`${sessionId}-${crypto.randomUUID()}`)
 
-  const assistantParts = useMemo(
-    () => buildSearchAgentParts({ answerText, reasoningText, toolExecutions, isStreaming, usage }),
-    [answerText, reasoningText, toolExecutions, isStreaming, usage]
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: API_URL,
+        body: () => ({
+          session_id: sessionIdRef.current,
+          persist_session: true,
+        }),
+      }),
+    [],
   )
 
-  const resetState = useCallback(() => {
-    setAnswerText('')
-    setReasoningText('')
-    setCitations([])
-    setSources([])
-    setToolExecutions([])
-    setUsage(null)
-    setError(null)
-  }, [])
+  const { messages, sendMessage, status, setMessages, clearError } = useChat({
+    transport,
+    onData: (dataPart) => {
+      const part = dataPart as { type?: string; data?: unknown }
 
-  const upsertToolExecution = useCallback((toolCallId: string, update: Partial<ToolExecution>) => {
-    setToolExecutions((prev) => {
-      const index = prev.findIndex((tool) => tool.id === toolCallId)
-      if (index === -1) {
-        return [
-          ...prev,
-          {
-            id: toolCallId,
-            name: update.name || toolCallId,
-            state: update.state || 'input-streaming',
-            input: update.input,
-            output: update.output,
-            errorText: update.errorText,
-          },
-        ]
+      if (part.type === 'data-orchestration' && isOrchestrationEvent(part.data)) {
+        handleOrchestrationDataPart({ type: 'data-orchestration', data: part.data })
+      } else if (part.type === 'data-browser' && isBrowserPreviewData(part.data)) {
+        usePreviewStore.getState().openBrowserPreview(part.data)
+      } else if (part.type === 'data-project' && isProjectPreviewData(part.data)) {
+        usePreviewStore.getState().openProjectPreview(part.data)
       }
 
-      const next = [...prev]
-      next[index] = {
-        ...next[index],
-        ...update,
-        name: update.name || next[index].name,
+      // Also harvest sources from non-message data parts.
+      const incomingSources = extractSourcesFromPayload(part.data)
+      if (incomingSources.length > 0) {
+        setExtraSources((prev) => mergeSources(prev, incomingSources))
       }
-      return next
-    })
-  }, [])
+    },
+    onError: (chatError: Error) => {
+      setError(chatError.message || 'An error occurred')
+    },
+  })
+
+  const isStreaming = status === 'streaming' || status === 'submitted'
+
+  const latestAssistant = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'assistant') return messages[i]
+    }
+    return null
+  }, [messages])
+
+  const assistantParts = latestAssistant?.parts || []
+  const answerText = useMemo(() => getMessageText(assistantParts), [assistantParts])
+
+  const mergedSources = useMemo(() => {
+    const fromParts = extractSourcesFromParts(assistantParts)
+    return mergeSources(fromParts, extraSources)
+  }, [assistantParts, extraSources])
+
+  const citations = useMemo(() => toCitations(mergedSources), [mergedSources])
 
   useEffect(() => {
     if (!query) return
+
     updateQuickResult({
       query,
       answer: answerText,
@@ -292,224 +289,32 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
   useEffect(() => {
     if (!query) return
 
-    const fetchSearchResults = async () => {
-      setIsStreaming(true)
-      resetState()
+    const runKey = `${query}::${retryToken}`
+    if (runKeyRef.current === runKey) return
+    runKeyRef.current = runKey
+
+    const run = async () => {
+      setError(null)
+      setExtraSources([])
+      setMessages([])
+
+      // Fresh session per run avoids stale context pollution while staying framework-native.
+      sessionIdRef.current = `${sessionId}-${crypto.randomUUID()}`
+
+      if (status === 'error') {
+        clearError()
+      }
 
       try {
-        const response = await fetch('http://localhost:8765/agents/search/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: query,
-            session_id: sessionId,
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error(`API request failed: ${response.statusText}`)
-        }
-
-        const reader = response.body?.getReader()
-        if (!reader) {
-          throw new Error('No response body available')
-        }
-
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        const handleToolOutput = (output: any) => {
-          const citationsRaw = output?.citations || output?.sources || output?.links
-          const citationsFromOutput = normalizeCitations(citationsRaw)
-          if (citationsFromOutput.length > 0) {
-            setCitations((prev) => mergeCitations(prev, citationsFromOutput))
-          }
-
-          const sourcesRaw = output?.sources || output?.search_results || output?.results
-          const sourcesFromOutput = normalizeSources(sourcesRaw)
-          if (sourcesFromOutput.length > 0) {
-            setSources((prev) => {
-              const existingUrls = new Set(prev.map((source) => source.url))
-              const merged = [...prev]
-              for (const source of sourcesFromOutput) {
-                if (!existingUrls.has(source.url)) {
-                  merged.push(source)
-                }
-              }
-              return merged
-            })
-          }
-        }
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (line.startsWith(':')) continue
-            if (!line.startsWith('data: ')) continue
-
-            const data = line.slice(6).trim()
-            if (!data || data === '[DONE]') continue
-
-            try {
-              const event = JSON.parse(data)
-
-              switch (event.type) {
-                case 'text-start':
-                  break
-
-                case 'text-delta':
-                  setAnswerText((prev) => prev + (event.delta || ''))
-                  break
-
-                case 'text-end':
-                  break
-
-                case 'reasoning-start':
-                  break
-
-                case 'reasoning-delta':
-                  setReasoningText((prev) => prev + (event.delta || ''))
-                  break
-
-                case 'reasoning-end':
-                  break
-
-                case 'tool-input-start':
-                  if (event.toolCallId) {
-                    upsertToolExecution(event.toolCallId, {
-                      name: event.toolName || event.toolCallId,
-                      state: 'input-streaming',
-                    })
-                  }
-                  break
-
-                case 'tool-input-available':
-                  if (event.toolCallId) {
-                    upsertToolExecution(event.toolCallId, {
-                      name: event.toolName || event.toolCallId,
-                      state: 'input-available',
-                      input: event.input,
-                    })
-                  }
-                  if (event.input) handleToolOutput(event.input)
-                  break
-
-                case 'tool-output-available':
-                  if (event.toolCallId) {
-                    upsertToolExecution(event.toolCallId, {
-                      name: event.toolName,
-                      state: 'output-available',
-                      output: event.output,
-                    })
-                  }
-                  if (event.output) handleToolOutput(event.output)
-                  break
-
-                case 'tool-output-error':
-                  if (event.toolCallId) {
-                    upsertToolExecution(event.toolCallId, {
-                      name: event.toolName,
-                      state: 'output-error',
-                      errorText: event.errorText,
-                    })
-                  }
-                  setError(event.errorText || 'Tool error')
-                  break
-
-                case 'data-usage':
-                  if (event.data) {
-                    setUsage(event.data)
-                  }
-                  break
-
-                case 'data-browser':
-                  usePreviewStore.getState().openBrowserPreview(event.data)
-                  break
-
-                case 'data-project':
-                  usePreviewStore.getState().openProjectPreview(event.data)
-                  break
-
-                case 'source-url': {
-                  const url = event.url || event.sourceId || ''
-                  if (url) {
-                    const incoming = normalizeCitations([{ url }])
-                    setCitations((prev) => mergeCitations(prev, incoming))
-                  }
-                  break
-                }
-
-                case 'source-document': {
-                  const url = event.sourceId || event.url || ''
-                  const title = event.title || getDomainFromUrl(url)
-                  if (url) {
-                    const incoming = normalizeCitations([{ url, title }])
-                    setCitations((prev) => mergeCitations(prev, incoming))
-                  }
-                  break
-                }
-
-                case 'abort':
-                  setError(event.reason || 'Stream aborted')
-                  break
-
-                case 'workflow_visualization':
-                  handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
-                  {
-                    const orchestrationName = event.toolName || 'workflow'
-                    upsertToolExecution(event.toolCallId || `orchestration-${orchestrationName}`, {
-                      name: orchestrationName,
-                      state: 'output-available',
-                      output: event,
-                    })
-                  }
-                  break
-
-                case 'multiagent_node_start':
-                case 'multiagent_node_stream':
-                case 'multiagent_node_stop':
-                case 'multiagent_handoff':
-                case 'multiagent_result':
-                  handleOrchestrationDataPart({ type: 'data-orchestration', data: event })
-                  break
-
-                case 'data-orchestration':
-                  handleOrchestrationDataPart(event)
-                  break
-
-                case 'error':
-                  setError(event.errorText || 'An error occurred')
-                  break
-
-                case 'finish':
-                  setIsStreaming(false)
-                  break
-
-                default:
-                  break
-              }
-            } catch (parseError) {
-              console.error('Failed to parse SSE event:', parseError)
-            }
-          }
-        }
-
-        setIsStreaming(false)
-      } catch (err) {
-        console.error('Search agent error:', err)
-        setError(err instanceof Error ? err.message : 'Unknown error')
-        setIsStreaming(false)
+        await sendMessage({ text: query } as any)
+      } catch (sendError) {
+        const message = sendError instanceof Error ? sendError.message : 'Unknown error'
+        setError(message)
       }
     }
 
-    fetchSearchResults()
-  }, [query, sessionId, retryToken, resetState, upsertToolExecution])
+    void run()
+  }, [query, retryToken, sessionId, sendMessage, setMessages, status, clearError])
 
   return (
     <div className="max-w-5xl mx-auto px-5 py-6 space-y-4">
@@ -527,6 +332,7 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
           {isStreaming ? 'Streaming response' : 'Response ready'}
         </div>
       </div>
+
       <div className="text-center space-y-1.5">
         <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">Search</p>
         <h1 className="text-2xl font-medium text-foreground/90">{query}</h1>
@@ -548,12 +354,7 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
           parts={assistantParts}
           isStreaming={isStreaming}
           messageId={`search-agent-${sessionId}-${retryToken}`}
-          citations={citations.map((citation) => ({
-            number: citation.number,
-            title: citation.title,
-            url: citation.url,
-            snippet: citation.snippet,
-          }))}
+          citations={citations}
         />
       )}
 
@@ -601,8 +402,8 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
             goToChat()
           }}
           className={cn(
-            "rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/20 hover:-translate-y-0.5",
-            "h-auto py-2 px-5"
+            'rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/20 hover:-translate-y-0.5',
+            'h-auto py-2 px-5',
           )}
         >
           <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
@@ -611,8 +412,8 @@ export function SearchAgentDisplay({ query, sessionId = 'search-default' }: Sear
         <Button
           onClick={goToFullResults}
           className={cn(
-            "rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg shadow-purple-500/20 hover:-translate-y-0.5",
-            "h-auto py-2 px-5"
+            'rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg shadow-purple-500/20 hover:-translate-y-0.5',
+            'h-auto py-2 px-5',
           )}
         >
           Full Results

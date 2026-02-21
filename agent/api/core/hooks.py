@@ -81,6 +81,7 @@ class AgentLoopObserverHook(HookProvider):
             {
                 "invocation_count": self._invocation_count,
                 "started_at_epoch": self._started_at,
+                "last_activity_epoch": self._started_at,
                 "tool_calls": 0,
                 "status": "running",
             },
@@ -104,6 +105,7 @@ class AgentLoopObserverHook(HookProvider):
             {
                 "invocation_count": self._invocation_count,
                 "started_at_epoch": self._started_at,
+                "last_activity_epoch": self._started_at,
                 "tool_calls": 0,
                 "status": "running",
                 "loop_type": "bidi",
@@ -125,6 +127,7 @@ class AgentLoopObserverHook(HookProvider):
         loop_state = event.agent.state.get("agent_loop") or {}
         if isinstance(loop_state, dict):
             loop_state["tool_calls"] = tool_calls
+            loop_state["last_activity_epoch"] = time.time()
             event.agent.state.set("agent_loop", loop_state)
 
         if self._verbose:
@@ -139,7 +142,15 @@ class AgentLoopObserverHook(HookProvider):
 
     def _on_after_tool_call(self, event: AfterToolCallEvent) -> None:
         if not self._verbose:
+            loop_state = event.agent.state.get("agent_loop") or {}
+            if isinstance(loop_state, dict):
+                loop_state["last_activity_epoch"] = time.time()
+                event.agent.state.set("agent_loop", loop_state)
             return
+        loop_state = event.agent.state.get("agent_loop") or {}
+        if isinstance(loop_state, dict):
+            loop_state["last_activity_epoch"] = time.time()
+            event.agent.state.set("agent_loop", loop_state)
         request_id = event.invocation_state.get("request_id")
         logger.info(
             "agent_id=%s request_id=%s tool=%s status=%s",
@@ -161,6 +172,7 @@ class AgentLoopObserverHook(HookProvider):
                 "invocation_count": self._invocation_count,
                 "tool_calls": tool_calls,
                 "last_duration_seconds": round(elapsed, 3),
+                "last_activity_epoch": time.time(),
                 "last_stop_reason": stop_reason,
                 "status": "idle",
             },
@@ -186,6 +198,7 @@ class AgentLoopObserverHook(HookProvider):
                 "invocation_count": self._invocation_count,
                 "tool_calls": tool_calls,
                 "last_duration_seconds": round(elapsed, 3),
+                "last_activity_epoch": time.time(),
                 "last_stop_reason": "bidi_session_end",
                 "status": "idle",
                 "loop_type": "bidi",

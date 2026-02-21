@@ -15,7 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useAgentStore } from '@/stores/agentStore'
+import { useAgentUi } from '@/context/AgentUiContext'
+import { enqueueAgentPanelMessage } from '@/services/agentChatBridge'
 import { useTaskStore } from '@/stores/taskStore'
 import {
   OpenIn,
@@ -108,7 +109,7 @@ export function InterestsPreviewModal({ isOpen, onClose, story }: InterestsPrevi
 }
 
 function InterestsActionMenu({ story }: { story: Story }) {
-  const { openPanel, sendMessage } = useAgentStore()
+  const { openPanel } = useAgentUi()
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   
   // Construct a useful prompt for external tools
@@ -117,7 +118,7 @@ function InterestsActionMenu({ story }: { story: Story }) {
   const handleStartInAgentPanel = () => {
     openPanel()
     const prompt = `I'm interested in this content: ${story.title} (${story.url}). \n\nDescription: ${story.description}. \n\nPlease help me analyze this.`
-    sendMessage(prompt, { currentUrl: story.url })
+    enqueueAgentPanelMessage({ text: prompt })
   }
 
   // NOTE: "Start in Building Agent" currently just opens the Agent Panel as a fallback
@@ -176,7 +177,7 @@ function InterestsActionMenu({ story }: { story: Story }) {
 
 function TaskSelectionModal({ isOpen, onClose, story }: { isOpen: boolean, onClose: () => void, story: Story }) {
   const { tasks } = useTaskStore()
-  const { sendMessage } = useAgentStore()
+  const { openPanel } = useAgentUi()
   
   const [newTaskInput, setNewTaskInput] = useState('')
   const [filter, setFilter] = useState('')
@@ -186,7 +187,8 @@ function TaskSelectionModal({ isOpen, onClose, story }: { isOpen: boolean, onClo
     const task = tasks.find(t => t.id === taskId)
     const prompt = `[CONTEXT: Existing Task "${task?.title}" (ID: ${taskId})]\nI found this content relevant to the task:\n\nTitle: ${story.title}\nURL: ${story.url}\n\nPlease integrate this info.`
     
-    await sendMessage(prompt, { currentUrl: story.url })
+    openPanel()
+    enqueueAgentPanelMessage({ text: prompt })
     onClose()
   }
 
@@ -195,7 +197,8 @@ function TaskSelectionModal({ isOpen, onClose, story }: { isOpen: boolean, onClo
 
     const prompt = `Please create a new task.\n\nTask Details: ${newTaskInput}\n\nSource Content:\nTitle: ${story.title}\nURL: ${story.url}\nDescription: ${story.description}\n\nCreate this task now.`
     
-    await sendMessage(prompt, { currentUrl: story.url })
+    openPanel()
+    enqueueAgentPanelMessage({ text: prompt })
     onClose()
   }
 

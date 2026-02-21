@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useMemo, Fragment } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Transition } from '@headlessui/react'
 import { XMarkIcon, PlusIcon, ClockIcon, TrashIcon } from '@heroicons/react/24/outline'
-import { useAgentStore } from '@/stores/agentStore'
+import { useAgentUi } from '@/context/AgentUiContext'
+import { subscribeAgentPanelMessages } from '@/services/agentChatBridge'
 import { cn } from '@/utils/cn'
 import { ContextPicker, type ContextItem } from './ContextPicker'
 import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
@@ -14,7 +15,7 @@ import { ChatHistory } from '@/components/search-results/ChatHistory'
 
 // AI SDK v6 - useChat with DefaultChatTransport for UIMessageStream
 import { useChat, type UIMessage } from '@ai-sdk/react'
-import { DefaultChatTransport, type TextUIPart } from 'ai'
+import { DefaultChatTransport, getToolName, isToolUIPart, type TextUIPart } from 'ai'
 import { ChainOfThoughtMessage } from '@/components/ai-elements/chain-of-thought-message'
 import { handleOrchestrationDataPart } from '@/utils/orchestration-stream'
 import { useOrchestrationStore } from '@/stores/orchestrationStore'
@@ -24,6 +25,7 @@ import { AccordionPreview } from '@/components/ai-elements/preview-panel'
 import { usePreviewStore } from '@/stores/previewStore'
 
 type MessagePart = UIMessage['parts'][number]
+type OrchestrationToolStatus = 'running' | 'success' | 'error'
 
 const EASE = [0.16, 1, 0.3, 1] as const
 const LARGE_PASTE_THRESHOLD_CHARS = 2000
@@ -43,9 +45,82 @@ const SUGGESTIONS = [
   { icon: '?', text: 'What can you do?' },
 ]
 
-// API endpoints for SuperAgent text and dedicated Bidi/voice mode
-const SUPERAGENT_TEXT_API = 'http://localhost:8765/agents/super/stream'
-const SUPERAGENT_BIDI_API = 'http://localhost:8765/agents/super-bidi/stream'
+// Single SuperAgent endpoint for all panel conversations (voice input is transcribed client-side).
+const SUPERAGENT_API = 'http://localhost:8765/agents/super/stream'
+
+function toOrchestrationToolStatus(state: unknown): OrchestrationToolStatus {
+  if (state === 'output-error' || state === 'output-denied') return 'error'
+  if (state === 'output-available' || state === 'approval-responded') return 'success'
+  return 'running'
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  return value as Record<string, unknown>
+}
+
+function toStringValue(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function extractLiveToolExecutions(messages: UIMessage[]) {
+  const toolMap = new Map<
+    string,
+    {
+      id: string
+      name: string
+      status: OrchestrationToolStatus
+      input?: Record<string, unknown>
+      output?: string
+      error?: string
+      timestamp: number
+    }
+  >()
+
+  messages.forEach((message) => {
+    message.parts.forEach((part, index) => {
+      if (!isToolUIPart(part)) return
+
+      const toolPart = part as {
+        state?: unknown
+        toolCallId?: unknown
+        toolName?: unknown
+        input?: unknown
+        output?: unknown
+        errorText?: unknown
+        error?: unknown
+      }
+
+      const toolCallId =
+        typeof toolPart.toolCallId === 'string' && toolPart.toolCallId
+          ? toolPart.toolCallId
+          : `${message.id}-tool-${index}`
+      const toolName =
+        (typeof toolPart.toolName === 'string' && toolPart.toolName) ||
+        getToolName(part as any) ||
+        toolCallId
+
+      const existing = toolMap.get(toolCallId)
+      toolMap.set(toolCallId, {
+        id: toolCallId,
+        name: toolName,
+        status: toOrchestrationToolStatus(toolPart.state),
+        input: toRecord(toolPart.input),
+        output: toStringValue(toolPart.output),
+        error: toStringValue(toolPart.errorText ?? toolPart.error),
+        timestamp: existing?.timestamp || Date.now(),
+      })
+    })
+  })
+
+  return Array.from(toolMap.values())
+}
 
 export function AgentPanel() {
   const {
@@ -60,69 +135,51 @@ export function AgentPanel() {
     askRonSourceUrl,
     askRonOptions,
     askRonThinkingText,
+    askRonPendingPrompt,
     setAskRonStep,
     selectAskRonOption,
-    closeAskRon
-  } = useAgentStore()
-
-  // Session management
-  const {
-    sessionsList,
-    isLoadingSessions,
-    fetchSessions,
-    startNewChat,
-    loadSession,
-  } = useAgentStore()
+    closeAskRon,
+    consumeAskRonPendingPrompt,
+  } = useAgentUi()
 
   const [showHistory, setShowHistory] = useState(false)
+  const trackedToolStreamAgentIdsRef = useRef<Set<string>>(new Set())
 
   // Wrapper for ChatHistory component
   const handleLoadHistorySession = (sid: string) => {
+    const previousSessionId = sessionIdRef.current
+    if (previousSessionId && previousSessionId !== sid) {
+      useOrchestrationStore.getState().clearStreamingData(`panel-session:${previousSessionId}`)
+    }
     sessionIdRef.current = sid
-    loadSession(sid)
-    
-    // Fetch full message history to hydrate the UI
+
+    // Fetch and hydrate chat history into UIMessage text parts.
     fetch(`http://localhost:8765/chat-sessions/${sid}`)
       .then(res => res.json())
       .then(data => {
         const loadedMessages: UIMessage[] = data.messages.map((msg: any, i: number) => {
-          const parts: MessagePart[] = []
-          
-          if (typeof msg.content === 'string') {
-            parts.push({ type: 'text', text: msg.content })
-          } else if (Array.isArray(msg.content)) {
-            msg.content.forEach((block: any) => {
-              if (typeof block === 'string') {
-                parts.push({ type: 'text', text: block })
-              } else if (block.type === 'text') {
-                parts.push({ type: 'text', text: block.text })
-              } else if (block.type === 'tool_use') {
-                parts.push({ 
-                  type: 'tool-invocation', 
-                  toolInvocation: {
-                    toolCallId: block.id || `call_${i}_${Math.random()}`,
-                    toolName: block.name,
-                    args: block.input,
-                    state: 'result', // History items are completed
-                    result: undefined // Result usually in a separate tool_result message
-                  }
-                })
-              } else if (block.type === 'reasoning' || block.type === 'thinking') {
-                parts.push({ type: 'reasoning', text: block.text || block.content })
-              }
-            })
-          }
-
-          // Handle tool results which are separate messages in some protocols but parts in AI SDK
-          // For now, we just map the main content.
-          // Note: AI SDK v6 expects tool results to be matched with invocations.
-          // This simple mapping might need enhancement for full tool history playback.
+          const textContent =
+            typeof msg.content === 'string'
+              ? msg.content
+              : Array.isArray(msg.content)
+                ? msg.content
+                    .map((block: any) => {
+                      if (typeof block === 'string') return block
+                      if (block?.type === 'text' && typeof block.text === 'string') return block.text
+                      if ((block?.type === 'reasoning' || block?.type === 'thinking') && typeof (block.text || block.content) === 'string') {
+                        return block.text || block.content
+                      }
+                      return ''
+                    })
+                    .join('')
+                : ''
+          const parts: MessagePart[] = [{ type: 'text', text: textContent }]
 
           return {
             id: `msg-${sid}-${i}`,
             role: msg.role,
-            content: '', // AI SDK derives this from parts
-            parts: parts.length > 0 ? parts : [{ type: 'text', text: '' }]
+            content: '',
+            parts,
           }
         })
         setMessages(loadedMessages)
@@ -130,32 +187,23 @@ export function AgentPanel() {
       .catch(err => console.error("Failed to hydrate chat:", err))
   }
 
-  // Fetch sessions when panel opens
-  useEffect(() => {
-    if (isPanelOpen) {
-      fetchSessions()
-    }
-  }, [isPanelOpen, fetchSessions])
-
   // Use useRef to hold the session ID for stable reference in body callback
   const sessionIdRef = useRef<string>(
-    useAgentStore.getState().currentSessionId || `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   )
-  const activeAgentApi = interactionMode === 'voice' ? SUPERAGENT_BIDI_API : SUPERAGENT_TEXT_API
   const transport = useMemo(() => (
     new DefaultChatTransport({
-      api: activeAgentApi,
+      api: SUPERAGENT_API,
       body: () => {
-        console.log('[AgentPanel] Sending request with session_id:', sessionIdRef.current, 'mode:', interactionMode)
         return {
           session_id: sessionIdRef.current,
           invocation_state: {
-            interaction_mode: interactionMode,
+            interaction_mode: 'text',
           },
         }
       },
     })
-  ), [activeAgentApi, interactionMode])
+  ), [])
 
   // AI SDK v6 useChat with DefaultChatTransport for UIMessageStream
   // body option adds session_id to every request per AI SDK docs
@@ -163,7 +211,7 @@ export function AgentPanel() {
     transport,
     onError: (error: Error) => {
       console.error('[AgentPanel] API Error:', error)
-      console.error('[AgentPanel] Failed to connect to backend at:', activeAgentApi)
+      console.error('[AgentPanel] Failed to connect to backend at:', SUPERAGENT_API)
       console.error('[AgentPanel] Make sure backend is running: npm run dev:backend')
     },
     onData: (dataPart) => {
@@ -171,19 +219,89 @@ export function AgentPanel() {
     },
   })
 
+  const queuedExternalMessagesRef = useRef<string[]>([])
+
+  const dispatchPlainText = useCallback((text: string) => {
+    const normalized = text.trim()
+    if (!normalized) return
+
+    const canSend = status === 'ready' || status === 'error'
+    if (!canSend) {
+      queuedExternalMessagesRef.current.push(normalized)
+      return
+    }
+
+    if (status === 'error') {
+      clearError()
+    }
+
+    sendMessage({ text: normalized } as any)
+  }, [status, clearError, sendMessage])
+
+  useEffect(() => {
+    return subscribeAgentPanelMessages((message) => {
+      dispatchPlainText(message.text)
+    })
+  }, [dispatchPlainText])
+
+  useEffect(() => {
+    const streamAgentId = `panel-session:${sessionIdRef.current}`
+    trackedToolStreamAgentIdsRef.current.add(streamAgentId)
+
+    const tools = extractLiveToolExecutions(messages)
+    if (tools.length === 0) {
+      useOrchestrationStore.getState().clearStreamingData(streamAgentId)
+      return
+    }
+
+    useOrchestrationStore.getState().syncStreamingData(streamAgentId, { tools })
+  }, [messages])
+
+  useEffect(() => {
+    return () => {
+      const store = useOrchestrationStore.getState()
+      trackedToolStreamAgentIdsRef.current.forEach((agentId) => {
+        store.clearStreamingData(agentId)
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    const canSend = status === 'ready' || status === 'error'
+    if (!canSend || queuedExternalMessagesRef.current.length === 0) return
+
+    const [next, ...rest] = queuedExternalMessagesRef.current
+    queuedExternalMessagesRef.current = rest
+
+    if (status === 'error') {
+      clearError()
+    }
+
+    sendMessage({ text: next } as any)
+  }, [status, clearError, sendMessage])
+
+  useEffect(() => {
+    if (!askRonPendingPrompt) return
+    const pendingPrompt = consumeAskRonPendingPrompt()
+    if (!pendingPrompt) return
+    dispatchPlainText(pendingPrompt)
+    closeAskRon()
+  }, [askRonPendingPrompt, consumeAskRonPendingPrompt, dispatchPlainText, closeAskRon])
+
   // Handle new chat - resets both local UI state and store state
   const handleNewChat = () => {
+    const previousSessionId = sessionIdRef.current
     // 1. Generate new session ID for next request
     const newSessionId = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    if (previousSessionId) {
+      useOrchestrationStore.getState().clearStreamingData(`panel-session:${previousSessionId}`)
+    }
     sessionIdRef.current = newSessionId
     
     // 2. Clear local chat UI state (AI SDK)
     setMessages([])
-    
-    // 3. Clear store state (for history tracking)
-    startNewChat()
 
-    // 4. Clear orchestration visualization state
+    // 3. Clear orchestration visualization state
     useOrchestrationStore.getState().reset()
     
     // 4. Focus input for immediate typing (unless user is in main search bar)

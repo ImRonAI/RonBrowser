@@ -32,6 +32,9 @@ API_HOST = os.getenv("API_HOST", "0.0.0.0")
 
 # External API Keys
 NVIDIA_NIM_API_KEY = os.getenv("NVIDIA_NIM_API_KEY")
+NVIDIA_NIM_MODEL_ID = os.getenv("NVIDIA_NIM_MODEL_ID", "nvidia_nim/moonshotai/kimi-k2.5")
+# Keep disabled by default to reduce time-to-first-token; enable explicitly when deeper reasoning is worth the latency.
+NVIDIA_NIM_ENABLE_THINKING = _env_bool("NVIDIA_NIM_ENABLE_THINKING", False)
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -56,11 +59,36 @@ LANCEDB_API_KEY = os.getenv("LANCEDB_API_KEY")
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "14400"))
 # Guardrail for stalled model/tool streams that produce no events.
 AGENT_STREAM_EVENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_STREAM_EVENT_TIMEOUT_SECONDS", "120"))
+# Hard timeout budget for a single stream request. This should usually be
+# much higher than event-level idle windows for long-running agent workflows.
+AGENT_STREAM_HARD_TIMEOUT_SECONDS = int(
+    os.getenv(
+        "AGENT_STREAM_HARD_TIMEOUT_SECONDS",
+        os.getenv("AGENT_STREAM_EVENT_TIMEOUT_SECONDS", "900"),
+    )
+)
+# SSE heartbeat cadence (seconds) while awaiting next model event.
+AGENT_STREAM_HEARTBEAT_SECONDS = float(os.getenv("AGENT_STREAM_HEARTBEAT_SECONDS", "15"))
 SESSION_STORAGE_DIR = Path(os.getenv("SESSION_STORAGE_DIR", ".sessions"))
 
 # Conversation Management Configuration
 # Supported values: "sliding", "summarizing", "null"
 CONVERSATION_MANAGER_TYPE = os.getenv("CONVERSATION_MANAGER_TYPE", "sliding").lower()
+# Per-agent overrides. Defaults are tuned for workload shape:
+# - super: long-running synthesis => summarizing
+# - search/task: shorter execution loops => sliding
+SUPER_CONVERSATION_MANAGER_TYPE = os.getenv(
+    "SUPER_CONVERSATION_MANAGER_TYPE",
+    "summarizing",
+).lower()
+SEARCH_CONVERSATION_MANAGER_TYPE = os.getenv(
+    "SEARCH_CONVERSATION_MANAGER_TYPE",
+    "sliding",
+).lower()
+TASK_CONVERSATION_MANAGER_TYPE = os.getenv(
+    "TASK_CONVERSATION_MANAGER_TYPE",
+    "sliding",
+).lower()
 
 # SlidingWindowConversationManager
 SLIDING_WINDOW_SIZE = int(os.getenv("SLIDING_WINDOW_SIZE", "80"))

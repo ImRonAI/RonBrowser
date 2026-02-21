@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import uuid
@@ -11,7 +12,10 @@ from typing import Any, AsyncIterator, Type
 
 from pydantic import BaseModel
 
-from agent.api.core.config import AGENT_STREAM_EVENT_TIMEOUT_SECONDS
+from agent.api.core.config import (
+    AGENT_STREAM_HARD_TIMEOUT_SECONDS,
+    AGENT_STREAM_HEARTBEAT_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +67,70 @@ class StreamState:
     tool_inputs_available: set[str] = field(default_factory=set)
 
 
+_STREAM_EOF = object()
+_STREAM_TIMEOUT = object()
+
+
+def _effective_stream_timeouts() -> tuple[float, float]:
+    """
+    Return (hard_timeout_seconds, heartbeat_seconds) with safe bounds.
+    """
+    hard_timeout = float(max(1, AGENT_STREAM_HARD_TIMEOUT_SECONDS))
+    heartbeat = float(AGENT_STREAM_HEARTBEAT_SECONDS)
+    if heartbeat <= 0:
+        heartbeat = 15.0
+    heartbeat = min(heartbeat, hard_timeout)
+    return hard_timeout, heartbeat
+
+
+def _sse_heartbeat_comment(channel: str, idle_seconds: float, timeout_seconds: float) -> str:
+    # SSE comments are ignored by EventSource consumers and won't pollute UI parts.
+    return (
+        f": heartbeat channel={channel} idle_seconds={idle_seconds:.1f} "
+        f"timeout_seconds={timeout_seconds:.1f}\n\n"
+    )
+
+
+async def _wait_for_next_stream_item(
+    stream: Any,
+    *,
+    hard_timeout_seconds: float,
+    heartbeat_seconds: float,
+) -> tuple[Any, list[float]]:
+    """
+    Await the next stream item while collecting heartbeat timestamps.
+
+    Returns:
+      - (event, [idle_seconds...]) when an item is available
+      - (_STREAM_EOF, [idle_seconds...]) when stream is exhausted
+      - (_STREAM_TIMEOUT, [idle_seconds...]) when idle budget is exceeded
+    """
+    next_task = asyncio.create_task(stream.__anext__())
+    idle_elapsed = 0.0
+    heartbeats: list[float] = []
+    try:
+        while True:
+            remaining = hard_timeout_seconds - idle_elapsed
+            if remaining <= 0:
+                return _STREAM_TIMEOUT, heartbeats
+
+            wait_window = min(heartbeat_seconds, remaining)
+            done, _pending = await asyncio.wait({next_task}, timeout=wait_window)
+            if next_task in done:
+                try:
+                    return next_task.result(), heartbeats
+                except StopAsyncIteration:
+                    return _STREAM_EOF, heartbeats
+
+            idle_elapsed += wait_window
+            heartbeats.append(idle_elapsed)
+    finally:
+        if not next_task.done():
+            next_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await next_task
+
+
 def _json_default(value: Any) -> Any:
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json")
@@ -106,6 +174,41 @@ def _map_bidi_close_reason(close_reason: str | None) -> str:
     if not close_reason:
         return "other"
     return BIDI_CONNECTION_CLOSE_REASON_TO_FINISH_REASON.get(close_reason, "other")
+
+
+def _safe_get_agent_loop_state(agent: Any) -> dict[str, Any] | None:
+    """
+    Read loop state written by Strands hook providers, if available.
+    """
+    try:
+        state_obj = getattr(agent, "state", None)
+        if state_obj is None:
+            return None
+        getter = getattr(state_obj, "get", None)
+        if not callable(getter):
+            return None
+        loop_state = getter("agent_loop")
+        if isinstance(loop_state, dict):
+            return loop_state
+    except Exception:
+        logger.debug("Unable to read agent loop state", exc_info=True)
+    return None
+
+
+def _finish_reason_from_hook_state(channel: str, loop_state: dict[str, Any]) -> tuple[str, str | None]:
+    """
+    Derive UI finish reason from hook state when terminal result events are absent.
+    """
+    stop_reason = loop_state.get("last_stop_reason")
+    if not isinstance(stop_reason, str):
+        return "stop", None
+
+    if channel == "bidi":
+        if stop_reason == "bidi_session_end":
+            return "stop", stop_reason
+        return _map_bidi_stop_reason(stop_reason), stop_reason
+
+    return _map_finish_reason(stop_reason), stop_reason
 
 
 def _close_active_text_stream(state: StreamState) -> list[str]:
@@ -201,6 +304,18 @@ def _handle_bidi_event(event: dict[str, Any], state: StreamState) -> tuple[list[
             # tool_use indicates the model is waiting for tool execution and will continue.
             if stop_reason == "tool_use":
                 return [], False
+            return [
+                sse(
+                    "data-agent-stop",
+                    {
+                        "data": {
+                            "channel": "bidi",
+                            "stop_reason": stop_reason,
+                            "finish_reason": state.finish_reason,
+                        }
+                    },
+                )
+            ], True
         return [], True
 
     if event_type == "bidi_connection_close":
@@ -210,6 +325,18 @@ def _handle_bidi_event(event: dict[str, Any], state: StreamState) -> tuple[list[
             if reason == "error":
                 error_text = event.get("message") or event.get("error") or "Bidi connection closed with reason=error"
                 return [sse("error", {"errorText": str(error_text)})], True
+            return [
+                sse(
+                    "data-agent-stop",
+                    {
+                        "data": {
+                            "channel": "bidi",
+                            "close_reason": reason,
+                            "finish_reason": state.finish_reason,
+                        }
+                    },
+                )
+            ], True
         return [], True
 
     if event_type == "bidi_error":
@@ -371,31 +498,14 @@ def convert_event(event: dict[str, Any], state: StreamState) -> list[str]:
     if "event" in event:
         return _handle_model_stream_chunk(event, state)
 
-    # TextStreamEvent {"data": text, "delta": delta}
-    if "data" in event and "delta" in event and "reasoning" not in event:
-        text_delta = event.get("delta")
-        if not isinstance(text_delta, str) or not text_delta:
-            text_delta = event.get("data")
-        if not isinstance(text_delta, str) or not text_delta:
-            return []
-
-        output: list[str] = []
-        if state.active_reasoning_id is not None:
-            output.append(sse("reasoning-end", {"id": state.active_reasoning_id}))
-            state.active_reasoning_id = None
-
-        if state.active_text_id is None:
-            state.active_text_id = _next_part_id("text")
-            output.append(sse("text-start", {"id": state.active_text_id}))
-
-        output.append(sse("text-delta", {"id": state.active_text_id, "delta": text_delta}))
-        return output
-
-    # ReasoningTextStreamEvent {"reasoningText": text, "delta": delta, "reasoning": True}
-    if "reasoningText" in event and "reasoning" in event:
+    # ReasoningTextStreamEvent can arrive with different key shapes depending on provider/runtime.
+    is_reasoning_event = event.get("reasoning") is True or "reasoningText" in event
+    if is_reasoning_event:
         reasoning_delta = event.get("delta")
         if not isinstance(reasoning_delta, str) or not reasoning_delta:
             reasoning_delta = event.get("reasoningText")
+        if not isinstance(reasoning_delta, str) or not reasoning_delta:
+            reasoning_delta = event.get("data")
         if not isinstance(reasoning_delta, str) or not reasoning_delta:
             return []
         output: list[str] = []
@@ -422,6 +532,26 @@ def convert_event(event: dict[str, Any], state: StreamState) -> list[str]:
             return []
         return [sse("tool-input-delta", {"toolCallId": tool_call_id, "inputTextDelta": input_delta})]
 
+    # TextStreamEvent {"data": text, "delta": delta}
+    if "delta" in event or "data" in event:
+        text_delta = event.get("delta")
+        if not isinstance(text_delta, str) or not text_delta:
+            text_delta = event.get("data")
+        if not isinstance(text_delta, str) or not text_delta:
+            return []
+
+        output: list[str] = []
+        if state.active_reasoning_id is not None:
+            output.append(sse("reasoning-end", {"id": state.active_reasoning_id}))
+            state.active_reasoning_id = None
+
+        if state.active_text_id is None:
+            state.active_text_id = _next_part_id("text")
+            output.append(sse("text-start", {"id": state.active_text_id}))
+
+        output.append(sse("text-delta", {"id": state.active_text_id, "delta": text_delta}))
+        return output
+
     # ModelMessageEvent / ToolResultMessageEvent: both are {"message": ...}
     if "message" in event:
         message = event.get("message")
@@ -445,6 +575,18 @@ def convert_event(event: dict[str, Any], state: StreamState) -> list[str]:
         stop_reason = getattr(result, "stop_reason", None)
         if isinstance(stop_reason, str):
             state.finish_reason = _map_finish_reason(stop_reason)
+            output.append(
+                sse(
+                    "data-agent-stop",
+                    {
+                        "data": {
+                            "channel": "standard",
+                            "stop_reason": stop_reason,
+                            "finish_reason": state.finish_reason,
+                        }
+                    },
+                )
+            )
 
         structured_output = getattr(result, "structured_output", None)
         if structured_output is not None:
@@ -504,18 +646,39 @@ async def _stream_standard_agent_response(
         invocation_state=invocation_state,
         structured_output_model=structured_output_model,
     )
+    hard_timeout_seconds, heartbeat_seconds = _effective_stream_timeouts()
 
     try:
         while True:
-            try:
-                event = await asyncio.wait_for(
-                    event_stream.__anext__(),
-                    timeout=AGENT_STREAM_EVENT_TIMEOUT_SECONDS,
-                )
-            except StopAsyncIteration:
+            next_item, heartbeats = await _wait_for_next_stream_item(
+                event_stream,
+                hard_timeout_seconds=hard_timeout_seconds,
+                heartbeat_seconds=heartbeat_seconds,
+            )
+            for idle_seconds in heartbeats:
+                yield _sse_heartbeat_comment("super", idle_seconds, hard_timeout_seconds)
+
+            if next_item is _STREAM_EOF:
                 break
-            except TimeoutError:
-                timeout_seconds = AGENT_STREAM_EVENT_TIMEOUT_SECONDS
+
+            if next_item is _STREAM_TIMEOUT:
+                timeout_seconds = hard_timeout_seconds
+                hook_loop_state = _safe_get_agent_loop_state(agent)
+                if hook_loop_state and hook_loop_state.get("status") == "idle":
+                    hook_finish_reason, hook_stop_reason = _finish_reason_from_hook_state("standard", hook_loop_state)
+                    state.finish_reason = hook_finish_reason
+                    yield sse(
+                        "data-agent-stop",
+                        {
+                            "data": {
+                                "channel": "standard",
+                                "source": "hook",
+                                "stop_reason": hook_stop_reason,
+                                "finish_reason": hook_finish_reason,
+                            }
+                        },
+                    )
+                    break
                 logger.error(
                     "Agent stream inactivity timeout after %ss without events",
                     timeout_seconds,
@@ -528,9 +691,21 @@ async def _stream_standard_agent_response(
                             from agent.api.core.agent_factory import AgentFactory
 
                             AgentFactory.clear_agent(session_id, agent_type)
+                            replacement_ready = False
+                            try:
+                                await AgentFactory.get_or_create_agent(session_id, agent_type)
+                                replacement_ready = True
+                            except Exception:
+                                logger.debug("Failed to prewarm rollover replacement instance", exc_info=True)
                             yield sse(
                                 "data-agent-rollover",
-                                {"data": {"reason": "stream_timeout", "agent_type": agent_type}},
+                                {
+                                    "data": {
+                                        "reason": "stream_timeout",
+                                        "agent_type": agent_type,
+                                        "replacement_ready": replacement_ready,
+                                    }
+                                },
                             )
                         except Exception:
                             logger.debug("Failed to clear timed-out agent instance", exc_info=True)
@@ -539,13 +714,14 @@ async def _stream_standard_agent_response(
                     "error",
                     {
                         "errorText": (
-                            f"Agent stream timed out after {timeout_seconds}s without output. "
+                            f"Agent stream timed out after {int(timeout_seconds)}s without output. "
                             "Please retry."
                         )
                     },
                 )
                 break
 
+            event = next_item
             for chunk in convert_event(event, state):
                 yield chunk
     except Exception as exc:
@@ -558,9 +734,21 @@ async def _stream_standard_agent_response(
                     from agent.api.core.agent_factory import AgentFactory
 
                     AgentFactory.clear_agent(session_id, agent_type)
+                    replacement_ready = False
+                    try:
+                        await AgentFactory.get_or_create_agent(session_id, agent_type)
+                        replacement_ready = True
+                    except Exception:
+                        logger.debug("Failed to prewarm rollover replacement instance", exc_info=True)
                     yield sse(
                         "data-agent-rollover",
-                        {"data": {"reason": "stream_exception", "agent_type": agent_type}},
+                        {
+                            "data": {
+                                "reason": "stream_exception",
+                                "agent_type": agent_type,
+                                "replacement_ready": replacement_ready,
+                            }
+                        },
                     )
                 except Exception:
                     logger.debug("Failed to clear errored agent instance", exc_info=True)
@@ -607,6 +795,7 @@ async def _stream_bidi_agent_response(
 
     if structured_output_model is not None:
         logger.warning("BidiAgent does not support structured_output_model; ignoring for this request")
+    hard_timeout_seconds, heartbeat_seconds = _effective_stream_timeouts()
 
     try:
         await agent.start(invocation_state=invocation_state)
@@ -614,17 +803,38 @@ async def _stream_bidi_agent_response(
         await agent.send(message)
         receive_stream = agent.receive()
         while True:
-            try:
-                raw_event = await asyncio.wait_for(
-                    receive_stream.__anext__(),
-                    timeout=AGENT_STREAM_EVENT_TIMEOUT_SECONDS,
-                )
-            except StopAsyncIteration:
+            next_item, heartbeats = await _wait_for_next_stream_item(
+                receive_stream,
+                hard_timeout_seconds=hard_timeout_seconds,
+                heartbeat_seconds=heartbeat_seconds,
+            )
+            for idle_seconds in heartbeats:
+                yield _sse_heartbeat_comment("super_bidi", idle_seconds, hard_timeout_seconds)
+
+            if next_item is _STREAM_EOF:
                 break
-            except TimeoutError:
-                timeout_seconds = AGENT_STREAM_EVENT_TIMEOUT_SECONDS
+
+            if next_item is _STREAM_TIMEOUT:
+                timeout_seconds = hard_timeout_seconds
+                hook_loop_state = _safe_get_agent_loop_state(agent)
+                if hook_loop_state and hook_loop_state.get("status") == "idle":
+                    hook_finish_reason, hook_stop_reason = _finish_reason_from_hook_state("bidi", hook_loop_state)
+                    state.finish_reason = hook_finish_reason
+                    yield sse(
+                        "data-agent-stop",
+                        {
+                            "data": {
+                                "channel": "bidi",
+                                "source": "hook",
+                                "stop_reason": hook_stop_reason,
+                                "finish_reason": hook_finish_reason,
+                            }
+                        },
+                    )
+                    fallback_to_standard = False
+                    break
                 fallback_to_standard = True
-                fallback_reason = f"bidi_stream_inactivity_timeout:{timeout_seconds}s"
+                fallback_reason = f"bidi_stream_inactivity_timeout:{int(timeout_seconds)}s"
                 state.finish_reason = "error"
                 logger.error(
                     "Bidi stream inactivity timeout after %ss without events. Falling back to standard stream.",
@@ -632,6 +842,7 @@ async def _stream_bidi_agent_response(
                 )
                 break
 
+            raw_event = next_item
             if not isinstance(raw_event, dict):
                 logger.debug("Skipping non-dict bidi event: %r", raw_event)
                 continue
@@ -727,29 +938,58 @@ async def _stream_bidi_agent_response(
                     invocation_state=invocation_state,
                     structured_output_model=structured_output_model,
                 )
+                fallback_hard_timeout_seconds, fallback_heartbeat_seconds = _effective_stream_timeouts()
 
                 try:
                     while True:
-                        try:
-                            event = await asyncio.wait_for(
-                                event_stream.__anext__(),
-                                timeout=AGENT_STREAM_EVENT_TIMEOUT_SECONDS,
+                        next_item, heartbeats = await _wait_for_next_stream_item(
+                            event_stream,
+                            hard_timeout_seconds=fallback_hard_timeout_seconds,
+                            heartbeat_seconds=fallback_heartbeat_seconds,
+                        )
+                        for idle_seconds in heartbeats:
+                            yield _sse_heartbeat_comment(
+                                "super_bidi_fallback",
+                                idle_seconds,
+                                fallback_hard_timeout_seconds,
                             )
-                        except StopAsyncIteration:
+
+                        if next_item is _STREAM_EOF:
                             break
-                        except TimeoutError:
+
+                        if next_item is _STREAM_TIMEOUT:
+                            hook_loop_state = _safe_get_agent_loop_state(fallback_agent)
+                            if hook_loop_state and hook_loop_state.get("status") == "idle":
+                                hook_finish_reason, hook_stop_reason = _finish_reason_from_hook_state(
+                                    "standard",
+                                    hook_loop_state,
+                                )
+                                state.finish_reason = hook_finish_reason
+                                yield sse(
+                                    "data-agent-stop",
+                                    {
+                                        "data": {
+                                            "channel": "standard",
+                                            "source": "hook",
+                                            "stop_reason": hook_stop_reason,
+                                            "finish_reason": hook_finish_reason,
+                                        }
+                                    },
+                                )
+                                break
                             state.finish_reason = "error"
                             yield sse(
                                 "error",
                                 {
                                     "errorText": (
-                                        f"Fallback stream timed out after {AGENT_STREAM_EVENT_TIMEOUT_SECONDS}s "
+                                        f"Fallback stream timed out after {int(fallback_hard_timeout_seconds)}s "
                                         "without output."
                                     )
                                 },
                             )
                             break
 
+                        event = next_item
                         for chunk in convert_event(event, state):
                             yield chunk
                 finally:
@@ -784,14 +1024,27 @@ def parse_ai_sdk_message(messages: list[dict[str, Any]]) -> str:
     if not messages:
         return ""
 
-    last = messages[-1]
-    parts = last.get("parts")
+    selected_message: dict[str, Any] | None = None
+    for candidate in reversed(messages):
+        if isinstance(candidate, dict) and candidate.get("role") == "user":
+            selected_message = candidate
+            break
+    if selected_message is None:
+        last = messages[-1]
+        selected_message = last if isinstance(last, dict) else None
+    if selected_message is None:
+        return ""
+
+    parts = selected_message.get("parts")
     if isinstance(parts, list):
+        text_parts: list[str] = []
         for part in parts:
             if isinstance(part, dict) and part.get("type") == "text":
                 text = part.get("text")
-                if isinstance(text, str):
-                    return text
+                if isinstance(text, str) and text:
+                    text_parts.append(text)
+        if text_parts:
+            return "".join(text_parts).strip()
 
-    content = last.get("content")
+    content = selected_message.get("content")
     return content if isinstance(content, str) else ""
