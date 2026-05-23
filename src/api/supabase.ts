@@ -20,11 +20,6 @@ interface SupabaseConfig {
       persistSession?: boolean
       detectSessionInUrl?: boolean
       flowType?: 'implicit' | 'pkce'
-      storage?: {
-        getItem: (key: string) => string | null | Promise<string | null>
-        setItem: (key: string, value: string) => void | Promise<void>
-        removeItem: (key: string) => void | Promise<void>
-      }
     }
   }
 }
@@ -56,21 +51,6 @@ const getSupabaseConfig = (): SupabaseConfig => {
 // Supabase Client Singleton
 // ============================================
 
-const electronAuthStorage = {
-  async getItem(key: string) {
-    // @ts-expect-error Electron secure Supabase storage methods are exposed by the preload bridge at runtime.
-    return window.electron?.auth?.getItem?.(key) ?? null
-  },
-  async setItem(key: string, value: string) {
-    // @ts-expect-error Electron secure Supabase storage methods are exposed by the preload bridge at runtime.
-    await window.electron?.auth?.setItem?.(key, value)
-  },
-  async removeItem(key: string) {
-    // @ts-expect-error Electron secure Supabase storage methods are exposed by the preload bridge at runtime.
-    await window.electron?.auth?.removeItem?.(key)
-  },
-}
-
 let supabaseInstance: SupabaseClient | null = null
 
 export function getSupabaseClient(): SupabaseClient {
@@ -82,7 +62,6 @@ export function getSupabaseClient(): SupabaseClient {
         persistSession: true,
         detectSessionInUrl: false,
         flowType: 'pkce',
-        storage: electronAuthStorage,
       },
     })
   }

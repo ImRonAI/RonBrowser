@@ -1,6 +1,6 @@
 import { Component, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useTheme } from '@/hooks/useTheme'
-import { useAuthStore } from '@/stores/authStore'
+import { handleDeepLinkCallback, useAuthStore } from '@/stores/authStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useOnboardingStore } from '@/stores/onboardingStore'
 import { useInterestsStore } from '@/stores/interestsStore'
@@ -65,6 +65,12 @@ export function App() {
   })
   const [searchRouteQuery, setSearchRouteQuery] = useState<string | null>(null)
   
+  useEffect(() => {
+    return window.electron?.onDeepLink?.((url) => {
+      handleDeepLinkCallback(url).catch(console.error)
+    })
+  }, [])
+
   useEffect(() => {
     void initialize()
     const updateHydration = () => {

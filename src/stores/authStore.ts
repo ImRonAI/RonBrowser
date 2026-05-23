@@ -270,6 +270,7 @@ export const useAuthStore = create<AuthState>()(
               set({
                 user,
                 isAuthenticated: true,
+                isLoading: false,
                 error: null,
               })
             }
@@ -279,12 +280,8 @@ export const useAuthStore = create<AuthState>()(
             set({
               user: null,
               isAuthenticated: false,
+              isLoading: false,
             })
-            
-            // Clear tokens
-            if (window.electron?.auth) {
-              window.electron.auth.clearTokens()
-            }
             break
 
           case 'TOKEN_REFRESHED':
@@ -431,11 +428,6 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           await supabaseSignOut()
-          
-          // Clear Electron tokens
-          if (window.electron?.auth) {
-            await window.electron.auth.clearTokens()
-          }
 
           set({
             user: null,
@@ -630,10 +622,24 @@ export const useAuthStore = create<AuthState>()(
   )
 )
 
-export function disposeAuthStore() {
-  authSubscription?.unsubscribe()
-  authSubscription = null
-  initializePromise = null
+export async function handleDeepLinkCallback(url: string) {
+  try {
+    const callbackUrl = new URL(url)
+    const hash = callbackUrl.hash.startsWith('#') ? callbackUrl.hash.slice(1) : callbackUrl.hash
+    const hashParams = new URLSearchParams(hash)
+    const code = callbackUrl.searchParams.get('code') ?? hashParams.get('code')
+
+    if (!code) return
+
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) throw error
+  } catch (error) {
+    useAuthStore.setState({
+      error: mapAuthError(error),
+      isLoading: false,
+    })
+    throw error
+  }
 }
 
 // ============================================

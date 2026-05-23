@@ -1,6 +1,5 @@
-import { app, BrowserWindow, shell, ipcMain, safeStorage, WebContentsView, Menu, MenuItem } from 'electron'
-import { dirname, join } from 'node:path'
-import * as fs from 'node:fs'
+import { app, BrowserWindow, shell, ipcMain, WebContentsView, Menu, MenuItem } from 'electron'
+import { join } from 'node:path'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
@@ -83,27 +82,57 @@ if (process.platform === 'win32') app.disableHardwareAcceleration()
 // Set application name for Windows 10+ notifications
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
-if (!app.requestSingleInstanceLock()) {
+let mainWindow: BrowserWindow | null = null
+let pendingDeepLink: string | null = null
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('ron', process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient('ron')
+}
+
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
   app.quit()
   process.exit(0)
 }
 
-let mainWindow: BrowserWindow | null = null
+function sendDeepLink(url: string) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    pendingDeepLink = url
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.focus()
+  mainWindow.webContents.send('deep-link', url)
+}
+
+function flushPendingDeepLink() {
+  if (!pendingDeepLink || !mainWindow || mainWindow.isDestroyed()) return
+  const url = pendingDeepLink
+  pendingDeepLink = null
+  mainWindow.webContents.send('deep-link', url)
+}
+
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find(arg => arg.startsWith('ron://'))
+  if (url) sendDeepLink(url)
+})
+
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  sendDeepLink(url)
+})
+
 let currentTheme: 'light' | 'dark' | 'glass' | 'system' = 'light'
 // Deprecated single-view variables replaced by TabsManager
 let isAgentPanelOpen: boolean = false
 
 // ============================================
-// Secure Token Storage
+// IPC Security
 // ============================================
-
-interface StoredTokens {
-  accessToken: string
-  refreshToken: string
-  expiresAt: number
-}
-
-let cachedTokens: StoredTokens | null = null
 
 function validateIpcSender(frame: Electron.WebFrameMain | null): boolean {
   if (!frame) return false
@@ -119,13 +148,6 @@ function isSafeExternalUrl(rawUrl: string): boolean {
     return false
   }
 }
-
-function getTokenPath(): string {
-  return join(app.getPath('userData'), 'auth-tokens.enc')
-}
-
-// Note: encryptAndStore and decryptAndRetrieve are available for future secure token persistence
-// Currently using in-memory storage; for production, integrate with electron-store
 
 // ============================================
 // Window Creation
@@ -210,6 +232,10 @@ async function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    flushPendingDeepLink()
+  })
 
   // Handle window resize - update WebContentsView bounds
   mainWindow.on('resize', () => {
@@ -694,48 +720,6 @@ ipcMain.handle('set-theme', (event, theme: 'light' | 'dark' | 'glass' | 'system'
   }
 
   return theme
-})
-
-// ============================================
-// IPC Handlers - Authentication
-// ============================================
-
-ipcMain.handle('auth:store-tokens', async (event, tokens: StoredTokens) => {
-  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
-  try {
-    const encrypted = await safeStorage.encryptStringAsync(JSON.stringify(tokens))
-    await fs.promises.mkdir(dirname(getTokenPath()), { recursive: true })
-    await fs.promises.writeFile(getTokenPath(), encrypted, { mode: 0o600 })
-    cachedTokens = tokens
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to store tokens:', error)
-    return { success: false, error: 'Failed to store tokens' }
-  }
-})
-
-ipcMain.handle('auth:get-tokens', async (event) => {
-  if (!validateIpcSender(event.senderFrame)) return null
-  if (cachedTokens) return cachedTokens
-  try {
-    const encrypted = await fs.promises.readFile(getTokenPath())
-    cachedTokens = JSON.parse(await safeStorage.decryptStringAsync(encrypted)) as StoredTokens
-    return cachedTokens
-  } catch {
-    return null
-  }
-})
-
-ipcMain.handle('auth:clear-tokens', async (event) => {
-  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
-  cachedTokens = null
-  await fs.promises.rm(getTokenPath(), { force: true })
-  return { success: true }
-})
-
-ipcMain.handle('auth:is-encryption-available', async (event) => {
-  if (!validateIpcSender(event.senderFrame)) return false
-  return safeStorage.isEncryptionAvailable()
 })
 
 // ============================================

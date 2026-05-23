@@ -129,8 +129,13 @@ function collectData<T>(parts: MessagePart[], key: string, normalizer: (value: u
 
 // renderer-only hook
 export function useSonarReasoningPro() {
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: '/api/sonar-reasoning-pro/stream' }),
+    [],
+  )
+
   const chat = useChat({
-    transport: new DefaultChatTransport({ api: '/api/sonar-reasoning-pro/stream' }),
+    transport: transport,
   })
 
   const latestAssistantMessage = useMemo(() => {

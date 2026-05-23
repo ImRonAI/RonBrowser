@@ -205,9 +205,10 @@ function ParticleField({ audioData }: VoiceOrbProps) {
   }, [])
 
   useFrame((state) => {
-    const geometry = particlesRef.current?.geometry
-    if (!geometry) return
+    const particles = particlesRef.current
+    if (!particles) return
 
+    const geometry = particles.geometry
     const time = state.clock.getElapsedTime()
     const positionAttr = geometry.attributes.position
     const target = positionAttr.array as Float32Array
@@ -236,9 +237,7 @@ function ParticleField({ audioData }: VoiceOrbProps) {
     }
 
     positionAttr.needsUpdate = true
-    if (particlesRef.current) {
-      particlesRef.current.rotation.y = time * 0.05
-    }
+    particles.rotation.y = time * 0.05
   })
 
   return (

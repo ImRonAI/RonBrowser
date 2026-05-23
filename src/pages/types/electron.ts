@@ -53,17 +53,8 @@ export interface ElectronWindow {
     getTheme: () => Promise<'light' | 'dark' | 'glass' | 'system'>
     setTheme: (theme: 'light' | 'dark' | 'glass' | 'system') => Promise<void>
 
-    // Authentication
-    auth: {
-      storeTokens: (tokens: {
-        accessToken: string
-        refreshToken: string
-        expiresAt: number
-      }) => Promise<{ success: boolean }>
-      getTokens: () => Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null>
-      clearTokens: () => Promise<{ success: boolean }>
-      isEncryptionAvailable: () => Promise<boolean>
-    }
+    // Deep Links
+    onDeepLink: (callback: (url: string) => void) => () => void
 
     // Agent Streaming
     agent: {

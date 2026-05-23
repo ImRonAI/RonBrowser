@@ -59,7 +59,7 @@ export function SitePreviewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="h-[85vh] w-[90vw] max-w-6xl overflow-hidden p-0 [&>button:last-child]:hidden">
+      <DialogContent showCloseButton={false} className="h-[85vh] w-[90vw] max-w-6xl overflow-hidden p-0">
         <DialogTitle className={title ? undefined : 'sr-only'}>
           {title || 'Website preview'}
         </DialogTitle>

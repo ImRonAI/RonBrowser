@@ -35,6 +35,9 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.93",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/playfair-display": "^5.2.8",
+    "@fontsource/raleway": "^5.2.8",
     "@headlessui/react": "^2.2.9",
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",
