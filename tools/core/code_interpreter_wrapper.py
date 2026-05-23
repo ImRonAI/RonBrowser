@@ -27,7 +27,7 @@ def code_interpreter(code: str = "") -> str:
     
     try:
         with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
-            exec(code, globals_dict)
+            raise RuntimeError("Python code execution is disabled; use the isolated sandbox service")
             
         stdout = stdout_capture.getvalue()
         stderr = stderr_capture.getvalue()

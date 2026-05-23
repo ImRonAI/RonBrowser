@@ -1,6 +1,7 @@
 """Sandbox API - receives use_computer commands and executes them in the virtual desktop."""
 import base64
 import io
+import os
 from typing import Optional, Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,13 +10,8 @@ import pyautogui
 
 app = FastAPI(title="Ron Desktop Sandbox")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+allowed_origins = os.getenv("RON_SANDBOX_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=False, allow_methods=["POST"], allow_headers=["content-type"])
 
 # Disable pyautogui failsafe for container use
 pyautogui.FAILSAFE = False
