@@ -4,8 +4,9 @@
  * Shared rendering for orchestration workflow visualization + active agent reasoning.
  */
 
-import { memo, useCallback } from 'react'
+import { memo, useMemo } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
+import type { NodeTypes } from '@xyflow/react'
 import { Canvas } from '@/components/ai-elements/canvas'
 import { Task, TaskTrigger, TaskContent } from '@/components/ai-elements/task'
 import {
@@ -98,16 +99,20 @@ const AgentWorkflowNode = memo(({ data }: any) => {
 
 AgentWorkflowNode.displayName = 'AgentWorkflowNode'
 
+const workflowNodeTypes: NodeTypes = {
+  agentNode: AgentWorkflowNode,
+}
+
 export const WorkflowVisualizationPart = memo(({ part, messageId, partIndex }: {
   part: WorkflowVisualizationUIPart
   messageId: string
   partIndex: number
 }) => {
   const activeAgentsForWorkflow = part.activeAgents || []
-
-  const nodeTypes = useCallback(() => ({
-    agentNode: AgentWorkflowNode,
-  }), [])
+  const flowNodes = useMemo(
+    () => part.nodes.map((node) => ({ ...node, type: 'agentNode' })),
+    [part.nodes],
+  )
 
   return (
     <Task
@@ -121,12 +126,9 @@ export const WorkflowVisualizationPart = memo(({ part, messageId, partIndex }: {
         <div className="flex-[7] min-h-[320px] md:min-h-0 border-b md:border-b-0 md:border-r border-surface-200/70 dark:border-surface-700/70 bg-surface-50/70 dark:bg-surface-900/50">
           <ReactFlowProvider>
             <Canvas
-              nodes={part.nodes.map((node) => ({
-                ...node,
-                type: 'agentNode',
-              }))}
+              nodes={flowNodes}
               edges={part.edges}
-              nodeTypes={nodeTypes()}
+              nodeTypes={workflowNodeTypes}
               fitView
             />
           </ReactFlowProvider>

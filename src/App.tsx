@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Component, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { useAuthStore } from '@/stores/authStore'
 import { useTabStore } from '@/stores/tabStore'
@@ -35,9 +35,10 @@ function resetAppStorage() {
 
 export function App() {
   const { isDark } = useTheme()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, isInitialized, isLoading, initialize } = useAuthStore()
   const { tabs, createTab } = useTabStore()
   const { isComplete } = useOnboardingStore()
+  const [hasHydrated, setHasHydrated] = useState(false)
   const { activeTab } = useNavigationStore()
   const searchStore = useSearchStore()
   const { 
@@ -64,6 +65,22 @@ export function App() {
   })
   const [searchRouteQuery, setSearchRouteQuery] = useState<string | null>(null)
   
+  useEffect(() => {
+    void initialize()
+    const updateHydration = () => {
+      setHasHydrated(
+        useAuthStore.persist.hasHydrated() && useOnboardingStore.persist.hasHydrated(),
+      )
+    }
+    updateHydration()
+    const offAuth = useAuthStore.persist.onFinishHydration(updateHydration)
+    const offOnboarding = useOnboardingStore.persist.onFinishHydration(updateHydration)
+    return () => {
+      offAuth()
+      offOnboarding()
+    }
+  }, [initialize])
+
   // DEV: Reset app on launch if flag is set
   useEffect(() => {
     if (RESET_APP_ON_LAUNCH) {
@@ -158,61 +175,79 @@ export function App() {
 
   // SearchAgentDisplay handles its own fetching - no need to fetch here
 
+
+  if (!hasHydrated || isLoading || !isInitialized) return <AppLoadingScreen />
+
   // DEV: Show AI Elements Showcase (accessible from any state via Cmd/Ctrl + Shift + S)
   if (showShowcase) {
-    return <AIElementsShowcase />
+    return (
+      <RouteShell>
+        <AIElementsShowcase />
+      </RouteShell>
+    )
   }
 
   // DEV: Show Search Results Page (accessible from any state via #search or #results hash, or Cmd/Ctrl + Shift + R)
   // Also show when full results phase is active
   if (showSearchResultsDev || showFullResults || searchRouteQuery) {
     return (
-      <BrowserLayout>
-        <div className="min-h-screen bg-surface-0 dark:bg-surface-900 p-8">
-          <SearchAgentDisplay
-            query={searchRouteQuery || searchQuery || "The Buffalo Bills"}
-            sessionId="search-page"
-          />
-        </div>
-      </BrowserLayout>
+      <RouteShell>
+        <BrowserLayout>
+          <div className="min-h-screen bg-surface-0 dark:bg-surface-900 p-8">
+            <SearchAgentDisplay
+              query={searchRouteQuery || searchQuery || "The Buffalo Bills"}
+              sessionId="search-page"
+            />
+          </div>
+        </BrowserLayout>
+      </RouteShell>
     )
   }
 
   if (showChat && searchQuery) {
     return (
-      <BrowserLayout>
-        <SearchChat
-          searchResult={{
-            query: searchQuery,
-            answer: quickResult?.answer,
-            sources: quickResult?.sources,
-          }}
-          onBack={() => {
-            setPhase(isStreaming ? 'answering' : 'complete')
-          }}
-        />
-      </BrowserLayout>
+      <RouteShell>
+        <BrowserLayout>
+          <SearchChat
+            searchResult={{
+              query: searchQuery,
+              answer: quickResult?.answer,
+              sources: quickResult?.sources,
+            }}
+            onBack={() => {
+              setPhase(isStreaming ? 'answering' : 'complete')
+            }}
+          />
+        </BrowserLayout>
+      </RouteShell>
     )
   }
 
   // If not authenticated, show sign in page
   if (!isAuthenticated) {
     return (
-      <AuthPageLayout>
-        <SignInPage />
-      </AuthPageLayout>
+      <RouteShell>
+        <AuthPageLayout>
+          <SignInPage />
+        </AuthPageLayout>
+      </RouteShell>
     )
   }
 
   // If not onboarded, show onboarding page
   if (!isComplete) {
-    return <OnboardingPage />
+    return (
+      <RouteShell>
+        <OnboardingPage />
+      </RouteShell>
+    )
   }
 
   // Main browser interface with search overlays
   return (
-    <>
-      <BrowserLayout>
+    <RouteShell>
+      <>
+        <BrowserLayout>
         {/* If there's an active search, show SearchAgentDisplay */}
         {searchQuery && searchPhase !== 'idle' ? (
           <div className="h-full overflow-auto bg-surface-0 dark:bg-surface-900 p-8">
@@ -227,11 +262,47 @@ export function App() {
       </BrowserLayout>
 
       {/* Thinking overlay - shows during initial search animation */}
-      <SearchThinkingOverlay
-        isVisible={showThinking}
-        query={searchQuery}
-      />
-    </>
+        <SearchThinkingOverlay
+          isVisible={showThinking}
+          query={searchQuery}
+        />
+      </>
+    </RouteShell>
+  )
+}
+
+
+function AppLoadingScreen() {
+  return <div role="status" aria-label="Loading application" />
+}
+
+type AppErrorBoundaryProps = { children: ReactNode }
+type AppErrorBoundaryState = { hasError: boolean }
+
+class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
+  state: AppErrorBoundaryState = { hasError: false }
+
+  static getDerivedStateFromError(): AppErrorBoundaryState {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('Route render error:', error)
+  }
+
+  render() {
+    if (this.state.hasError) return <AppLoadingScreen />
+    return this.props.children
+  }
+}
+
+function RouteShell({ children }: { children: ReactNode }) {
+  return (
+    <AppErrorBoundary>
+      <Suspense fallback={<AppLoadingScreen />}>
+        {children}
+      </Suspense>
+    </AppErrorBoundary>
   )
 }
 

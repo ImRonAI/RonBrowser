@@ -175,8 +175,8 @@ function ParticleField({ audioData }: VoiceOrbProps) {
   const particlesRef = useRef<THREE.Points>(null)
   const particleCount = 2000
 
-  const [positions, colors] = useMemo(() => {
-    const positions = new Float32Array(particleCount * 3)
+  const { basePositions, colors } = useMemo(() => {
+    const basePositions = new Float32Array(particleCount * 3)
     const colors = new Float32Array(particleCount * 3)
     const royalBlue = new THREE.Color('#2D3B87')
 
@@ -186,9 +186,9 @@ function ParticleField({ audioData }: VoiceOrbProps) {
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(Math.random() * 2 - 1)
 
-      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
-      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
-      positions[i * 3 + 2] = radius * Math.cos(phi)
+      basePositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
+      basePositions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
+      basePositions[i * 3 + 2] = radius * Math.cos(phi)
 
       // Color variation
       const colorVariation = new THREE.Color().lerpColors(
@@ -201,39 +201,42 @@ function ParticleField({ audioData }: VoiceOrbProps) {
       colors[i * 3 + 2] = colorVariation.b
     }
 
-    return [positions, colors]
+    return { basePositions, colors }
   }, [])
 
   useFrame((state) => {
+    const geometry = particlesRef.current?.geometry
+    if (!geometry) return
+
+    const time = state.clock.getElapsedTime()
+    const positionAttr = geometry.attributes.position
+    const target = positionAttr.array as Float32Array
+
+    // Animate particles based on audio
+    for (let i = 0; i < particleCount; i++) {
+      const i3 = i * 3
+      const x = basePositions[i3]
+      const y = basePositions[i3 + 1]
+      const z = basePositions[i3 + 2]
+
+      // Get frequency for this particle
+      const freqIndex = Math.floor((i / particleCount) * audioData.frequencies.length)
+      const freq = audioData.frequencies[freqIndex] || 0
+
+      // Orbital motion with audio influence
+      const radius = Math.sqrt(x * x + y * y + z * z)
+      const theta = Math.atan2(y, x) + time * 0.1 + freq * 0.01
+      const phi = Math.acos(z / radius) + Math.sin(time * 0.5 + i * 0.01) * 0.1
+
+      const newRadius = radius + audioData.volume * Math.sin(i + time) * 0.5
+
+      target[i3] = newRadius * Math.sin(phi) * Math.cos(theta)
+      target[i3 + 1] = newRadius * Math.sin(phi) * Math.sin(theta)
+      target[i3 + 2] = newRadius * Math.cos(phi)
+    }
+
+    positionAttr.needsUpdate = true
     if (particlesRef.current) {
-      const time = state.clock.getElapsedTime()
-      const positions = particlesRef.current.geometry.attributes.position
-        .array as Float32Array
-
-      // Animate particles based on audio
-      for (let i = 0; i < particleCount; i++) {
-        const i3 = i * 3
-        const x = positions[i3]
-        const y = positions[i3 + 1]
-        const z = positions[i3 + 2]
-
-        // Get frequency for this particle
-        const freqIndex = Math.floor((i / particleCount) * audioData.frequencies.length)
-        const freq = audioData.frequencies[freqIndex] || 0
-
-        // Orbital motion with audio influence
-        const radius = Math.sqrt(x * x + y * y + z * z)
-        const theta = Math.atan2(y, x) + time * 0.1 + freq * 0.01
-        const phi = Math.acos(z / radius) + Math.sin(time * 0.5 + i * 0.01) * 0.1
-
-        const newRadius = radius + audioData.volume * Math.sin(i + time) * 0.5
-
-        positions[i3] = newRadius * Math.sin(phi) * Math.cos(theta)
-        positions[i3 + 1] = newRadius * Math.sin(phi) * Math.sin(theta)
-        positions[i3 + 2] = newRadius * Math.cos(phi)
-      }
-
-      particlesRef.current.geometry.attributes.position.needsUpdate = true
       particlesRef.current.rotation.y = time * 0.05
     }
   })
@@ -242,7 +245,7 @@ function ParticleField({ audioData }: VoiceOrbProps) {
     <points ref={particlesRef}>
       <bufferGeometry>
         <bufferAttribute
-          args={[positions, 3]}
+          args={[basePositions, 3]}
           attach="attributes-position"
           count={particleCount}
         />

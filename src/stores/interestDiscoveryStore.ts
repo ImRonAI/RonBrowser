@@ -226,7 +226,7 @@ function generateMockContent(label: string, category: InterestCategory): Discove
 // Store
 // ============================================
 
-export const useInterestDiscoveryStore = create<InterestDiscoveryState>((set, get) => ({
+export const useInterestDiscoveryStore = create<InterestDiscoveryState>()((set, get) => ({
   selectedInterestId: null,
   selectedInterestLabel: null,
   selectedInterestCategory: null,

@@ -7,11 +7,18 @@
 /**
  * Convert a File to a data URL string
  */
-export function fileToDataUrl(file: File): Promise<string> {
+export function fileToDataUrl(file: File, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
+    const abort = () => reader.abort()
+    signal?.addEventListener('abort', abort, { once: true })
+    reader.onload = () => {
+      signal?.removeEventListener('abort', abort)
+      if (typeof reader.result === 'string') resolve(reader.result)
+      else reject(new TypeError('Expected FileReader result to be a data URL string'))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
+    reader.onabort = () => reject(new DOMException('File read aborted', 'AbortError'))
     reader.readAsDataURL(file)
   })
 }

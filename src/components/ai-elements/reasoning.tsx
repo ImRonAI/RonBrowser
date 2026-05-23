@@ -1,8 +1,12 @@
 "use client";
 
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ComponentType, ReactNode } from "react";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
+import { cjk } from '@streamdown/cjk'
+import { code } from '@streamdown/code'
+import { math } from '@streamdown/math'
+import { mermaid } from '@streamdown/mermaid'
 import {
   Collapsible,
   CollapsibleContent,
@@ -204,22 +208,18 @@ export type ReasoningContentProps = ComponentProps<
   children: string;
 };
 
+const streamdownPlugins = { cjk, code, math, mermaid }
+const StreamdownWithPlugins = Streamdown as unknown as ComponentType<
+  ComponentProps<typeof Streamdown> & { plugins?: typeof streamdownPlugins }
+>
+
 export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        "mt-4 text-sm",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-        className
-      )}
-      {...props}
-    >
-      <Streamdown {...props}>
-        {children}
-      </Streamdown>
+    <CollapsibleContent className={cn('mt-4 text-sm', className)} {...props}>
+      <StreamdownWithPlugins plugins={streamdownPlugins}>{children}</StreamdownWithPlugins>
     </CollapsibleContent>
-  )
-);
+  ),
+)
 
 Reasoning.displayName = "Reasoning";
 ReasoningTrigger.displayName = "ReasoningTrigger";

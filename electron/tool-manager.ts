@@ -10,12 +10,20 @@
 
 import { app, ipcMain } from 'electron'
 import { spawn } from 'node:child_process'
-import { join, basename } from 'node:path'
+import { join, basename, resolve, relative, sep } from 'node:path'
 import { readFile, access, mkdir } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import chokidar from 'chokidar'
 
 const FEATURE_FLAG = process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true'
+
+type IpcSenderValidator = (frame: Electron.WebFrameMain | null) => boolean
+
+function defaultIpcSenderValidator(frame: Electron.WebFrameMain | null): boolean {
+  if (!frame) return false
+  const url = new URL(frame.url)
+  return url.protocol === 'file:' || url.origin === process.env.ELECTRON_RENDERER_URL
+}
 
 // ============================================
 // Lazy-evaluated directory paths (to avoid calling app.* before ready)
@@ -415,31 +423,36 @@ export async function initializeToolManager(
  * Register IPC handlers for tool management.
  * Called from main.ts during app setup.
  */
-export function registerToolManagerIPC(): void {
+export function registerToolManagerIPC(validateIpcSender: IpcSenderValidator = defaultIpcSenderValidator): void {
   if (!FEATURE_FLAG) {
     return
   }
 
-  ipcMain.handle('tools:discover', async () => {
+  ipcMain.handle('tools:discover', async (event) => {
+    if (!validateIpcSender(event.senderFrame)) return []
     return await discoverDynamicToolsForAgent()
   })
 
-  ipcMain.handle('tools:refresh', async () => {
+  ipcMain.handle('tools:refresh', async (event) => {
+    if (!validateIpcSender(event.senderFrame)) return []
     await initializeAndSyncManifests()
     return await discoverDynamicToolsForAgent()
   })
 
-  ipcMain.handle('tools:list', () => {
+  ipcMain.handle('tools:list', (event) => {
+    if (!validateIpcSender(event.senderFrame)) return []
     return getDiscoveredTools()
   })
 
   // Get the full discovery manifest for agent system prompt
-  ipcMain.handle('tools:getManifest', async () => {
+  ipcMain.handle('tools:getManifest', async (event) => {
+    if (!validateIpcSender(event.senderFrame)) return null
     return await getFullManifest()
   })
 
   // Get path where custom tools should be saved
-  ipcMain.handle('tools:getCustomToolsDir', async () => {
+  ipcMain.handle('tools:getCustomToolsDir', async (event) => {
+    if (!validateIpcSender(event.senderFrame)) return null
     const dir = getCustomToolsDir()
     // Ensure directory exists
     await mkdir(dir, { recursive: true })
@@ -447,15 +460,16 @@ export function registerToolManagerIPC(): void {
   })
 
   // Save a custom tool created by the agent
-  ipcMain.handle('tools:saveCustomTool', async (_, name: string, code: string) => {
+  ipcMain.handle('tools:saveCustomTool', async (event, name: string, code: string) => {
+    if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(name)) return { success: false, error: 'Invalid tool name' }
     const { writeFile } = await import('node:fs/promises')
-    const dir = getCustomToolsDir()
+    const dir = resolve(getCustomToolsDir())
     await mkdir(dir, { recursive: true })
-    
-    const toolPath = join(dir, `${name}.py`)
-    await writeFile(toolPath, code, 'utf-8')
-    
-    // Chokidar will detect this and trigger manifest update
+    const toolPath = resolve(dir, `${name}.py`)
+    const rel = relative(dir, toolPath)
+    if (rel.startsWith('..') || rel.includes(`..${sep}`)) return { success: false, error: 'Path traversal blocked' }
+    await writeFile(toolPath, code, { encoding: 'utf-8', mode: 0o600 })
     return { success: true, path: toolPath }
   })
 

@@ -147,7 +147,7 @@ const initialState = {
 // Store Implementation
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const useOrchestrationStore = create<OrchestrationStoreState>((set, get) => ({
+export const useOrchestrationStore = create<OrchestrationStoreState>()((set, get) => ({
   ...initialState,
 
   // ─── Graph Orchestration Initialization ───

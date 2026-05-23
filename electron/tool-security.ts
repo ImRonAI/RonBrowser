@@ -96,15 +96,12 @@ export function validateToolArgs(
   const errors: string[] = []
   const sanitizedArgs: Record<string, unknown> = {}
 
-  for (const [key, value] of Object.entries(args)) {
-    // Check for path traversal attempts
+  outer: for (const [key, value] of Object.entries(args)) {
     if (typeof value === 'string') {
       if (value.includes('..') && (key.includes('path') || key.includes('file'))) {
         errors.push(`Potential path traversal in ${key}`)
-        continue
+        continue outer
       }
-      
-      // Check for command injection patterns
       const dangerousPatterns = [
         /;\s*rm\s/i,
         /;\s*sudo\s/i,
@@ -112,15 +109,13 @@ export function validateToolArgs(
         /`.*`/,
         /\$\(.*\)/
       ]
-      
       for (const pattern of dangerousPatterns) {
         if (pattern.test(value)) {
           errors.push(`Potential command injection in ${key}`)
-          continue
+          continue outer
         }
       }
     }
-
     sanitizedArgs[key] = value
   }
 

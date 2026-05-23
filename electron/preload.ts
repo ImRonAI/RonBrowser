@@ -218,8 +218,6 @@ const electronAPI = {
       ipcRenderer.invoke('browser:get-text') as Promise<{ success: boolean; text?: string; error?: string }>,
     getHTML: () =>
       ipcRenderer.invoke('browser:get-html') as Promise<{ success: boolean; html?: string; error?: string }>,
-    evaluate: (script: string) =>
-      ipcRenderer.invoke('browser:evaluate', script) as Promise<{ success: boolean; result?: unknown; error?: string }>,
     waitForSelector: (selector: string, timeoutMs?: number) =>
       ipcRenderer.invoke('browser:wait-for-selector', selector, timeoutMs) as Promise<{ success: boolean; found?: boolean; error?: string }>,
     getActiveUrl: () =>

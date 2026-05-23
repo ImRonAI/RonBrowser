@@ -12,8 +12,9 @@
  * - Seamless chat integration
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import type { UIMessage } from '@ai-sdk/react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useChat, type UIMessage } from '@ai-sdk/react'
+import { DefaultChatTransport, isDataUIPart, isToolUIPart, type TextUIPart } from 'ai'
 import { PremiumSearchLayout } from '@/components/search-results/SearchLayout'
 import { useSearchStore } from '@/stores/searchStore'
 import type {
@@ -249,6 +250,90 @@ function normalizeToolOutput(
   return { citations: nextCitations, results: nextResults }
 }
 
+function getMessageText(parts: MessagePart[]): string {
+  return parts
+    .filter((part): part is TextUIPart => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
+
+function getReasoningText(parts: MessagePart[]): string {
+  return parts
+    .filter((part) => part.type === 'reasoning')
+    .map((part) => ('text' in part && typeof part.text === 'string' ? part.text : ''))
+    .join('')
+}
+
+function getToolExecutions(parts: MessagePart[]): ToolExecution[] {
+  return parts.flatMap((part, index) => {
+    if (!isToolUIPart(part)) return []
+    const toolPart = part as {
+      state?: ToolExecution['state'] | 'output-denied'
+      toolCallId?: string
+      toolName?: string
+      input?: unknown
+      output?: unknown
+      errorText?: string
+    }
+    const state = toolPart.state === 'output-denied' ? 'output-error' : toolPart.state || 'input-available'
+
+    return [{
+      id: toolPart.toolCallId || `tool-${index}`,
+      name: toolPart.toolName || toolPart.toolCallId || `tool-${index}`,
+      state,
+      input: toolPart.input,
+      output: toolPart.output,
+      errorText: toolPart.errorText,
+    }]
+  })
+}
+
+function extractSearchArtifacts(parts: MessagePart[]): { citations: Citation[]; results: UniversalResult[] } {
+  let nextCitations: Citation[] = []
+  let nextResults: UniversalResult[] = []
+
+  for (const part of parts) {
+    if (isToolUIPart(part)) {
+      const toolPart = part as { input?: unknown; output?: unknown }
+      const inputData = normalizeToolOutput(toolPart.input, nextCitations, nextResults)
+      nextCitations = inputData.citations
+      nextResults = inputData.results
+      const outputData = normalizeToolOutput(toolPart.output, nextCitations, nextResults)
+      nextCitations = outputData.citations
+      nextResults = outputData.results
+      continue
+    }
+
+    if (isDataUIPart(part)) {
+      const dataPart = part as { data?: unknown }
+      const dataOutput = normalizeToolOutput(dataPart.data, nextCitations, nextResults)
+      nextCitations = dataOutput.citations
+      nextResults = dataOutput.results
+      continue
+    }
+
+    if (part.type === 'source-url') {
+      const sourcePart = part as { url?: string; sourceId?: string; title?: string }
+      const url = sourcePart.url || sourcePart.sourceId || ''
+      if (url) {
+        nextCitations = mergeCitations(nextCitations, normalizeCitations([{ url, title: sourcePart.title }]))
+      }
+    } else if (part.type === 'source-document') {
+      const sourcePart = part as { url?: string; sourceId?: string; title?: string }
+      const url = sourcePart.url || sourcePart.sourceId || ''
+      if (url) {
+        nextCitations = mergeCitations(nextCitations, normalizeCitations([{ url, title: sourcePart.title }]))
+      }
+    }
+  }
+
+  if (nextResults.length === 0) {
+    nextResults = citationsToWebResults(nextCitations)
+  }
+
+  return { citations: nextCitations, results: nextResults }
+}
+
 function citationsToWebResults(citationList: Citation[]): UniversalResult[] {
   return citationList.map((citation, index) => ({
     id: `citation-${index + 1}`,
@@ -271,8 +356,6 @@ export function SearchResultsPage() {
   const [isAgentStreaming, setIsAgentStreaming] = useState(false)
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [agentError, setAgentError] = useState<string | null>(null)
-  const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set())
-  
   // View State
   const [viewMode, setViewMode] = useState<'results' | 'chat'>('results')
   const [chatContext, setChatContext] = useState<UniversalResult | null>(null)
@@ -282,29 +365,42 @@ export function SearchResultsPage() {
 
   const searchQuery = storeQuery || 'artificial intelligence and machine learning'
 
-  const upsertToolExecution = useCallback((toolCallId: string, update: Partial<ToolExecution>) => {
-    setToolExecutions((prev) => {
-      const next = [...prev]
-      const index = next.findIndex((tool) => tool.id === toolCallId)
-      if (index === -1) {
-        next.push({
-          id: toolCallId,
-          name: update.name || toolCallId,
-          state: update.state || 'input-streaming',
-          input: update.input,
-          output: update.output,
-          errorText: update.errorText,
-        })
-      } else {
-        next[index] = {
-          ...next[index],
-          ...update,
-          name: update.name || next[index].name,
-        }
-      }
-      return next
-    })
-  }, [])
+  const transport = useMemo(
+    () => new DefaultChatTransport({
+      api: 'http://localhost:8765/agents/search/stream',
+      body: () => ({ session_id: 'search-page' }),
+    }),
+    [],
+  )
+
+  const { messages, sendMessage, status, setMessages, clearError, stop } = useChat({
+    transport,
+    onData: (part) => {
+      if (part.type === 'data-usage') setUsage(part.data as UsageData)
+    },
+    onError: (chatError: Error) => {
+      const message = chatError.message || 'Search error'
+      setError(message)
+      setAgentError(message)
+      setIsLoading(false)
+      setIsAgentStreaming(false)
+    },
+  })
+
+  const latestAssistantMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'assistant') return messages[i]
+    }
+    return null
+  }, [messages])
+
+  const sentQueryRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      void stop()
+    }
+  }, [stop])
 
   const agentState = useMemo(() => ({
     parts: buildSearchAgentParts({
@@ -319,245 +415,79 @@ export function SearchResultsPage() {
     error: agentError,
   }), [answerText, reasoningText, toolExecutions, isAgentStreaming, citations, agentError, usage])
 
-  // Fetch search results on mount and when query changes
   useEffect(() => {
-    if (!searchQuery) return
+    if (!searchQuery || status !== 'ready' || sentQueryRef.current === searchQuery) return
 
-    const fetchResults = async () => {
-      setIsLoading(true)
-      setIsAgentStreaming(true)
-      setAgentError(null)
-      setError(null)
-      setSearchResponse(null)
-      setAnswerText('')
-      setReasoningText('')
-      setCitations([])
-      setToolExecutions([])
-      setUsage(null)
+    setIsLoading(true)
+    setIsAgentStreaming(true)
+    setAgentError(null)
+    setError(null)
+    setSearchResponse(null)
+    setAnswerText('')
+    setReasoningText('')
+    setCitations([])
+    setToolExecutions([])
+    setUsage(null)
+    setMessages([])
+    clearError()
 
-      try {
-        const response = await fetch('http://localhost:8765/agents/search/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: searchQuery,
-            session_id: 'search-page'
-          })
-        })
+    sentQueryRef.current = searchQuery
+    void sendMessage({ text: searchQuery })
+  }, [searchQuery, sendMessage, status, setMessages, clearError])
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
+  useEffect(() => {
+    const isStreaming = status === 'streaming' || status === 'submitted'
+    setIsAgentStreaming(isStreaming)
 
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-
-        let content = ''
-        let localCitations: Citation[] = []
-        let localResults: UniversalResult[] = []
-
-        while (reader) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') break
-
-              try {
-                const parsed = JSON.parse(data)
-
-                switch (parsed.type) {
-                  case 'content': {
-                    const delta = parsed.content || ''
-                    content += delta
-                    setAnswerText((prev) => prev + delta)
-                    break
-                  }
-
-                  case 'text-start':
-                    break
-
-                  case 'text-delta': {
-                    const delta = parsed.delta || ''
-                    content += delta
-                    setAnswerText((prev) => prev + delta)
-                    break
-                  }
-
-                  case 'text-end':
-                    break
-
-                  case 'reasoning-start':
-                    break
-
-                  case 'reasoning-delta': {
-                    const delta = parsed.delta || ''
-                    setReasoningText((prev) => prev + delta)
-                    break
-                  }
-
-                  case 'reasoning-end':
-                    break
-
-                  case 'tool-input-start':
-                    if (parsed.toolCallId) {
-                      upsertToolExecution(parsed.toolCallId, {
-                        name: parsed.toolName || parsed.toolCallId,
-                        state: 'input-streaming',
-                      })
-                    }
-                    break
-
-                  case 'tool-input-available':
-                    if (parsed.toolCallId) {
-                      upsertToolExecution(parsed.toolCallId, {
-                        name: parsed.toolName || parsed.toolCallId,
-                        state: 'input-available',
-                        input: parsed.input,
-                      })
-                    }
-                    if (parsed.input) {
-                      const outputData = normalizeToolOutput(parsed.input, localCitations, localResults)
-                      localCitations = outputData.citations
-                      localResults = outputData.results
-                      setCitations(localCitations)
-                    }
-                    break
-
-                  case 'tool-output-available':
-                    if (parsed.toolCallId) {
-                      upsertToolExecution(parsed.toolCallId, {
-                        name: parsed.toolName,
-                        state: 'output-available',
-                        output: parsed.output,
-                      })
-                    }
-                    if (parsed.output) {
-                      const outputData = normalizeToolOutput(parsed.output, localCitations, localResults)
-                      localCitations = outputData.citations
-                      localResults = outputData.results
-                      setCitations(localCitations)
-                    }
-                    break
-
-                  case 'tool-output-error':
-                    if (parsed.toolCallId) {
-                      upsertToolExecution(parsed.toolCallId, {
-                        name: parsed.toolName,
-                        state: 'output-error',
-                        errorText: parsed.errorText,
-                      })
-                    }
-                    setAgentError(parsed.errorText || 'Tool error')
-                    break
-
-                  case 'data-usage':
-                    if (parsed.data) {
-                      setUsage(parsed.data)
-                    }
-                    break
-
-                  case 'source-url': {
-                    const url = parsed.url || parsed.sourceId || ''
-                    if (url) {
-                      const incoming = normalizeCitations([{ url }])
-                      localCitations = mergeCitations(localCitations, incoming)
-                      setCitations(localCitations)
-                    }
-                    break
-                  }
-
-                  case 'source-document': {
-                    const url = parsed.sourceId || parsed.url || ''
-                    const title = parsed.title || getDomainFromUrl(url)
-                    if (url) {
-                      const incoming = normalizeCitations([{ url, title }])
-                      localCitations = mergeCitations(localCitations, incoming)
-                      setCitations(localCitations)
-                    }
-                    break
-                  }
-
-                  case 'finish':
-                    if (Array.isArray(parsed.citations)) {
-                      const incoming = normalizeCitations(parsed.citations)
-                      localCitations = mergeCitations(localCitations, incoming)
-                      setCitations(localCitations)
-                    }
-                    setIsAgentStreaming(false)
-                    break
-
-                  case 'metadata':
-                    if (Array.isArray(parsed.citations)) {
-                      const incoming = normalizeCitations(parsed.citations)
-                      localCitations = mergeCitations(localCitations, incoming)
-                      setCitations(localCitations)
-                    }
-                    break
-
-                  case 'error':
-                    setAgentError(parsed.errorText || parsed.error || 'Search error')
-                    break
-
-                  default:
-                    break
-                }
-              } catch (e) {
-                console.error('Parse error:', e)
-              }
-            }
-          }
-        }
-
-        const finalResults = localResults.length > 0 ? localResults : citationsToWebResults(localCitations)
-        // Build SearchResponse from streamed data
-        setSearchResponse({
-          id: `search-${Date.now()}`,
-          query: searchQuery,
-          timestamp: Date.now(),
-          isComplete: true,
-          totalCount: finalResults.length,
-          duration: 0,
-          sonarReasoning: {
-            reasoning: content,
-            chainOfThought: {
-              steps: []
-            },
-            confidence: 0.85,
-            qualityScore: 0.9,
-            sources: localCitations.map((c, i) => ({
-              id: `source-${i}`,
-              url: c.url || '',
-              title: c.title || '',
-              snippet: c.snippet || '',
-              relevanceScore: 0.9,
-              type: 'web',
-              domain: c.url ? new URL(c.url).hostname : ''
-            })),
-            summary: content.substring(0, 200),
-            relatedQueries: [],
-            modelUsed: 'sonar-reasoning-pro',
-            tokensUsed: 0
-          },
-          results: finalResults
-        })
-        setIsLoading(false)
-        setIsAgentStreaming(false)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error')
-        setAgentError(err instanceof Error ? err.message : 'Unknown error')
-        setIsLoading(false)
-        setIsAgentStreaming(false)
-      }
+    if (!latestAssistantMessage) {
+      if (status === 'error') setIsLoading(false)
+      return
     }
 
-    fetchResults()
-  }, [searchQuery])
+    const text = getMessageText(latestAssistantMessage.parts)
+    const reasoning = getReasoningText(latestAssistantMessage.parts)
+    const tools = getToolExecutions(latestAssistantMessage.parts)
+    const artifacts = extractSearchArtifacts(latestAssistantMessage.parts)
+
+    setAnswerText(text)
+    setReasoningText(reasoning)
+    setToolExecutions(tools)
+    setCitations(artifacts.citations)
+
+    if (status === 'ready') {
+      setSearchResponse({
+        id: `search-${latestAssistantMessage.id}`,
+        query: searchQuery,
+        timestamp: Date.now(),
+        isComplete: true,
+        totalCount: artifacts.results.length,
+        duration: 0,
+        sonarReasoning: {
+          reasoning: reasoning || text,
+          chainOfThought: {
+            steps: [],
+          },
+          confidence: 0.85,
+          qualityScore: 0.9,
+          sources: artifacts.citations.map((citation, index) => ({
+            id: `source-${index}`,
+            url: citation.url || '',
+            title: citation.title || '',
+            snippet: citation.snippet || '',
+            relevanceScore: 0.9,
+            type: 'web',
+            domain: citation.url ? getDomainFromUrl(citation.url) : '',
+          })),
+          summary: text.substring(0, 200),
+          relatedQueries: [],
+          modelUsed: 'sonar-reasoning-pro',
+          tokensUsed: usage?.totalTokens || 0,
+        },
+        results: artifacts.results,
+      })
+      setIsLoading(false)
+    }
+  }, [latestAssistantMessage, searchQuery, status, usage])
 
   const handleRefresh = () => {
     window.location.reload()
@@ -568,10 +498,6 @@ export function SearchResultsPage() {
     // In a real app, this would open the result
   }
 
-  const handleFilterChange = () => {
-    console.log('Filters changed')
-  }
-
   const handleBackToHome = () => {
     clearSearch()
   }
@@ -580,22 +506,6 @@ export function SearchResultsPage() {
     setChatContext(result)
     setViewMode('chat')
   }
-
-  const handleResultSelect = useCallback((resultId: string) => {
-    setSelectedResults(prev => {
-      const next = new Set(prev)
-      if (next.has(resultId)) {
-        next.delete(resultId)
-      } else {
-        next.add(resultId)
-      }
-      return next
-    })
-  }, [])
-
-  const handleOpenChat = useCallback(() => {
-    setViewMode('chat')
-  }, [])
 
   return (
     <div className="min-h-screen bg-surface-950 dark:bg-surface-950 relative overflow-hidden">
@@ -729,11 +639,8 @@ export function SearchResultsPage() {
                 isLoading={isLoading}
                 error={error}
                 agentState={agentState}
-                selectedResults={selectedResults}
                 onResultClick={handleResultClick}
-                onResultSelect={handleResultSelect}
                 onChatClick={handleChatClick}
-                onOpenChat={handleOpenChat}
               />
             </motion.div>
           ) : (

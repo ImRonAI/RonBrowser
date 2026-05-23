@@ -1,13 +1,13 @@
 /**
- * Browser Service - Manages BrowserView for web page rendering
+ * Browser Service - Manages WebContentsView for web page rendering
  * Handles URL normalization, navigation, and view bounds management
  */
 
-import { BrowserView } from 'electron'
+import { WebContentsView } from 'electron'
 
 export class BrowserService {
   private static instance: BrowserService
-  private browserView: BrowserView | null = null
+  private browserView: WebContentsView | null = null
   private mainWindow: Electron.BrowserWindow | null = null
   private currentUrl: string = 'ron://home'
   private viewOffsetY = 120 // Height of toolbar + tab bar
@@ -22,13 +22,13 @@ export class BrowserService {
   }
 
   /**
-   * Initialize the BrowserView and attach to main window
+   * Initialize the WebContentsView and attach to main window
    */
   public initialize(mainWindow: Electron.BrowserWindow): void {
     this.mainWindow = mainWindow
 
     if (!this.browserView) {
-      this.browserView = new BrowserView({
+      this.browserView = new WebContentsView({
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
@@ -37,7 +37,7 @@ export class BrowserService {
         }
       })
 
-      mainWindow.addBrowserView(this.browserView)
+      mainWindow.contentView.addChildView(this.browserView)
 
       // Set initial bounds (below toolbar)
       this.updateBounds()
@@ -72,7 +72,7 @@ export class BrowserService {
   }
 
   /**
-   * Update BrowserView bounds based on window size
+   * Update WebContentsView bounds based on window size
    */
   private updateBounds(): void {
     if (!this.mainWindow || !this.browserView) return
@@ -101,14 +101,15 @@ export class BrowserService {
       return this.currentUrl
     }
     
-    // If it's already a valid URL, return it
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('file://')) {
-      return trimmed
-    }
-    
     // Handle ron:// protocol
     if (trimmed.startsWith('ron://')) {
       return trimmed
+    }
+
+    if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed)) {
+      const parsed = new URL(trimmed)
+      if (parsed.protocol !== 'https:') throw new Error('Only HTTPS navigation is allowed')
+      return parsed.toString()
     }
     
     // Handle search queries (spaces in input = search query)
@@ -130,7 +131,7 @@ export class BrowserService {
    */
   public navigate(url: string): void {
     if (!this.browserView) {
-      console.error('[BrowserService] BrowserView not initialized')
+      console.error('[BrowserService] WebContentsView not initialized')
       return
     }
 
@@ -194,9 +195,9 @@ export class BrowserService {
   }
 
   /**
-   * Get BrowserView instance
+   * Get WebContentsView instance
    */
-  public getBrowserView(): BrowserView | null {
+  public getBrowserView(): WebContentsView | null {
     return this.browserView
   }
 

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAgentUi } from '@/context/AgentUiContext'
 import { useTabStore } from '@/stores/tabStore'
 import { AskRonOptions } from '@/components/ai-elements/ask-ron-options'
@@ -11,7 +11,12 @@ import {
   ChatBubbleLeftIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface ContextMenuProps {
   x: number
@@ -172,7 +177,7 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
     onClose()
   }
 
-  // Close on escape key
+  // Close on escape key for the custom Ask Ron panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -180,12 +185,11 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
       }
     }
 
-    if (isOpen) {
+    if (isOpen && askRonStep !== 'closed') {
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
-
+  }, [isOpen, askRonStep, onClose])
 
   // Determine if Ask Ron UI should be shown
   const showAskRonUI = askRonStep !== 'closed'
@@ -248,99 +252,104 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
             </motion.div>
           ) : (
             /* Regular Context Menu */
-            <motion.div
-              ref={menuRef}
-              role="menu"
-              aria-label="Context Menu"
-              initial={{ opacity: 0, scale: 0.95, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -8 }}
-              transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed z-[9999] rounded-xl py-1.5 min-w-[220px] overflow-hidden shadow-2xl bg-white dark:bg-zinc-800 border border-black/10 dark:border-white/10"
-              style={{
-                left: `${adjustedPosition.x}px`,
-                top: `${adjustedPosition.y}px`,
-              }}
-            >
-            {/* Feedback toast */}
-            <AnimatePresence>
-              {copiedFeedback && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute top-0 left-0 right-0 px-3 py-1.5 flex items-center justify-center gap-2 text-xs font-raleway font-raleway-bold bg-green-500/20 text-green-700 dark:text-green-400"
-                >
-                  <CheckIcon className="w-3.5 h-3.5" />
-                  {copiedFeedback}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Standard clipboard actions */}
-            {selectedText && (
-              <>
-                <MenuItem
-                  icon={<ClipboardDocumentIcon className="w-4 h-4" />}
-                  label="Copy"
-                  onClick={handleCopy}
-                  shortcut="⌘C"
+            <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Context menu anchor"
+                  className="fixed sr-only"
+                  style={{
+                    left: `${adjustedPosition.x}px`,
+                    top: `${adjustedPosition.y}px`,
+                  }}
                 />
-                <MenuItem
-                  icon={<ClipboardIcon className="w-4 h-4" />}
-                  label="Copy as Markdown"
-                  onClick={handleCopyMarkdown}
-                />
-                <MenuItem
-                  icon={<ScissorsIcon className="w-4 h-4" />}
-                  label="Cut"
-                  onClick={handleCut}
-                  shortcut="⌘X"
-                />
-              </>
-            )}
-
-            <MenuItem
-              icon={<ClipboardIcon className="w-4 h-4" />}
-              label="Paste"
-              onClick={handlePaste}
-              shortcut="⌘V"
-            />
-
-            {/* Separator */}
-            <div className="my-1.5 h-px mx-2 bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
-
-            {/* Ask Ron - special highlight */}
-            <motion.button
-              role="menuitem"
-              onClick={handleAskRon}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              className="w-full px-3 py-2.5 mx-0 flex items-center gap-3 text-left transition-all duration-200 group hover:bg-royal/10 dark:hover:bg-royal-light/15"
-            >
-              <motion.div
-                className="flex-shrink-0"
-                animate={{
-                  scale: [1, 1.1, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                ref={menuRef}
+                sideOffset={0}
+                align="start"
+                className="fixed z-[9999] rounded-xl py-1.5 min-w-[220px] overflow-hidden shadow-2xl bg-white dark:bg-zinc-800 border border-black/10 dark:border-white/10"
               >
-                <ChatBubbleLeftIcon className="w-4 h-4 text-royal dark:text-royal-light" />
-              </motion.div>
-              <span className="text-sm font-raleway font-raleway-bold text-royal dark:text-royal-light">
-                Ask Ron?
-              </span>
-              {selectedText && (
-                <span className="ml-auto text-xs font-raleway text-ron-text/40 dark:text-white/40 group-hover:text-royal/70 dark:group-hover:text-royal-light/70">
-                  with selection
-                </span>
-              )}
-            </motion.button>
-            </motion.div>
+                {/* Feedback toast */}
+                <AnimatePresence>
+                  {copiedFeedback && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute top-0 left-0 right-0 px-3 py-1.5 flex items-center justify-center gap-2 text-xs font-raleway font-raleway-bold bg-green-500/20 text-green-700 dark:text-green-400"
+                    >
+                      <CheckIcon className="w-3.5 h-3.5" />
+                      {copiedFeedback}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Standard clipboard actions */}
+                {selectedText && (
+                  <>
+                    <MenuAction
+                      icon={<ClipboardDocumentIcon className="w-4 h-4" />}
+                      label="Copy"
+                      onSelect={handleCopy}
+                      shortcut="⌘C"
+                    />
+                    <MenuAction
+                      icon={<ClipboardIcon className="w-4 h-4" />}
+                      label="Copy as Markdown"
+                      onSelect={handleCopyMarkdown}
+                    />
+                    <MenuAction
+                      icon={<ScissorsIcon className="w-4 h-4" />}
+                      label="Cut"
+                      onSelect={handleCut}
+                      shortcut="⌘X"
+                    />
+                  </>
+                )}
+
+                <MenuAction
+                  icon={<ClipboardIcon className="w-4 h-4" />}
+                  label="Paste"
+                  onSelect={handlePaste}
+                  shortcut="⌘V"
+                />
+
+                {/* Separator */}
+                <div className="my-1.5 h-px mx-2 bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
+
+                {/* Ask Ron - special highlight */}
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    handleAskRon()
+                  }}
+                  className="w-full px-3 py-2.5 mx-0 flex items-center gap-3 text-left transition-all duration-200 group focus:bg-royal/10 dark:focus:bg-royal-light/15 hover:bg-royal/10 dark:hover:bg-royal-light/15"
+                >
+                  <motion.div
+                    className="flex-shrink-0"
+                    animate={{
+                      scale: [1, 1.1, 1],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  >
+                    <ChatBubbleLeftIcon className="w-4 h-4 text-royal dark:text-royal-light" />
+                  </motion.div>
+                  <span className="text-sm font-raleway font-raleway-bold text-royal dark:text-royal-light">
+                    Ask Ron?
+                  </span>
+                  {selectedText && (
+                    <span className="ml-auto text-xs font-raleway text-ron-text/40 dark:text-white/40 group-hover:text-royal/70 dark:group-hover:text-royal-light/70 group-focus:text-royal/70 dark:group-focus:text-royal-light/70">
+                      with selection
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </>
       )}
@@ -348,21 +357,21 @@ export function ContextMenu({ x, y, isOpen, onClose, selectedText }: ContextMenu
   )
 }
 
-interface MenuItemProps {
-  icon: React.ReactNode
+interface MenuActionProps {
+  icon: ReactNode
   label: string
-  onClick: () => void
+  onSelect: () => void | Promise<void>
   shortcut?: string
 }
 
-function MenuItem({ icon, label, onClick, shortcut }: MenuItemProps) {
+function MenuAction({ icon, label, onSelect, shortcut }: MenuActionProps) {
   return (
-    <motion.button
-      role="menuitem"
-      onClick={onClick}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
-      className="w-full px-3 py-2 flex items-center gap-3 text-left transition-colors duration-200 hover:bg-black/5 dark:hover:bg-white/10"
+    <DropdownMenuItem
+      onSelect={(event) => {
+        event.preventDefault()
+        void onSelect()
+      }}
+      className="w-full px-3 py-2 flex items-center gap-3 text-left transition-colors duration-200 focus:bg-black/5 dark:focus:bg-white/10 hover:bg-black/5 dark:hover:bg-white/10"
     >
       <span className="flex-shrink-0 text-ron-text/60 dark:text-white/60">
         {icon}
@@ -375,6 +384,6 @@ function MenuItem({ icon, label, onClick, shortcut }: MenuItemProps) {
           {shortcut}
         </span>
       )}
-    </motion.button>
+    </DropdownMenuItem>
   )
 }

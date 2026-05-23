@@ -14,6 +14,54 @@ const { parentPort } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 
+const PYTHON_TOOL_RUNNER = String.raw`
+import sys
+import json
+import importlib.util
+import traceback
+
+try:
+    request = json.load(sys.stdin)
+    tool_path = request.get('toolPath')
+    tool_name = request.get('toolName')
+    args = request.get('args') or {}
+
+    spec = importlib.util.spec_from_file_location('tool_module', tool_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError('Unable to load tool module')
+    tool_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool_module)
+
+    tool_func = None
+    for name, obj in vars(tool_module).items():
+        if (callable(obj) and hasattr(obj, '__wrapped__')) or name == tool_name:
+            tool_func = obj
+            break
+
+    if tool_func is None:
+        for name, obj in vars(tool_module).items():
+            if callable(obj) and not name.startswith('_') and name != 'tool':
+                tool_func = obj
+                break
+
+    if tool_func is None:
+        result = {'status': 'error', 'content': [{'text': 'No callable tool function found in module'}]}
+    else:
+        output = tool_func(**args) if args else tool_func()
+        if isinstance(output, dict) and 'status' in output:
+            result = output
+        else:
+            result = {'status': 'success', 'content': [{'text': str(output)}]}
+except Exception as e:
+    result = {
+        'status': 'error',
+        'content': [{'text': f'Error executing tool: {str(e)}'}],
+        'traceback': traceback.format_exc()
+    }
+
+print(json.dumps(result))
+`
+
 // Handle messages from the main process
 parentPort.on('message', async (msg) => {
   if (msg.type === 'executePythonTool') {
@@ -38,7 +86,6 @@ parentPort.on('message', async (msg) => {
 async function executePythonTool(msg) {
   const {
     pythonPath,
-    loadToolPath,
     toolPath,
     toolName,
     args = {},
@@ -49,72 +96,12 @@ async function executePythonTool(msg) {
   const startTime = Date.now()
 
   try {
-    // Build the command arguments
-    // We execute a small Python wrapper that:
-    // 1. Loads the tool via load_tool mechanism
-    // 2. Executes it with the provided args
-    // 3. Outputs JSON result to stdout
-    const pythonScript = `
-import sys
-import json
-
-try:
-    # Import the tool module
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("tool_module", "${toolPath.replace(/\\/g, '\\\\')}")
-    tool_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tool_module)
-    
-    # Find the tool function (decorated with @tool)
-    tool_func = None
-    for name, obj in vars(tool_module).items():
-        if callable(obj) and hasattr(obj, '__wrapped__') or name == "${toolName}":
-            tool_func = getattr(tool_module, name)
-            break
-    
-    if tool_func is None:
-        # Try to find any callable that's not private
-        for name, obj in vars(tool_module).items():
-            if callable(obj) and not name.startswith('_') and name not in ['tool']:
-                tool_func = obj
-                break
-    
-    if tool_func is None:
-        result = {
-            "status": "error",
-            "content": [{"text": "No callable tool function found in module"}]
-        }
-    else:
-        # Execute the tool
-        args = json.loads('${JSON.stringify(args).replace(/'/g, "\\'")}')
-        output = tool_func(**args) if args else tool_func()
-        
-        # Normalize output to ToolResult format
-        if isinstance(output, dict) and 'status' in output:
-            result = output
-        else:
-            result = {
-                "status": "success",
-                "content": [{"text": str(output)}]
-            }
-            
-except Exception as e:
-    import traceback
-    result = {
-        "status": "error",
-        "content": [{"text": f"Error executing tool: {str(e)}"}],
-        "traceback": traceback.format_exc()
-    }
-
-print(json.dumps(result))
-`
-
-    // Spawn Python process
-    const proc = spawn(pythonPath, ['-c', pythonScript], {
+    const proc = spawn(pythonPath, ['-c', PYTHON_TOOL_RUNNER], {
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: path.dirname(toolPath)
     })
+    proc.stdin.end(JSON.stringify({ toolPath, toolName, args }))
 
     let stdout = ''
     let stderr = ''

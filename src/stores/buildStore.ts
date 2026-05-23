@@ -11,7 +11,7 @@
  */
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type {
   AgentProfile,
   BuildMessage,
@@ -584,6 +584,7 @@ export const useBuildStore = create<BuildState>()(
     }),
     {
       name: 'build-store-v2',
+      storage: createJSONStorage(() => localStorage),
       version: 4,
       migrate: (state: any, version: number) => {
         if (!state) return state

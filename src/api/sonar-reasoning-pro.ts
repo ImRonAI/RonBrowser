@@ -1,24 +1,13 @@
 /**
- * Sonar Reasoning Pro API Client
+ * Sonar Reasoning Pro renderer hook.
  *
- * Handles streaming responses from Sonar Reasoning Pro with chain of thought,
- * search results, citations, and images.
+ * Provider calls and credentials must live in backend code. The renderer consumes a
+ * UI-message-compatible endpoint through AI SDK useChat/DefaultChatTransport.
  */
 
-import { EventEmitter } from 'events'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface SonarStreamEvent {
-  type: 'content' | 'reasoning_start' | 'reasoning' | 'reasoning_end' | 'metadata' | 'error' | 'done'
-  content?: string
-  citations?: Citation[]
-  images?: ImageData[]
-  search_results?: SearchResult[]
-  message?: string
-}
+import { useCallback, useMemo } from 'react'
+import { useChat, type UIMessage } from '@ai-sdk/react'
+import { DefaultChatTransport, isDataUIPart, type TextUIPart } from 'ai'
 
 export interface Citation {
   id: string
@@ -44,459 +33,128 @@ export interface ImageData {
   mediaType?: string
 }
 
-export interface SonarReasoningProOptions {
-  apiKey?: string
-  model?: 'sonar-reasoning-pro' | 'sonar-pro'
-  temperature?: number
-  maxTokens?: number
-  searchDomains?: string[]
-  searchRecency?: 'day' | 'week' | 'month' | 'year'
-  returnImages?: boolean
-  returnCitations?: boolean
-  citationCount?: number
-}
+type MessagePart = UIMessage['parts'][number]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mock Data Generator (for development)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/* Unused - saved for future development
-function _generateMockResponse(query: string): SonarStreamEvent[] {
-  const events: SonarStreamEvent[] = []
-
-  // Start reasoning
-  events.push({ type: 'reasoning_start' })
-
-  // Reasoning content
-  const reasoningSteps = [
-    `Analyzing the query: "${query}"...`,
-    'Identifying key concepts and entities...',
-    'Searching multiple authoritative sources...',
-    'Cross-referencing information for accuracy...',
-    'Synthesizing findings into comprehensive response...'
-  ]
-
-  reasoningSteps.forEach(step => {
-    events.push({ type: 'reasoning', content: step + ' ' })
-  })
-
-  // End reasoning
-  events.push({ type: 'reasoning_end' })
-
-  // Search results metadata
-  events.push({
-    type: 'metadata',
-    search_results: [
-      {
-        id: 'search-1',
-        query: query,
-        snippet: `Found comprehensive information about ${query} from multiple authoritative sources.`,
-        url: 'https://example.com/search-1'
-      },
-      {
-        id: 'search-2',
-        query: `${query} detailed analysis`,
-        snippet: 'In-depth analysis reveals several key aspects worth considering...',
-        url: 'https://example.com/search-2'
-      }
-    ]
-  })
-
-  // Main content with citations
-  const contentChunks = [
-    `Based on comprehensive analysis, here's what I found about ${query}. `,
-    'The search results reveal several important insights. ',
-    'According to recent authoritative sources[1], the topic has significant relevance. ',
-    'Further investigation shows[2] that there are multiple perspectives to consider. ',
-    'The evidence suggests a nuanced understanding is required[3]. ',
-    '\n\n',
-    'Key findings include:\n',
-    '• Primary insight from the analysis[1]\n',
-    '• Secondary consideration worth noting[2]\n',
-    '• Additional context for complete understanding[3]\n',
-    '\n',
-    'This synthesis represents the most current and reliable information available.'
-  ]
-
-  contentChunks.forEach(chunk => {
-    events.push({ type: 'content', content: chunk })
-  })
-
-  // Citations metadata
-  events.push({
-    type: 'metadata',
-    citations: [
-      {
-        id: 'cite-1',
-        title: 'Comprehensive Analysis of ' + query,
-        url: 'https://example.com/source-1',
-        snippet: 'This authoritative source provides detailed insights into the topic...',
-        domain: 'example.com',
-        relevanceScore: 0.95
-      },
-      {
-        id: 'cite-2',
-        title: 'Recent Developments in ' + query,
-        url: 'https://example.com/source-2',
-        snippet: 'Latest research and findings on the subject matter...',
-        domain: 'example.com',
-        relevanceScore: 0.88
-      },
-      {
-        id: 'cite-3',
-        title: 'Expert Perspectives on ' + query,
-        url: 'https://example.com/source-3',
-        snippet: 'Industry experts weigh in with their analysis...',
-        domain: 'example.com',
-        relevanceScore: 0.82
-      }
-    ]
-  })
-
-  // Done
-  events.push({ type: 'done' })
-
-  return events
-}
-*/
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sonar Reasoning Pro Client
-// ─────────────────────────────────────────────────────────────────────────────
-
-export class SonarReasoningProClient extends EventEmitter {
-  private options: SonarReasoningProOptions
-
-  constructor(options: SonarReasoningProOptions = {}) {
-    super()
-    this.options = {
-      model: 'sonar-reasoning-pro',
-      temperature: 0.7,
-      maxTokens: 2000,
-      returnImages: true,
-      returnCitations: true,
-      citationCount: 5,
-      ...options
-    }
-  }
-
-  /**
-   * Stream a query to Sonar Reasoning Pro
-   */
-  /**
-   * Stream a query to Sonar Reasoning Pro
-   */
-  async stream(query: string): Promise<void> {
-    try {
-      // Use real API implementation
-      await this.streamReal(query)
-    } catch (error) {
-       console.error("Sonar Reasoning Pro stream error:", error)
-       // Fallback to error emission
-      this.emit('data', {
-        type: 'error',
-        message: error instanceof Error ? error.message : 'An error occurred during streaming'
-      })
-    }
-  }
-
-  /**
-   * Make a real API call to Perplexity Sonar API
-   * (To be implemented when API credentials are available)
-   */
-  async streamReal(query: string): Promise<void> {
-    const apiKey = this.options.apiKey || process.env.PERPLEXITY_API_KEY
-
-    if (!apiKey) {
-      throw new Error('Perplexity API key is required')
-    }
-
-    try {
-      const response = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: this.options.model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful search assistant. Provide comprehensive, accurate responses with citations.'
-            },
-            {
-              role: 'user',
-              content: query
-            }
-          ],
-          temperature: this.options.temperature,
-          max_tokens: this.options.maxTokens,
-          return_citations: this.options.returnCitations,
-          return_images: this.options.returnImages,
-          search_domain_filter: this.options.searchDomains,
-          search_recency_filter: this.options.searchRecency,
-          stream: true
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('No response body')
-      }
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') {
-              this.emit('data', { type: 'done' })
-              return
-            }
-
-            try {
-              const parsed = JSON.parse(data)
-              // Transform Perplexity response to our format
-              this.handlePerplexityChunk(parsed)
-            } catch (e) {
-              console.error('Failed to parse chunk:', e)
-            }
-          }
-        }
-      }
-    } catch (error) {
-      this.emit('data', {
-        type: 'error',
-        message: error instanceof Error ? error.message : 'An error occurred'
-      })
-    }
-  }
-
-  private isReasoning = false
-
-  /**
-   * Transform Perplexity API response chunks to our format
-   */
-  private handlePerplexityChunk(chunk: any): void {
-    if (chunk.choices?.[0]?.delta?.content) {
-      let content = chunk.choices[0].delta.content
-      
-      // Simple parse for <think> tags
-      // Note: This assumes tags don't get split across chunks too awkwardly
-      // For a robust implementation, we'd need a buffer
-      
-      if (!this.isReasoning) {
-        if (content.includes('<think>')) {
-          this.isReasoning = true
-          this.emit('data', { type: 'reasoning_start' })
-          
-          const parts = content.split('<think>')
-          if (parts[0]) {
-             this.emit('data', { type: 'content', content: parts[0] })
-          }
-          content = parts[1] // Remaining content is reasoning
-        }
-      }
-      
-      if (this.isReasoning) {
-        if (content.includes('</think>')) {
-          this.isReasoning = false
-          const parts = content.split('</think>')
-          
-          if (parts[0]) {
-            this.emit('data', { type: 'reasoning', content: parts[0] })
-          }
-          this.emit('data', { type: 'reasoning_end' })
-          
-          if (parts[1]) {
-            this.emit('data', { type: 'content', content: parts[1] })
-          }
-        } else {
-          this.emit('data', { type: 'reasoning', content: content })
-        }
-      } else {
-        // Normal content
-         this.emit('data', { type: 'content', content: content })
-      }
-    }
-
-    if (chunk.citations) {
-      this.emit('data', {
-        type: 'metadata',
-        citations: chunk.citations.map((c: any, i: number) => ({
-          id: `cite-${i}`,
-          title: c.title || 'Untitled',
-          url: c.url,
-          snippet: c.snippet,
-          domain: new URL(c.url).hostname,
-          relevanceScore: c.score
-        }))
-      })
-    }
-
-    if (chunk.images) {
-      this.emit('data', {
-        type: 'metadata',
-        images: chunk.images.map((img: any, i: number) => ({
-          id: `img-${i}`,
-          url: img.url,
-          caption: img.caption
-        }))
-      })
-    }
-  }
-
-  /* Unused - saved for future development
-  private _delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  }
-  */
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Express/API Route Handler
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Server-Sent Events handler for streaming Sonar Reasoning Pro responses
- */
-export function createSonarStreamHandler() {
-  return async (req: any, res: any) => {
-    const { query } = req.query
-
-    if (!query) {
-      res.status(400).json({ error: 'Query parameter is required' })
-      return
-    }
-
-    // Set up SSE headers
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*'
-    })
-
-    // Create client
-    const client = new SonarReasoningProClient()
-
-    // Handle events
-    client.on('data', (event: SonarStreamEvent) => {
-      res.write(`data: ${JSON.stringify(event)}\n\n`)
-
-      if (event.type === 'done' || event.type === 'error') {
-        res.end()
-      }
-    })
-
-    // Start streaming
-    await client.stream(query as string)
+function getDomainFromUrl(url: string): string | undefined {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return undefined
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook for React Components
-// ─────────────────────────────────────────────────────────────────────────────
+function textFromParts(parts: MessagePart[]): string {
+  return parts
+    .filter((part): part is TextUIPart => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
 
+function reasoningFromParts(parts: MessagePart[]): string {
+  return parts
+    .filter((part) => part.type === 'reasoning')
+    .map((part) => ('text' in part && typeof part.text === 'string' ? part.text : ''))
+    .join('')
+}
+
+function normalizeCitations(value: unknown): Citation[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index): Citation[] => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const url = typeof record.url === 'string' ? record.url : ''
+    if (!url) return []
+    const title = typeof record.title === 'string' ? record.title : getDomainFromUrl(url) || url
+    const snippet = typeof record.snippet === 'string' ? record.snippet : undefined
+    const domain = typeof record.domain === 'string' ? record.domain : getDomainFromUrl(url)
+    const relevanceScore = typeof record.relevanceScore === 'number' ? record.relevanceScore : undefined
+
+    return [{
+      id: typeof record.id === 'string' ? record.id : `cite-${index}`,
+      title,
+      url,
+      snippet,
+      domain,
+      relevanceScore,
+    }]
+  })
+}
+
+function normalizeSearchResults(value: unknown): SearchResult[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index): SearchResult[] => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const query = typeof record.query === 'string' ? record.query : ''
+    const snippet = typeof record.snippet === 'string' ? record.snippet : ''
+    const url = typeof record.url === 'string' ? record.url : undefined
+
+    return [{
+      id: typeof record.id === 'string' ? record.id : `result-${index}`,
+      query,
+      snippet,
+      url,
+    }]
+  })
+}
+
+function normalizeImages(value: unknown): ImageData[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index): ImageData[] => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const url = typeof record.url === 'string' ? record.url : ''
+    if (!url) return []
+
+    return [{
+      id: typeof record.id === 'string' ? record.id : `image-${index}`,
+      url,
+      caption: typeof record.caption === 'string' ? record.caption : undefined,
+      base64: typeof record.base64 === 'string' ? record.base64 : undefined,
+      mediaType: typeof record.mediaType === 'string' ? record.mediaType : undefined,
+    }]
+  })
+}
+
+function collectData<T>(parts: MessagePart[], key: string, normalizer: (value: unknown) => T[]): T[] {
+  const collected: T[] = []
+  for (const part of parts) {
+    if (!isDataUIPart(part)) continue
+    const data = (part as { data?: unknown }).data
+    if (!data || typeof data !== 'object') continue
+    collected.push(...normalizer((data as Record<string, unknown>)[key]))
+  }
+  return collected
+}
+
+// renderer-only hook
 export function useSonarReasoningPro() {
-  const [isStreaming, setIsStreaming] = React.useState(false)
-  const [content, setContent] = React.useState('')
-  const [reasoning, setReasoning] = React.useState('')
-  const [citations, setCitations] = React.useState<Citation[]>([])
-  const [images, setImages] = React.useState<ImageData[]>([])
-  const [searchResults, setSearchResults] = React.useState<SearchResult[]>([])
-  const [error, setError] = React.useState<string | null>(null)
+  const chat = useChat({
+    transport: new DefaultChatTransport({ api: '/api/sonar-reasoning-pro/stream' }),
+  })
 
-  const eventSourceRef = React.useRef<EventSource | null>(null)
-
-  const stream = React.useCallback((query: string) => {
-    // Clean up any existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
+  const latestAssistantMessage = useMemo(() => {
+    for (let i = chat.messages.length - 1; i >= 0; i -= 1) {
+      if (chat.messages[i].role === 'assistant') return chat.messages[i]
     }
+    return null
+  }, [chat.messages])
 
-    // Reset state
-    setContent('')
-    setReasoning('')
-    setCitations([])
-    setImages([])
-    setSearchResults([])
-    setError(null)
-    setIsStreaming(true)
-
-    // Create EventSource
-    const eventSource = new EventSource(`/api/sonar-reasoning-pro/stream?query=${encodeURIComponent(query)}`)
-    eventSourceRef.current = eventSource
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data: SonarStreamEvent = JSON.parse(event.data)
-
-        switch (data.type) {
-          case 'content':
-            setContent(prev => prev + (data.content || ''))
-            break
-          case 'reasoning':
-            setReasoning(prev => prev + (data.content || ''))
-            break
-          case 'metadata':
-            if (data.citations) setCitations(data.citations)
-            if (data.images) setImages(data.images)
-            if (data.search_results) setSearchResults(data.search_results)
-            break
-          case 'error':
-            setError(data.message || 'An error occurred')
-            setIsStreaming(false)
-            break
-          case 'done':
-            setIsStreaming(false)
-            break
-        }
-      } catch (error) {
-        console.error('Error parsing SSE data:', error)
-      }
-    }
-
-    eventSource.onerror = () => {
-      setIsStreaming(false)
-      eventSource.close()
-    }
-  }, [])
-
-  // Cleanup on unmount
-  React.useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
-    }
-  }, [])
+  const parts = latestAssistantMessage?.parts || []
+  const stream = useCallback((query: string) => {
+    if (!query.trim()) return
+    void chat.sendMessage({ text: query })
+  }, [chat])
 
   return {
+    ...chat,
     stream,
-    isStreaming,
-    content,
-    reasoning,
-    citations,
-    images,
-    searchResults,
-    error
+    isStreaming: chat.status === 'streaming' || chat.status === 'submitted',
+    content: textFromParts(parts),
+    reasoning: reasoningFromParts(parts),
+    citations: collectData(parts, 'citations', normalizeCitations),
+    images: collectData(parts, 'images', normalizeImages),
+    searchResults: collectData(parts, 'search_results', normalizeSearchResults),
+    error: chat.error?.message || null,
   }
 }
-
-// Import React for the hook
-import * as React from 'react'

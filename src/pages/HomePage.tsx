@@ -378,18 +378,19 @@ function DiscoverContent({ topics }: { topics: string[] }) {
 
   // Staggered timers - each card cycles 12+ seconds apart from others
   useEffect(() => {
-    const baseInterval = 15000 // 15 seconds between any card changing
+    const intervals: ReturnType<typeof setInterval>[] = []
     const timers = TOPIC_GROUPS.map((_, i) => {
-      const initialDelay = i * baseInterval // Card 0 at 0s, Card 1 at 15s, Card 2 at 30s, etc.
       const timeout = setTimeout(() => {
         cycleCard(i)
-        // Then repeat every 90 seconds (6 cards * 15s = 90s full cycle)
-        const interval = setInterval(() => cycleCard(i), 90000)
-        return () => clearInterval(interval)
-      }, initialDelay)
+        intervals.push(setInterval(() => cycleCard(i), 90000))
+      }, i * 15000)
       return timeout
     })
-    return () => timers.forEach(clearTimeout)
+
+    return () => {
+      timers.forEach(clearTimeout)
+      intervals.forEach(clearInterval)
+    }
   }, [cycleCard])
 
   return (

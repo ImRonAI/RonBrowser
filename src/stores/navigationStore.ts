@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 export type HomeTab = 'discover' | 'execute' | 'calendar' | 'vibe' | 'build'
 
@@ -28,6 +28,7 @@ export const useNavigationStore = create<NavigationStore>()(
     }),
     {
       name: 'ron-navigation',
+      storage: createJSONStorage(() => localStorage),
       version: 1,
       partialize: (state) => ({
         isDrawerExpanded: state.isDrawerExpanded,

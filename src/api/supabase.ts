@@ -19,10 +19,15 @@ interface SupabaseConfig {
       autoRefreshToken?: boolean
       persistSession?: boolean
       detectSessionInUrl?: boolean
+      flowType?: 'implicit' | 'pkce'
+      storage?: {
+        getItem: (key: string) => string | null | Promise<string | null>
+        setItem: (key: string, value: string) => void | Promise<void>
+        removeItem: (key: string) => void | Promise<void>
+      }
     }
   }
 }
-
 const getSupabaseConfig = (): SupabaseConfig => {
   const url = import.meta.env.VITE_SUPABASE_URL
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -41,6 +46,7 @@ const getSupabaseConfig = (): SupabaseConfig => {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false, // Electron doesn't use URL-based auth
+        flowType: 'pkce',
       }
     }
   }
@@ -50,16 +56,35 @@ const getSupabaseConfig = (): SupabaseConfig => {
 // Supabase Client Singleton
 // ============================================
 
-// ============================================
-// Supabase Client Singleton
-// ============================================
+const electronAuthStorage = {
+  async getItem(key: string) {
+    // @ts-expect-error Electron secure Supabase storage methods are exposed by the preload bridge at runtime.
+    return window.electron?.auth?.getItem?.(key) ?? null
+  },
+  async setItem(key: string, value: string) {
+    // @ts-expect-error Electron secure Supabase storage methods are exposed by the preload bridge at runtime.
+    await window.electron?.auth?.setItem?.(key, value)
+  },
+  async removeItem(key: string) {
+    // @ts-expect-error Electron secure Supabase storage methods are exposed by the preload bridge at runtime.
+    await window.electron?.auth?.removeItem?.(key)
+  },
+}
 
 let supabaseInstance: SupabaseClient | null = null
 
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseInstance) {
     const config = getSupabaseConfig()
-    supabaseInstance = createClient(config.url, config.anonKey, config.options)
+    supabaseInstance = createClient(config.url, config.anonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+        flowType: 'pkce',
+        storage: electronAuthStorage,
+      },
+    })
   }
   return supabaseInstance
 }
@@ -153,6 +178,17 @@ export async function signOut() {
 export async function getCurrentUser() {
   const { data: { user } } = await supabase.auth.getUser()
   return user
+}
+
+export async function exchangeOAuthCodeForSession(callbackUrl: string) {
+  const code = (() => {
+    try {
+      return new URL(callbackUrl).searchParams.get('code') ?? callbackUrl
+    } catch {
+      return callbackUrl
+    }
+  })()
+  return supabase.auth.exchangeCodeForSession(code)
 }
 
 // ============================================
