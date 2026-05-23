@@ -15,6 +15,8 @@ interface VoiceAgentEvent {
   data: Record<string, unknown>
 }
 
+type VoiceAgentStartResult = { success: boolean; error?: string }
+
 interface UseVoiceAgentOptions {
   enabled: boolean
   apiKey?: string
@@ -57,7 +59,7 @@ export function useVoiceAgent({
 
     try {
       setState('starting')
-      const result = await window.electron.voiceAgent.start(apiKey) as any
+      const result = await window.electron.voiceAgent.start(apiKey) as VoiceAgentStartResult
 
       if (!result.success) {
         const errorMsg = result.error || 'Failed to start voice agent'
@@ -91,18 +93,25 @@ export function useVoiceAgent({
     }
   }, [])
 
-  // Start/stop when enabled toggles (no unmount stop to avoid StrictMode churn)
+  // Start/stop when enabled toggles
   useEffect(() => {
-    if (!window.electron?.voiceAgent) return
+    if (!enabled || !window.electron?.voiceAgent) return
+    let ownsProcess = false
+    let cancelled = false
 
-    // If disabling, stop immediately (no debounce needed).
-    if (!enabled) {
-      if (startedRef.current) stop()
-      return
-    }
-    // Start agent when enabled
-    if (!startedRef.current) {
-      start()
+    const startPromise = (async () => {
+      if (!startedRef.current) {
+        await start()
+        ownsProcess = startedRef.current
+        if (cancelled && ownsProcess) await stop()
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      void startPromise.then(() => {
+        if (ownsProcess || startedRef.current) void stop()
+      })
     }
   }, [enabled, start, stop])
 

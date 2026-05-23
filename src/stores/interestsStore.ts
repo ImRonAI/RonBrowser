@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { useOnboardingStore } from './onboardingStore'
 
 // ============================================
@@ -421,12 +421,15 @@ export const useInterestsStore = create<InterestsState>()(
     }),
     {
       name: 'interests-storage',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
       partialize: (state) => ({
         nodes: state.nodes,
         connections: state.connections,
-        isInitialized: state.isInitialized
+        isInitialized: state.isInitialized,
         // Don't persist isExpanded - always start collapsed
-      })
+      }),
+      migrate: (persisted) => persisted as Partial<InterestsState>,
     }
   )
 )

@@ -1,5 +1,6 @@
-import { app, BrowserWindow, shell, ipcMain, safeStorage, WebContentsView, Menu, MenuItem } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, WebContentsView, Menu, MenuItem } from 'electron'
 import { join } from 'node:path'
+import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -70,10 +71,10 @@ async function startMcpBridge(tabsManager: TabsManager) {
 const CHROME_HEIGHT = 108 // Height of toolbar (64px) + tabs (44px)
 const AGENT_PANEL_WIDTH = 420 // Width of the agent panel
 
-// Enable CDP (Chrome DevTools Protocol) for Playwright/browser-use connection
-// This allows the Python agent to connect to this Electron instance
-app.commandLine.appendSwitch('remote-debugging-port', String(CDP_PORT))
-app.commandLine.appendSwitch('remote-allow-origins', '*')
+// Enable CDP (Chrome DevTools Protocol) only for explicit local automation in development
+if (!app.isPackaged && process.env.ENABLE_ELECTRON_CDP === 'true') {
+  app.commandLine.appendSwitch('remote-debugging-port', String(CDP_PORT))
+}
 
 // Disable GPU Acceleration for Windows 7
 if (process.platform === 'win32') app.disableHardwareAcceleration()
@@ -81,30 +82,72 @@ if (process.platform === 'win32') app.disableHardwareAcceleration()
 // Set application name for Windows 10+ notifications
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
-if (!app.requestSingleInstanceLock()) {
+let mainWindow: BrowserWindow | null = null
+let pendingDeepLink: string | null = null
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('ron', process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient('ron')
+}
+
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
   app.quit()
   process.exit(0)
 }
 
-let mainWindow: BrowserWindow | null = null
+function sendDeepLink(url: string) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    pendingDeepLink = url
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.focus()
+  mainWindow.webContents.send('deep-link', url)
+}
+
+function flushPendingDeepLink() {
+  if (!pendingDeepLink || !mainWindow || mainWindow.isDestroyed()) return
+  const url = pendingDeepLink
+  pendingDeepLink = null
+  mainWindow.webContents.send('deep-link', url)
+}
+
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find(arg => arg.startsWith('ron://'))
+  if (url) sendDeepLink(url)
+})
+
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  sendDeepLink(url)
+})
+
 let currentTheme: 'light' | 'dark' | 'glass' | 'system' = 'light'
 // Deprecated single-view variables replaced by TabsManager
 let isAgentPanelOpen: boolean = false
 
 // ============================================
-// Secure Token Storage
+// IPC Security
 // ============================================
 
-interface StoredTokens {
-  accessToken: string
-  refreshToken: string
-  expiresAt: number
+function validateIpcSender(frame: Electron.WebFrameMain | null): boolean {
+  if (!frame) return false
+  const url = new URL(frame.url)
+  return url.protocol === 'file:' || url.origin === process.env.ELECTRON_RENDERER_URL
 }
 
-let cachedTokens: StoredTokens | null = null
-
-// Note: encryptAndStore and decryptAndRetrieve are available for future secure token persistence
-// Currently using in-memory storage; for production, integrate with electron-store
+function isSafeExternalUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl)
+    return parsed.protocol === 'https:' || parsed.protocol === 'mailto:'
+  } catch {
+    return false
+  }
+}
 
 // ============================================
 // Window Creation
@@ -127,7 +170,7 @@ async function createWindow() {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: true
     },
     icon: join(__dirname, '../../public/favicon.png')
   })
@@ -163,9 +206,15 @@ async function createWindow() {
     mainWindow?.show()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) setImmediate(() => void shell.openExternal(url))
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, rawUrl) => {
+    const parsed = new URL(rawUrl)
+    const rendererOrigin = process.env.ELECTRON_RENDERER_URL
+    if (parsed.protocol !== 'file:' && parsed.origin !== rendererOrigin) event.preventDefault()
   })
 
   if (isDev) {
@@ -184,6 +233,10 @@ async function createWindow() {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  mainWindow.webContents.once('did-finish-load', () => {
+    flushPendingDeepLink()
+  })
+
   // Handle window resize - update WebContentsView bounds
   mainWindow.on('resize', () => {
     updateWebContentsViewBounds()
@@ -193,6 +246,14 @@ async function createWindow() {
 // ============================================
 // Tabs Manager (WebContentsView per tab)
 // ============================================
+
+interface SafeTabContext {
+  id: string
+  url: string
+  title: string
+  isExternal: boolean
+  text?: string
+}
 
 interface TabRecord {
   id: string
@@ -363,42 +424,13 @@ class TabsManager {
   canGoBackActive(): boolean { return this.activeTab?.view?.webContents.canGoBack() ?? false }
   canGoForwardActive(): boolean { return this.activeTab?.view?.webContents.canGoForward() ?? false }
 
-  async getContext(id: string): Promise<any> {
+  async getContext(id: string): Promise<SafeTabContext> {
     const tab = this.tabs.get(id)
     if (!tab) throw new Error('Tab not found')
-    if (!tab.isExternal || !tab.view) {
-      return { id: tab.id, url: tab.url, title: tab.title, isExternal: false }
-    }
+    if (!tab.isExternal || !tab.view) return { id: tab.id, url: tab.url, title: tab.title, isExternal: false }
     const wc = tab.view.webContents
-    const url = wc.getURL()
-    const title = wc.getTitle()
-
-    // Execute JS in page to collect DOM data
-    const dom = await wc.executeJavaScript(`(() => {
-      const html = document.documentElement ? document.documentElement.outerHTML : '';
-      const text = document.body ? document.body.innerText : '';
-      const metas = Array.from(document.querySelectorAll('meta')).map(m => ({
-        name: m.getAttribute('name') || m.getAttribute('property') || '',
-        content: m.getAttribute('content') || ''
-      }));
-      const ls = (() => { try { return Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])) } catch { return {} } })();
-      const ss = (() => { try { return Object.fromEntries(Object.keys(sessionStorage).map(k => [k, sessionStorage.getItem(k)])) } catch { return {} } })();
-      return { html, text, metas, localStorage: ls, sessionStorage: ss };
-    })()`, true)
-
-    // Cookies (scoped to URL)
-    const cookies = await wc.session.cookies.get({ url }).catch(() => [])
-
-    // Optional screenshot
-    const image = await wc.capturePage().catch(() => null)
-    let screenshot: string | undefined
-    if (image && !image.isEmpty()) {
-      screenshot = image.toPNG().toString('base64')
-    } else {
-      console.warn(`[TabsManager] Captured empty screenshot for tab ${id}`)
-    }
-
-    return { id: tab.id, url, title, favicon: tab.favicon, isExternal: true, dom, cookies, screenshot }
+    const text = await wc.executeJavaScript(`document.body ? document.body.innerText : ''`, true)
+    return { id: tab.id, url: wc.getURL(), title: wc.getTitle(), isExternal: true, text }
   }
 
   // Internal helpers
@@ -409,9 +441,19 @@ class TabsManager {
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
-        backgroundThrottling: false,
-        preload: join(__dirname, 'preload-external.js')
+        backgroundThrottling: false
       }
+    })
+
+    const ses = tab.view.webContents.session
+    ses.setPermissionRequestHandler((webContents, permission, callback) => {
+      const parsed = new URL(webContents.getURL())
+      const allowed = parsed.protocol === 'https:' && parsed.host === 'trusted.example.com' && permission === 'notifications'
+      callback(allowed)
+    })
+
+    tab.view.webContents.on('will-navigate', (event, rawUrl) => {
+      try { normalizeUrl(rawUrl) } catch { event.preventDefault() }
     })
 
     // Bounds and events
@@ -447,7 +489,10 @@ class TabsManager {
       menu.popup()
     })
 
-    tab.view.webContents.setWindowOpenHandler(details => { shell.openExternal(details.url); return { action: 'deny' } })
+    tab.view.webContents.setWindowOpenHandler(({ url }) => {
+      if (isSafeExternalUrl(url)) setImmediate(() => void shell.openExternal(url))
+      return { action: 'deny' }
+    })
   }
 
   private onUrlChanged(tab: TabRecord, url: string) {
@@ -533,15 +578,12 @@ function isInternalUrl(url: string): boolean {
 /**
  * Normalize URL for navigation (add https:// if missing)
  */
-function normalizeUrl(url: string): string {
-  // Internal URLs
-  if (isInternalUrl(url)) return url
-
-  // Already has protocol
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-
-  // Add https:// by default
-  return `https://${url}`
+function normalizeUrl(rawUrl: string): string {
+  if (isInternalUrl(rawUrl)) return rawUrl
+  const candidate = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(rawUrl) ? rawUrl : `https://${rawUrl}`
+  const parsed = new URL(candidate)
+  if (parsed.protocol !== 'https:') throw new Error('Only HTTPS navigation is allowed')
+  return parsed.toString()
 }
 
 // This method will be called when Electron has finished initialization
@@ -555,10 +597,11 @@ app.whenReady().then(async () => {
   // Initialize Tool Management System (if feature flag enabled)
   if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {
     console.log('[Main] Initializing Python Tool Management System...')
-    registerToolManagerIPC()
+    registerToolManagerIPC(validateIpcSender)
     
     // Register tool execution IPC handler
-    ipcMain.handle('tools:execute', async (_, toolName: string, args: Record<string, unknown>) => {
+    ipcMain.handle('tools:execute', async (event, toolName: string, args: Record<string, unknown>) => {
+      if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender', result: { status: 'error', content: [{ text: 'Forbidden sender' }] } }
       const tools = getDiscoveredTools()
       const tool = tools.find(t => t.name === toolName)
       
@@ -596,14 +639,10 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  // Clean up tool management resources
-  if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {
-    stopWatcher()
-    terminateAllWorkers()
-  }
-  
   if (process.platform !== 'darwin') {
     app.quit()
+  } else {
+    void cleanupBeforeExit()
   }
 })
 
@@ -619,11 +658,13 @@ app.on('activate', () => {
 // IPC Handlers - Window Controls
 // ============================================
 
-ipcMain.on('window-minimize', () => {
+ipcMain.on('window-minimize', (event) => {
+  if (!validateIpcSender(event.senderFrame)) return
   mainWindow?.minimize()
 })
 
-ipcMain.on('window-maximize', () => {
+ipcMain.on('window-maximize', (event) => {
+  if (!validateIpcSender(event.senderFrame)) return
   if (mainWindow?.isMaximized()) {
     mainWindow?.unmaximize()
   } else {
@@ -631,7 +672,8 @@ ipcMain.on('window-maximize', () => {
   }
 })
 
-ipcMain.on('window-close', () => {
+ipcMain.on('window-close', (event) => {
+  if (!validateIpcSender(event.senderFrame)) return
   mainWindow?.close()
 })
 
@@ -639,11 +681,13 @@ ipcMain.on('window-close', () => {
 // IPC Handlers - Theme
 // ============================================
 
-ipcMain.handle('get-theme', () => {
+ipcMain.handle('get-theme', (event) => {
+  if (!validateIpcSender(event.senderFrame)) return 'light'
   return currentTheme
 })
 
-ipcMain.handle('set-theme', (_, theme: 'light' | 'dark' | 'glass' | 'system') => {
+ipcMain.handle('set-theme', (event, theme: 'light' | 'dark' | 'glass' | 'system') => {
+  if (!validateIpcSender(event.senderFrame)) return currentTheme
   currentTheme = theme
 
   if (!mainWindow) return theme
@@ -679,50 +723,19 @@ ipcMain.handle('set-theme', (_, theme: 'light' | 'dark' | 'glass' | 'system') =>
 })
 
 // ============================================
-// IPC Handlers - Authentication
-// ============================================
-
-ipcMain.handle('auth:store-tokens', async (_, tokens: StoredTokens) => {
-  try {
-    cachedTokens = tokens
-    // In production, encrypt and persist tokens
-    if (safeStorage.isEncryptionAvailable()) {
-      // Could use electron-store here for persistent storage
-      return { success: true }
-    }
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to store tokens:', error)
-    return { success: false, error: 'Failed to store tokens' }
-  }
-})
-
-ipcMain.handle('auth:get-tokens', async () => {
-  return cachedTokens
-})
-
-ipcMain.handle('auth:clear-tokens', async () => {
-  cachedTokens = null
-  return { success: true }
-})
-
-ipcMain.handle('auth:is-encryption-available', async () => {
-  return safeStorage.isEncryptionAvailable()
-})
-
-// ============================================
 // IPC Handlers - Agent Communication
 // ============================================
 
 // Store active stream connections
 const activeStreams = new Map<string, AbortController>()
 
-ipcMain.handle('agent:start-stream', async (_event, streamId: string, request: {
+ipcMain.handle('agent:start-stream', async (event, streamId: string, request: {
   url: string
   method: string
   headers: Record<string, string>
   body: string
 }) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const controller = new AbortController()
   activeStreams.set(streamId, controller)
 
@@ -801,7 +814,8 @@ ipcMain.handle('agent:start-stream', async (_event, streamId: string, request: {
   }
 })
 
-ipcMain.handle('agent:abort-stream', async (_, streamId: string) => {
+ipcMain.handle('agent:abort-stream', async (event, streamId: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const controller = activeStreams.get(streamId)
   if (controller) {
     controller.abort()
@@ -811,7 +825,8 @@ ipcMain.handle('agent:abort-stream', async (_, streamId: string) => {
   return { success: false, error: 'Stream not found' }
 })
 
-ipcMain.handle('agent:abort-all-streams', async () => {
+ipcMain.handle('agent:abort-all-streams', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   for (const [, controller] of activeStreams) {
     controller.abort()
   }
@@ -1017,11 +1032,13 @@ async function startVoiceAgent(apiKey?: string): Promise<{ success: boolean; pid
   }
 }
 
-ipcMain.handle('voice-agent:start', async (_event, apiKey?: string) => {
+ipcMain.handle('voice-agent:start', async (event, apiKey?: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   return startVoiceAgent(apiKey)
 })
 
-ipcMain.handle('voice-agent:stop', async () => {
+ipcMain.handle('voice-agent:stop', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   if (voiceAgentProcess) {
     voiceAgentStopRequested = true
     await killVoiceAgent()
@@ -1030,42 +1047,53 @@ ipcMain.handle('voice-agent:stop', async () => {
   return { success: false, error: 'No active voice agent process' }
 })
 
-// Clean up on app quit
-app.on('before-quit', () => {
+async function cleanupBeforeExit(): Promise<void> {
   appQuitting = true
-  void killVoiceAgent()
-})
+  if (process.env.ENABLE_PYTHON_TOOL_MANAGEMENT === 'true') {
+    stopWatcher()
+    terminateAllWorkers()
+  }
+  await killVoiceAgent()
+}
 
-// Also clean up when window is closed
-app.on('window-all-closed', () => {
-  appQuitting = true
-  void killVoiceAgent()
+app.on('before-quit', (event) => {
+  event.preventDefault()
+  cleanupBeforeExit().finally(() => app.exit(0))
 })
 
 // ============================================
 // IPC Handlers - Tab Management
 // ============================================
 
-ipcMain.handle('create-tab', async (_event, url?: string, clientTabId?: string) => {
-  const rec = tabsManager.create(clientTabId, url || 'ron://home')
-  return { tabId: rec.id, url: rec.url }
+ipcMain.handle('create-tab', async (event, url?: string, clientTabId?: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
+  try {
+    const rec = tabsManager.create(clientTabId, url || 'ron://home')
+    return { tabId: rec.id, url: rec.url }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to create tab' }
+  }
 })
 
-ipcMain.handle('close-tab', async (_event, tabId: string) => {
+ipcMain.handle('close-tab', async (event, tabId: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const ok = tabsManager.close(tabId)
   return { success: ok }
 })
 
-ipcMain.handle('switch-tab', async (_event, tabId: string) => {
+ipcMain.handle('switch-tab', async (event, tabId: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const ok = tabsManager.switch(tabId)
   return { success: ok }
 })
 
-ipcMain.handle('tabs:list', async () => {
+ipcMain.handle('tabs:list', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return []
   return tabsManager.list()
 })
 
-ipcMain.handle('tabs:get-context', async (_event, tabId: string) => {
+ipcMain.handle('tabs:get-context', async (event, tabId: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   try {
     const ctx = await tabsManager.getContext(tabId)
     return { success: true, context: ctx }
@@ -1078,7 +1106,8 @@ ipcMain.handle('tabs:get-context', async (_event, tabId: string) => {
 // IPC Handlers - Browser Navigation
 // ============================================
 
-ipcMain.handle('browser:navigate', async (_event, url: string) => {
+ipcMain.handle('browser:navigate', async (event, url: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   try {
     const result = tabsManager.navigateActive(url)
     return result
@@ -1088,7 +1117,8 @@ ipcMain.handle('browser:navigate', async (_event, url: string) => {
   }
 })
 
-ipcMain.handle('browser:search', async (_, query: string) => {
+ipcMain.handle('browser:search', async (event, query: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   try {
     // Use internal search page (ron://search?q=<query>)
     const searchUrl = `ron://search?q=${encodeURIComponent(query)}`
@@ -1103,7 +1133,8 @@ ipcMain.handle('browser:search', async (_, query: string) => {
   }
 })
 
-ipcMain.handle('browser:go-back', async () => {
+ipcMain.handle('browser:go-back', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   try {
     return tabsManager.goBackActive() ? { success: true } : { success: false, error: 'Cannot go back' }
   } catch (error) {
@@ -1111,7 +1142,8 @@ ipcMain.handle('browser:go-back', async () => {
   }
 })
 
-ipcMain.handle('browser:go-forward', async () => {
+ipcMain.handle('browser:go-forward', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   try {
     return tabsManager.goForwardActive() ? { success: true } : { success: false, error: 'Cannot go forward' }
   } catch (error) {
@@ -1119,7 +1151,8 @@ ipcMain.handle('browser:go-forward', async () => {
   }
 })
 
-ipcMain.handle('browser:reload', async () => {
+ipcMain.handle('browser:reload', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   try {
     return tabsManager.reloadActive() ? { success: true } : { success: false, error: 'Reload failed' }
   } catch (error) {
@@ -1127,15 +1160,18 @@ ipcMain.handle('browser:reload', async () => {
   }
 })
 
-ipcMain.handle('browser:get-url', async () => {
+ipcMain.handle('browser:get-url', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return 'ron://home'
   return tabsManager.activeTab?.url || 'ron://home'
 })
 
-ipcMain.handle('browser:can-go-back', async () => {
+ipcMain.handle('browser:can-go-back', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return false
   return tabsManager.canGoBackActive()
 })
 
-ipcMain.handle('browser:can-go-forward', async () => {
+ipcMain.handle('browser:can-go-forward', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return false
   return tabsManager.canGoForwardActive()
 })
 
@@ -1143,7 +1179,8 @@ ipcMain.handle('browser:can-go-forward', async () => {
 // IPC Handlers - Agent Panel State
 // ============================================
 
-ipcMain.handle('browser:set-panel-open', async (_event, isOpen: boolean) => {
+ipcMain.handle('browser:set-panel-open', async (event, isOpen: boolean) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   isAgentPanelOpen = isOpen
   updateWebContentsViewBounds()
   return { success: true }
@@ -1170,7 +1207,8 @@ function getActiveTabWebContents(): Electron.WebContents | null {
   return wc
 }
 
-ipcMain.handle('browser:click', async (_event, selector: string) => {
+ipcMain.handle('browser:click', async (event, selector: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   try {
@@ -1187,7 +1225,8 @@ ipcMain.handle('browser:click', async (_event, selector: string) => {
   }
 })
 
-ipcMain.handle('browser:type', async (_event, selector: string, text: string, opts?: { clear?: boolean }) => {
+ipcMain.handle('browser:type', async (event, selector: string, text: string, opts?: { clear?: boolean }) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   try {
@@ -1212,7 +1251,8 @@ ipcMain.handle('browser:type', async (_event, selector: string, text: string, op
   }
 })
 
-ipcMain.handle('browser:screenshot', async () => {
+ipcMain.handle('browser:screenshot', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   try {
@@ -1236,7 +1276,8 @@ ipcMain.handle('browser:screenshot', async () => {
   }
 })
 
-ipcMain.handle('browser:get-text', async () => {
+ipcMain.handle('browser:get-text', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   try {
@@ -1247,7 +1288,8 @@ ipcMain.handle('browser:get-text', async () => {
   }
 })
 
-ipcMain.handle('browser:get-html', async () => {
+ipcMain.handle('browser:get-html', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   try {
@@ -1258,18 +1300,8 @@ ipcMain.handle('browser:get-html', async () => {
   }
 })
 
-ipcMain.handle('browser:evaluate', async (_event, script: string) => {
-  const wc = getActiveTabWebContents()
-  if (!wc) return { success: false, error: 'No active external tab' }
-  try {
-    const result = await wc.executeJavaScript(script, true)
-    return { success: true, result }
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'Evaluate failed' }
-  }
-})
-
-ipcMain.handle('browser:wait-for-selector', async (_event, selector: string, timeoutMs: number = 10000) => {
+ipcMain.handle('browser:wait-for-selector', async (event, selector: string, timeoutMs: number = 10000) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   try {
@@ -1289,13 +1321,15 @@ ipcMain.handle('browser:wait-for-selector', async (_event, selector: string, tim
   }
 })
 
-ipcMain.handle('browser:get-active-url', async () => {
+ipcMain.handle('browser:get-active-url', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   return { success: true, url: wc.getURL() }
 })
 
-ipcMain.handle('browser:get-active-title', async () => {
+ipcMain.handle('browser:get-active-title', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const wc = getActiveTabWebContents()
   if (!wc) return { success: false, error: 'No active external tab' }
   return { success: true, title: wc.getTitle() }
@@ -1305,21 +1339,24 @@ ipcMain.handle('browser:get-active-title', async () => {
 // IPC Handlers - Legacy Navigation (kept for compatibility)
 // ============================================
 
-ipcMain.handle('navigate', async (_, url: string) => {
-  // Redirect to new handler
-  return ipcMain.emit('browser:navigate', null, url)
+ipcMain.handle('navigate', async (event, url: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
+  return tabsManager.navigateActive(url)
 })
 
-ipcMain.handle('go-back', async () => {
-  return ipcMain.emit('browser:go-back', null)
+ipcMain.handle('go-back', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
+  return tabsManager.goBackActive() ? { success: true } : { success: false, error: 'Cannot go back' }
 })
 
-ipcMain.handle('go-forward', async () => {
-  return ipcMain.emit('browser:go-forward', null)
+ipcMain.handle('go-forward', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
+  return tabsManager.goForwardActive() ? { success: true } : { success: false, error: 'Cannot go forward' }
 })
 
-ipcMain.handle('reload', async () => {
-  return ipcMain.emit('browser:reload', null)
+ipcMain.handle('reload', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
+  return tabsManager.reloadActive() ? { success: true } : { success: false, error: 'Reload failed' }
 })
 
 // ============================================
@@ -1352,32 +1389,29 @@ function ensureSandboxExists(): string {
  * Validate and resolve path within sandbox, preventing traversal attacks.
  */
 function resolveSandboxPath(relativePath: string): { success: boolean; path?: string; error?: string } {
-  const sandboxRoot = ensureSandboxExists()
-  const path = require('path')
-  
-  // Strip leading slashes to make it relative
-  const cleanPath = relativePath.replace(/^[/\\]+/, '')
-  
-  // Resolve full path
-  const fullPath = path.normalize(path.join(sandboxRoot, cleanPath))
-  
-  // Security check: ensure path is within sandbox
-  if (!fullPath.startsWith(path.normalize(sandboxRoot))) {
+  const sandboxRoot = path.resolve(ensureSandboxExists())
+  const fullPath = path.resolve(sandboxRoot, relativePath.replace(/^[/\\]+/, ''))
+  const rel = path.relative(sandboxRoot, fullPath)
+  if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     return { success: false, error: `Path traversal blocked: '${relativePath}' resolves outside sandbox` }
   }
-  
   return { success: true, path: fullPath }
 }
 
 // Get sandbox root path
-ipcMain.handle('sandbox:get-root', async () => {
+ipcMain.handle('sandbox:get-root', async (event) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   return { success: true, root: ensureSandboxExists() }
 })
 
+const ALLOWED_SANDBOX_COMMANDS = new Set(['python3', 'node'])
+
 // Execute shell command in sandbox (with timeout)
-ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], options: { timeout?: number; noOutputTimeout?: number } = {}) => {
+ipcMain.handle('sandbox:shell', async (event, command: string, args: string[] = [], options: { timeout?: number; noOutputTimeout?: number } = {}) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender', stdout: '', stderr: '', exitCode: -1 }
+  if (!ALLOWED_SANDBOX_COMMANDS.has(command)) return { success: false, error: 'Command not allowed', stdout: '', stderr: '', exitCode: -1 }
+  if (!Array.isArray(args) || args.some(arg => typeof arg !== 'string')) return { success: false, error: 'Invalid arguments', stdout: '', stderr: '', exitCode: -1 }
   const sandboxRoot = ensureSandboxExists()
-  const { spawn } = require('child_process')
   const maxTimeout = 30000
   const maxNoOutputTimeout = 15000
   const requestedTimeout = Number.isFinite(options.timeout) ? options.timeout! : maxTimeout
@@ -1398,11 +1432,10 @@ ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], 
     
     const child = spawn(command, args, {
       cwd: sandboxRoot,
-      shell: true,
+      shell: false,
       detached: true,
       env: {
-        ...process.env,
-        HOME: sandboxRoot, // Restrict HOME to sandbox
+        HOME: sandboxRoot,
         PWD: sandboxRoot,
       }
     })
@@ -1514,7 +1547,8 @@ ipcMain.handle('sandbox:shell', async (_, command: string, args: string[] = [], 
 })
 
 // Read file from sandbox
-ipcMain.handle('sandbox:read-file', async (_, filePath: string) => {
+ipcMain.handle('sandbox:read-file', async (event, filePath: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const resolved = resolveSandboxPath(filePath)
   if (!resolved.success || !resolved.path) {
     return { success: false, error: resolved.error }
@@ -1533,7 +1567,8 @@ ipcMain.handle('sandbox:read-file', async (_, filePath: string) => {
 })
 
 // Write file to sandbox
-ipcMain.handle('sandbox:write-file', async (_, filePath: string, content: string) => {
+ipcMain.handle('sandbox:write-file', async (event, filePath: string, content: string) => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const resolved = resolveSandboxPath(filePath)
   if (!resolved.success || !resolved.path) {
     return { success: false, error: resolved.error }
@@ -1546,8 +1581,9 @@ ipcMain.handle('sandbox:write-file', async (_, filePath: string, content: string
     // Ensure parent directory exists
     const dirname = path.dirname(resolved.path)
     if (!fs.existsSync(dirname)) {
-      // Security check for parent directory too (redundant but safe)
-      if (!dirname.startsWith(ensureSandboxExists())) {
+      const sandboxRoot = path.resolve(ensureSandboxExists())
+      const rel = path.relative(sandboxRoot, dirname)
+      if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
          return { success: false, error: "Parent directory traversal blocked" }
       }
       fs.mkdirSync(dirname, { recursive: true })
@@ -1561,7 +1597,8 @@ ipcMain.handle('sandbox:write-file', async (_, filePath: string, content: string
 })
 
 // List files in sandbox directory
-ipcMain.handle('sandbox:list-files', async (_, relativePath: string = '') => {
+ipcMain.handle('sandbox:list-files', async (event, relativePath: string = '') => {
+  if (!validateIpcSender(event.senderFrame)) return { success: false, error: 'Forbidden sender' }
   const resolved = resolveSandboxPath(relativePath || '.')
   if (!resolved.success) return { success: false, error: resolved.error }
   

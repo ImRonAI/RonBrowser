@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   ActivityLogEntry,
   Issue,
@@ -526,15 +526,38 @@ export const useProjectsStore = create<ProjectState>()(
 
         set({ isLoading: true })
         try {
-          const [projectsRes, issuesRes, linksRes, activityRes] = await Promise.all([
-            shouldQueryTable('projects')
-              ? supabase.from('projects').select('*').eq('user_id', user.id)
-              : Promise.resolve(null),
-            shouldQueryTable('issues') ? supabase.from('issues').select('*') : Promise.resolve(null),
-            shouldQueryTable('issue_links') ? supabase.from('issue_links').select('*') : Promise.resolve(null),
-            shouldQueryTable('activity_log') ? supabase.from('activity_log').select('*') : Promise.resolve(null),
-          ])
+          const projectsRes = shouldQueryTable('projects')
+            ? await supabase.from('projects').select('*').eq('user_id', user.id)
+            : null
 
+          let projectIds: string[] = []
+          let visibleIssueIds: string[] = []
+          let issuesRes: any | null = null
+          let linksRes: any | null = null
+          let activityRes: any | null = null
+
+          if (projectsRes?.data) {
+            projectIds = projectsRes.data.map((project: any) => project.id)
+          }
+
+          const [scopedIssuesRes, scopedActivityRes] = await Promise.all([
+            shouldQueryTable('issues') && projectIds.length
+              ? supabase.from('issues').select('*').in('project_id', projectIds)
+              : Promise.resolve(null),
+            shouldQueryTable('activity_log') && projectIds.length
+              ? supabase.from('activity_log').select('*').in('project_id', projectIds)
+              : Promise.resolve(null),
+          ])
+          issuesRes = scopedIssuesRes
+          activityRes = scopedActivityRes
+
+          if (issuesRes?.data) {
+            visibleIssueIds = issuesRes.data.map((issue: any) => issue.id)
+          }
+
+          linksRes = shouldQueryTable('issue_links') && visibleIssueIds.length
+            ? await supabase.from('issue_links').select('*').in('source_id', visibleIssueIds)
+            : null
           const nextState: Partial<ProjectState> = {
             isInitialized: true,
             isLoading: false,
@@ -1108,6 +1131,8 @@ export const useProjectsStore = create<ProjectState>()(
     }),
     {
       name: 'projects-storage',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
       partialize: (state) => ({
         projects: state.projects,
         issues: state.issues,
@@ -1115,6 +1140,7 @@ export const useProjectsStore = create<ProjectState>()(
         activity: state.activity,
         people: state.people,
       }),
+      migrate: (persisted) => persisted as Partial<ProjectState>,
     }
   )
 )

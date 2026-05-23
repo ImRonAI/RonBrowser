@@ -122,6 +122,23 @@ function extractLiveToolExecutions(messages: UIMessage[]) {
   return Array.from(toolMap.values())
 }
 
+function hydrateParts(content: unknown): MessagePart[] {
+  if (typeof content === 'string') return [{ type: 'text', text: content } as MessagePart]
+  if (!Array.isArray(content)) return [{ type: 'text', text: '' } as MessagePart]
+
+  return content.flatMap((block: any): MessagePart[] => {
+    if (typeof block === 'string') return [{ type: 'text', text: block } as MessagePart]
+    if (block?.type === 'text') return [{ type: 'text', text: block.text || '' } as MessagePart]
+    if (block?.type === 'reasoning' || block?.type === 'thinking') {
+      return [{ type: 'reasoning', text: block.text || block.content || '', state: 'done' } as MessagePart]
+    }
+    if (block?.type?.startsWith?.('data-')) return [block as MessagePart]
+    if (block?.type === 'dynamic-tool' || block?.type?.startsWith?.('tool-')) return [block as MessagePart]
+    if (block?.type === 'source-url' || block?.type === 'source-document' || block?.type === 'file') return [block as MessagePart]
+    return []
+  })
+}
+
 export function AgentPanel() {
   const {
     isPanelOpen,
@@ -153,27 +170,12 @@ export function AgentPanel() {
     }
     sessionIdRef.current = sid
 
-    // Fetch and hydrate chat history into UIMessage text parts.
+    // Fetch and hydrate chat history into UIMessage parts.
     fetch(`http://localhost:8765/chat-sessions/${sid}`)
       .then(res => res.json())
       .then(data => {
         const loadedMessages: UIMessage[] = data.messages.map((msg: any, i: number) => {
-          const textContent =
-            typeof msg.content === 'string'
-              ? msg.content
-              : Array.isArray(msg.content)
-                ? msg.content
-                    .map((block: any) => {
-                      if (typeof block === 'string') return block
-                      if (block?.type === 'text' && typeof block.text === 'string') return block.text
-                      if ((block?.type === 'reasoning' || block?.type === 'thinking') && typeof (block.text || block.content) === 'string') {
-                        return block.text || block.content
-                      }
-                      return ''
-                    })
-                    .join('')
-                : ''
-          const parts: MessagePart[] = [{ type: 'text', text: textContent }]
+          const parts = hydrateParts(msg.content)
 
           return {
             id: `msg-${sid}-${i}`,

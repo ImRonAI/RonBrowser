@@ -92,6 +92,7 @@ export function NotionEditor({
       AskRonExtension,
     ],
     content,
+    shouldRerenderOnTransaction: false,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
@@ -110,22 +111,13 @@ export function NotionEditor({
     },
   })
 
-  // Sync content updates if they come from outside
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-       // Only update if content is significantly different to avoid cursor jumps
-       // This is a naive check, for a real collab editor we'd need more robust syncing
-       // But for this use case (single user editor mostly), it's fine to just let the internal state drive
-       // and only update from props if it's a completely new task load.
-       // For now, we assume the parent only updates content on initial load or task switch.
+    if (!editor) return
+
+    const nextContent = content || ''
+    if (nextContent !== editor.getHTML()) {
+      editor.commands.setContent(nextContent, { emitUpdate: false })
     }
-  }, [content, editor])
-  
-  // Re-sync content when editor instance changes (e.g. initial load)
-  useEffect(() => {
-      if (editor && editor.isEmpty && content) {
-          editor.commands.setContent(content)
-      }
   }, [editor, content])
 
 

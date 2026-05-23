@@ -70,7 +70,7 @@ const initialQuickResult: QuickSearchResult = {
 // Store
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const useSearchStore = create<SearchState>((set, get) => ({
+export const useSearchStore = create<SearchState>()((set, get) => ({
   // Initial state
   query: '',
   phase: 'idle',

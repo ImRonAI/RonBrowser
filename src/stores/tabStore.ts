@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 export interface Tab {
   id: string
@@ -140,13 +140,16 @@ export const useTabStore = create<TabState>()(
     }),
     {
       name: 'tab-storage',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
       partialize: (state) => ({
         tabs: state.tabs.map(tab => ({
           ...tab,
           isLoading: false // Don't persist loading state
         })),
         activeTabId: state.activeTabId
-      })
+      }),
+      migrate: (persisted) => persisted as Partial<TabState>,
     }
   )
 )

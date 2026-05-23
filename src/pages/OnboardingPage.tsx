@@ -25,9 +25,9 @@ export function OnboardingPage() {
 
   // Focus input on step change
   useEffect(() => {
-    if (currentStep === 'interview') {
-      setTimeout(() => inputRef.current?.focus(), 500)
-    }
+    if (currentStep !== 'interview') return
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 500)
+    return () => clearTimeout(focusTimer)
   }, [currentStep, currentQuestionIndex])
 
   // Handle Input Submit
@@ -43,25 +43,26 @@ export function OnboardingPage() {
 
   // Handle Reasoning Simulation
   useEffect(() => {
-    if (currentStep === 'reasoning') {
-      const steps = [
-        { type: 'thinking', content: 'Analyzing responses...' },
-        { type: 'search', content: 'Identifying key interest clusters...' },
-        { type: 'tool-use', content: 'Generating personal profile...' },
-        { type: 'conclusion', content: 'Profile calibration complete.' }
-      ]
+    if (currentStep !== 'reasoning') return
+    const steps = [
+      { type: 'thinking', content: 'Analyzing responses...' },
+      { type: 'search', content: 'Identifying key interest clusters...' },
+      { type: 'tool-use', content: 'Generating personal profile...' },
+      { type: 'conclusion', content: 'Profile calibration complete.' }
+    ]
 
-      let delay = 0
-      steps.forEach((step, index) => {
-        delay += 1500
-        setTimeout(() => {
-          addReasoningStep(step.type, step.content)
-          if (index === steps.length - 1) {
-            setTimeout(completeOnboarding, 1000)
-          }
-        }, delay)
-      })
-    }
+    const timeoutIds: ReturnType<typeof setTimeout>[] = []
+    let delay = 0
+    steps.forEach((step, index) => {
+      delay += 1500
+      timeoutIds.push(setTimeout(() => {
+        addReasoningStep(step.type, step.content)
+        if (index === steps.length - 1) {
+          timeoutIds.push(setTimeout(completeOnboarding, 1000))
+        }
+      }, delay))
+    })
+    return () => timeoutIds.forEach(clearTimeout)
   }, [currentStep, addReasoningStep, completeOnboarding])
 
   // Animation variants

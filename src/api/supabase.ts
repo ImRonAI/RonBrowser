@@ -19,10 +19,10 @@ interface SupabaseConfig {
       autoRefreshToken?: boolean
       persistSession?: boolean
       detectSessionInUrl?: boolean
+      flowType?: 'implicit' | 'pkce'
     }
   }
 }
-
 const getSupabaseConfig = (): SupabaseConfig => {
   const url = import.meta.env.VITE_SUPABASE_URL
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -41,14 +41,11 @@ const getSupabaseConfig = (): SupabaseConfig => {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false, // Electron doesn't use URL-based auth
+        flowType: 'pkce',
       }
     }
   }
 }
-
-// ============================================
-// Supabase Client Singleton
-// ============================================
 
 // ============================================
 // Supabase Client Singleton
@@ -59,7 +56,14 @@ let supabaseInstance: SupabaseClient | null = null
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseInstance) {
     const config = getSupabaseConfig()
-    supabaseInstance = createClient(config.url, config.anonKey, config.options)
+    supabaseInstance = createClient(config.url, config.anonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+        flowType: 'pkce',
+      },
+    })
   }
   return supabaseInstance
 }
@@ -153,6 +157,17 @@ export async function signOut() {
 export async function getCurrentUser() {
   const { data: { user } } = await supabase.auth.getUser()
   return user
+}
+
+export async function exchangeOAuthCodeForSession(callbackUrl: string) {
+  const code = (() => {
+    try {
+      return new URL(callbackUrl).searchParams.get('code') ?? callbackUrl
+    } catch {
+      return callbackUrl
+    }
+  })()
+  return supabase.auth.exchangeCodeForSession(code)
 }
 
 // ============================================

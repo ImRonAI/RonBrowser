@@ -1,40 +1,39 @@
 # Ron Browser Search Chat API - Python Dependencies
 
 # Web Framework
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-wsproto
+fastapi==0.128.0
+uvicorn[standard]==0.40.0
+wsproto==1.3.2
 
 # HTTP Client
-httpx>=0.26.0
+httpx==0.28.1
 
 # Data Validation
-pydantic>=2.5.0
+pydantic==2.12.5
 
 # Vector Database for Persistent Memory
-lancedb>=0.4.0
-pyarrow>=14.0.0
+lancedb==0.27.0
+pyarrow==23.0.0
 
 # Environment Variables
-python-dotenv>=1.0.0
+python-dotenv==1.2.1
 
 # AI/LLM Dependencies
-openai>=1.12.0
-anthropic>=0.50.0
-google-genai>=1.0.0
+openai==2.15.0
+anthropic==0.76.0
+google-genai==1.60.0
 
 # Strands Agent Framework
-strands-agents>=1.23.0,<2
-# Note: strands-agents-tools is installed from local agent/tools directory
-# pip install -e agent/tools
+strands-agents[a2a]==1.23.0
+strands-agents-tools==0.6.0
 
 # Strands Tools Optional Dependencies
-a2a-sdk>=0.3.0
-mem0ai>=0.1.99
-opensearch-py>=2.8.0
-bedrock-agentcore>=1.1.0
-nest-asyncio>=1.5.0
-playwright>=1.42.0
+a2a-sdk==0.3.22
+mem0ai==1.0.2
+opensearch-py==3.1.0
+bedrock-agentcore==1.2.0
+nest-asyncio==1.6.0
+playwright==1.57.0
 
 # MCP (Model Context Protocol)
-mcp>=1.26.0,<2
+mcp==1.26.0

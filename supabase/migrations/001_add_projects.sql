@@ -19,5 +19,10 @@ CREATE POLICY "Users manage own projects"
 CREATE INDEX idx_projects_user_id ON projects(user_id);
 
 -- Extend tasks table
-ALTER TABLE tasks ADD COLUMN project_id UUID REFERENCES projects(id) ON DELETE SET NULL;
-CREATE INDEX idx_tasks_project_id ON tasks(project_id);
+ALTER TABLE IF EXISTS public.tasks ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL;
+do $$
+begin
+  if to_regclass('public.tasks') is not null then
+    create index if not exists idx_tasks_project_id on public.tasks(project_id);
+  end if;
+end $$;

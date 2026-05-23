@@ -255,8 +255,8 @@ export function SonarReasoningProHookExample() {
 
       {/* Main Content */}
       {content && (
-        <div className="mb-6 prose prose-sm dark:prose-invert max-w-none">
-          <div dangerouslySetInnerHTML={{ __html: content }} />
+        <div className="mb-6 whitespace-pre-wrap text-sm text-ink dark:text-ink-inverse">
+          {content}
         </div>
       )}
 

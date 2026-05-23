@@ -4,12 +4,6 @@ import { contextBridge, ipcRenderer } from 'electron'
 // Types
 // ============================================
 
-interface StoredTokens {
-  accessToken: string
-  refreshToken: string
-  expiresAt: number
-}
-
 interface StreamRequest {
   url: string
   method: string
@@ -43,20 +37,12 @@ const electronAPI = {
     ipcRenderer.invoke('set-theme', theme),
 
   // ----------------------------------------
-  // Authentication
+  // Deep Links
   // ----------------------------------------
-  auth: {
-    storeTokens: (tokens: StoredTokens) => 
-      ipcRenderer.invoke('auth:store-tokens', tokens),
-    
-    getTokens: (): Promise<StoredTokens | null> => 
-      ipcRenderer.invoke('auth:get-tokens'),
-    
-    clearTokens: () => 
-      ipcRenderer.invoke('auth:clear-tokens'),
-    
-    isEncryptionAvailable: (): Promise<boolean> => 
-      ipcRenderer.invoke('auth:is-encryption-available'),
+  onDeepLink: (callback: (url: string) => void) => {
+    const handler = (_: unknown, url: string) => callback(url)
+    ipcRenderer.on('deep-link', handler)
+    return () => ipcRenderer.removeListener('deep-link', handler)
   },
 
   // ----------------------------------------
@@ -218,8 +204,6 @@ const electronAPI = {
       ipcRenderer.invoke('browser:get-text') as Promise<{ success: boolean; text?: string; error?: string }>,
     getHTML: () =>
       ipcRenderer.invoke('browser:get-html') as Promise<{ success: boolean; html?: string; error?: string }>,
-    evaluate: (script: string) =>
-      ipcRenderer.invoke('browser:evaluate', script) as Promise<{ success: boolean; result?: unknown; error?: string }>,
     waitForSelector: (selector: string, timeoutMs?: number) =>
       ipcRenderer.invoke('browser:wait-for-selector', selector, timeoutMs) as Promise<{ success: boolean; found?: boolean; error?: string }>,
     getActiveUrl: () =>

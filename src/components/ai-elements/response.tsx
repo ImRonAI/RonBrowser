@@ -83,7 +83,7 @@ export function ResponseMarkdown({ content, isStreaming, className }: ResponseMa
       )}
       mode={isStreaming ? 'streaming' : 'static'}
       isAnimating={isStreaming}
-      parseIncompleteMarkdown={true}
+      parseIncompleteMarkdown={isStreaming}
     >
       {content}
     </MessageResponse>

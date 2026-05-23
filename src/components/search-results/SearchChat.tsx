@@ -147,6 +147,27 @@ function getMessageText(parts: MessagePart[]): string {
     .join('')
 }
 
+function mergeToolResult(
+  parts: MessagePart[],
+  toolCallId: string | undefined,
+  output: unknown,
+  errorText?: string
+) {
+  if (!toolCallId) return
+  const index = parts.findIndex((part) => {
+    if (!isToolUIPart(part)) return false
+    return (part as { toolCallId?: string }).toolCallId === toolCallId
+  })
+  if (index === -1) return
+
+  parts[index] = {
+    ...(parts[index] as object),
+    state: errorText ? 'output-error' : 'output-available',
+    output,
+    errorText,
+  } as MessagePart
+}
+
 function toCitations(sources: SourceData[]) {
   return sources.map((source, index) => ({
     number: String(index + 1),
@@ -266,10 +287,21 @@ export function SearchChat({ searchResult, onBack, initialContext }: SearchChatP
                 parts.push({
                   type: 'dynamic-tool',
                   toolName: block.name,
-                  toolCallId: block.id || `call_${i}_${Math.random().toString(36).slice(2, 8)}`,
-                  state: 'output-available',
+                  toolCallId: block.id,
+                  state: block.output ? 'output-available' : 'input-available',
                   input: block.input,
+                  output: block.output,
+                  errorText: block.errorText,
                 } as MessagePart)
+              } else if (block?.type === 'tool_result') {
+                mergeToolResult(parts, block.toolCallId, block.output, block.errorText)
+              } else if (
+                block?.type?.startsWith?.('data-') ||
+                block?.type === 'source-url' ||
+                block?.type === 'source-document' ||
+                block?.type === 'file'
+              ) {
+                parts.push(block as MessagePart)
               }
             })
           }

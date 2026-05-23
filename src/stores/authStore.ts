@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js'
 import {
   supabase,
@@ -227,14 +227,6 @@ export const useAuthStore = create<AuthState>()(
                 isInitialized: true,
               })
 
-              // Store tokens in Electron's secure storage
-              if (window.electron?.auth) {
-                await window.electron.auth.storeTokens({
-                  accessToken: session.access_token,
-                  refreshToken: session.refresh_token,
-                  expiresAt: session.expires_at || 0,
-                })
-              }
             } else {
               set({
                 user: null,
@@ -271,13 +263,6 @@ export const useAuthStore = create<AuthState>()(
             if (session) {
               const currentUser = get().user
               if (get().isAuthenticated && currentUser?.id === session.user.id) {
-                if (window.electron?.auth) {
-                  window.electron.auth.storeTokens({
-                    accessToken: session.access_token,
-                    refreshToken: session.refresh_token,
-                    expiresAt: session.expires_at || 0,
-                  })
-                }
                 break
               }
 
@@ -285,17 +270,9 @@ export const useAuthStore = create<AuthState>()(
               set({
                 user,
                 isAuthenticated: true,
+                isLoading: false,
                 error: null,
               })
-              
-              // Store tokens
-              if (window.electron?.auth) {
-                window.electron.auth.storeTokens({
-                  accessToken: session.access_token,
-                  refreshToken: session.refresh_token,
-                  expiresAt: session.expires_at || 0,
-                })
-              }
             }
             break
 
@@ -303,22 +280,11 @@ export const useAuthStore = create<AuthState>()(
             set({
               user: null,
               isAuthenticated: false,
+              isLoading: false,
             })
-            
-            // Clear tokens
-            if (window.electron?.auth) {
-              window.electron.auth.clearTokens()
-            }
             break
 
           case 'TOKEN_REFRESHED':
-            if (session && window.electron?.auth) {
-              window.electron.auth.storeTokens({
-                accessToken: session.access_token,
-                refreshToken: session.refresh_token,
-                expiresAt: session.expires_at || 0,
-              })
-            }
             break
 
           case 'USER_UPDATED':
@@ -427,14 +393,17 @@ export const useAuthStore = create<AuthState>()(
           // Map our provider names to Supabase provider names
           const supabaseProvider = provider === 'microsoft' ? 'azure' : provider
           
-          const { error } = await supabase.auth.signInWithOAuth({
+          const { data, error } = await supabase.auth.signInWithOAuth({
             provider: supabaseProvider,
             options: {
-              // For Electron, OAuth needs special handling
-              // This is a placeholder for when OAuth is implemented
               redirectTo: 'ron://auth/callback',
+              skipBrowserRedirect: true,
             }
           })
+
+          if (data.url) {
+            window.open(data.url, '_blank', 'noopener,noreferrer')
+          }
 
           if (error) {
             set({
@@ -459,11 +428,6 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           await supabaseSignOut()
-          
-          // Clear Electron tokens
-          if (window.electron?.auth) {
-            await window.electron.auth.clearTokens()
-          }
 
           set({
             user: null,
@@ -650,14 +614,33 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({
-        // Only persist minimal data - session is managed by Supabase
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-      }),
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      partialize: () => ({}),
+      migrate: (persisted) => persisted as Partial<AuthState>,
     }
   )
 )
+
+export async function handleDeepLinkCallback(url: string) {
+  try {
+    const callbackUrl = new URL(url)
+    const hash = callbackUrl.hash.startsWith('#') ? callbackUrl.hash.slice(1) : callbackUrl.hash
+    const hashParams = new URLSearchParams(hash)
+    const code = callbackUrl.searchParams.get('code') ?? hashParams.get('code')
+
+    if (!code) return
+
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) throw error
+  } catch (error) {
+    useAuthStore.setState({
+      error: mapAuthError(error),
+      isLoading: false,
+    })
+    throw error
+  }
+}
 
 // ============================================
 // Auto-initialize

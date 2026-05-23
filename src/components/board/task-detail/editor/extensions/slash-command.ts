@@ -2,7 +2,12 @@ import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 import tippy from 'tippy.js'
+import type { Instance } from 'tippy.js'
 import { SlashCommandMenu } from '../SlashCommandMenu'
+
+type SlashCommandMenuRef = {
+  onKeyDown?: (props: any) => boolean
+}
 
 export const SLASH_COMMANDS = [
   { id: 'ask-ron', label: 'Ask Ron', icon: 'sparkles', action: 'askRon' },
@@ -51,24 +56,23 @@ export const suggestionOptions = {
   },
 
   render: () => {
-    let component: any
-    let popup: any
+    let component: ReactRenderer<SlashCommandMenuRef, any> | null = null
+    let popup: Instance | null = null
 
     return {
       onStart: (props: any) => {
-        component = new ReactRenderer(SlashCommandMenu, {
+        if (!props.clientRect) return
+
+        const renderer = new ReactRenderer<SlashCommandMenuRef, any>(SlashCommandMenu as any, {
           props,
           editor: props.editor,
         })
+        component = renderer
 
-        if (!props.clientRect) {
-          return
-        }
-
-        popup = tippy('body', {
+        popup = tippy(document.body, {
           getReferenceClientRect: props.clientRect,
           appendTo: () => document.body,
-          content: component.element,
+          content: renderer.element,
           showOnCreate: true,
           interactive: true,
           trigger: 'manual',
@@ -76,30 +80,26 @@ export const suggestionOptions = {
         })
       },
 
-      onUpdate(props: any) {
-        component.updateProps(props)
-
-        if (!props.clientRect) {
-          return
+      onUpdate: (props: any) => {
+        component?.updateProps(props)
+        if (props.clientRect && popup) {
+          popup.setProps({ getReferenceClientRect: props.clientRect })
         }
-
-        popup[0].setProps({
-          getReferenceClientRect: props.clientRect,
-        })
       },
 
-      onKeyDown(props: any) {
+      onKeyDown: (props: any) => {
         if (props.event.key === 'Escape') {
-          popup[0].hide()
+          popup?.hide()
           return true
         }
-
-        return component.ref?.onKeyDown(props)
+        return component?.ref?.onKeyDown?.(props) ?? false
       },
 
-      onExit() {
-        popup[0].destroy()
-        component.destroy()
+      onExit: () => {
+        popup?.destroy()
+        component?.destroy()
+        popup = null
+        component = null
       },
     }
   },

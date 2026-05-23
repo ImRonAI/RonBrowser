@@ -240,16 +240,14 @@ export async function executeToolInSandbox(
 
     // Set up timeout
     const timeoutHandle = setTimeout(() => {
+      const pending = pendingExecutions.get(requestId)
       pendingExecutions.delete(requestId)
       resolve({
         success: false,
         exitCode: -1,
-        result: {
-          status: 'error',
-          content: [{ text: `Tool execution timed out after ${timeout}ms` }]
-        },
-        stdout: pendingExecutions.get(requestId)?.stdout ?? '',
-        stderr: pendingExecutions.get(requestId)?.stderr ?? '',
+        result: { status: 'error', content: [{ text: `Tool execution timed out after ${timeout}ms` }] },
+        stdout: pending?.stdout ?? '',
+        stderr: pending?.stderr ?? '',
         duration: timeout,
         error: 'Timeout'
       })

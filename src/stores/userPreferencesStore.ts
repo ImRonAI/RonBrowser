@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 type Theme = 'light' | 'dark' | 'glass' | 'system'
 type InteractionMode = 'talk' | 'type'
@@ -142,6 +142,17 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
     }),
     {
       name: 'user-preferences-storage',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      partialize: (state) => ({
+        theme: state.theme,
+        defaultInteractionMode: state.defaultInteractionMode,
+        defaultSearchMode: state.defaultSearchMode,
+        contentDensity: state.contentDensity,
+        showAnimations: state.showAnimations,
+        reduceMotion: state.reduceMotion,
+      }),
+      migrate: (persisted) => persisted as Partial<UserPreferencesState>,
       onRehydrateStorage: () => (state, error) => {
         if (error || !state || typeof window === 'undefined') return
         const storedTheme = localStorage.getItem('theme') as Theme | null

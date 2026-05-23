@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 type OnboardingMode = 'talk' | 'type' | null
 type OnboardingStep =
@@ -171,7 +171,17 @@ export const useOnboardingStore = create<OnboardingState>()(
       }
     }),
     {
-      name: 'onboarding-storage'
+      name: 'onboarding-storage',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      partialize: (state) => ({
+        mode: state.mode,
+        currentStep: state.currentStep,
+        currentQuestionIndex: state.currentQuestionIndex,
+        isComplete: state.isComplete,
+        answers: state.answers,
+      }),
+      migrate: (persisted) => persisted as Partial<OnboardingState>,
     }
   )
 )

@@ -1,7 +1,10 @@
-strands-agents[a2a]
-strands-agents-tools[a2a_client]
-pyautogui
-pytesseract
-opencv-python-headless
-pillow
-google-genai
+fastapi==0.128.0
+uvicorn[standard]==0.40.0
+strands-agents[a2a]==1.23.0
+strands-agents-tools[a2a_client]==0.6.0
+mcp==1.26.0
+pyautogui==0.9.54
+pytesseract==0.3.13
+opencv-python-headless==4.12.0.88
+pillow==12.2.0
+google-genai==1.60.0

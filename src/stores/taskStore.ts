@@ -191,7 +191,7 @@ interface TaskState {
   addFileReference: (taskId: string, fileRef: any) => void
 }
 
-export const useTaskStore = create<TaskState>((set, get) => ({
+export const useTaskStore = create<TaskState>()((set, get) => ({
   tasks: sampleTasks,
 
   createTask: (taskOverrides: any) => {
